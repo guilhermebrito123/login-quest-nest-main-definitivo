@@ -637,12 +637,12 @@ export default function Dashboard24h() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-destructive" />
-                Incidentes por Severidade (Disponí­vel em breve!)
+                Incidentes por Severidade (DisponÃ­vel em breve!)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm">Crí­tico</span>
+                <span className="text-sm">CrÃ­tico</span>
                 <Badge variant="destructive">{stats.incidentes_critico}</Badge>
               </div>
               <div className="flex items-center justify-between">
@@ -650,7 +650,7 @@ export default function Dashboard24h() {
                 <Badge variant="destructive">{stats.incidentes_alto}</Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm">Médio</span>
+                <span className="text-sm">MÃ©dio</span>
                 <Badge variant="secondary">{stats.incidentes_medio}</Badge>
               </div>
             </CardContent>
@@ -673,7 +673,7 @@ export default function Dashboard24h() {
                 <Badge variant="destructive">{stats.chamados_alto}</Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm">Média</span>
+                <span className="text-sm">MÃ©dia</span>
                 <Badge variant="secondary">{stats.chamados_medio}</Badge>
               </div>
             </CardContent>
@@ -686,7 +686,7 @@ export default function Dashboard24h() {
           <Card className="h-[500px]">
             <CardHeader>
               <CardTitle>Chamados em aberto</CardTitle>
-              <CardDescription>Chamados ainda não concluídos</CardDescription>
+              <CardDescription>Chamados ainda nÃ£o concluï¿½dos</CardDescription>
             </CardHeader>
             <CardContent className="h-[calc(100%-100px)] overflow-y-auto space-y-3">
               {chamadosFeed.length === 0 && (
@@ -702,7 +702,7 @@ export default function Dashboard24h() {
                         {chamado.titulo || `Chamado ${chamado.numero ?? "-"}`}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {chamado.unidade?.nome ? `Unidade: ${chamado.unidade.nome}` : "Unidade não informada"}
+                        {chamado.unidade?.nome ? `Unidade: ${chamado.unidade.nome}` : "Unidade nï¿½o informada"}
                       </p>
                     </div>
                     <Badge variant="outline" className="capitalize">
@@ -730,15 +730,15 @@ export default function Dashboard24h() {
 
           <Card className="h-[500px]">
             <CardHeader>
-              <CardTitle>Execução de Checklists</CardTitle>
+              <CardTitle>ExecuÃ§Ã£o de Checklists</CardTitle>
               <CardDescription>
-                Acompanhamento das execuções registradas
+                Acompanhamento das execuÃ§Ãµes registradas
               </CardDescription>
             </CardHeader>
                         <CardContent className="h-[calc(100%-100px)] overflow-y-auto space-y-3">
               {checklistExecucoes.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Nenhuma execução de checklist cadastrada até o momento.
+                  Nenhuma execuÃ§Ã£o de checklist cadastrada atÃ© o momento.
                 </p>
               )}
               {checklistExecucoes.map((execucao) => (
@@ -786,7 +786,7 @@ export default function Dashboard24h() {
                 variant="outline"
                 onClick={() => navigate("/checklist-execucoes")}
               >
-                Gerenciar execuções
+                Gerenciar execuÃ§Ãµes
               </Button>
             </div>
           </Card>
