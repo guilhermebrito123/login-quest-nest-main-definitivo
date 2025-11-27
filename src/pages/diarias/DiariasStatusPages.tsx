@@ -359,6 +359,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 <Button
                   variant="outline"
                   size="sm"
+                  className="bg-red-600 text-white hover:bg-red-700"
                   onClick={() => setSelectedMonth(fallbackMonth)}
                 >
                   Ver mês com registros
