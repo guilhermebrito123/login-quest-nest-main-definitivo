@@ -1,0 +1,10 @@
+# -*- coding: utf-8 -*-
+from pathlib import Path
+path = Path("src/pages/ChecklistExecucoes.tsx")
+text = path.read_text(encoding="utf-8")
+needle = "        </div>\r\n\r\n        <Card>"
+if needle not in text:
+    raise SystemExit('needle not found')
+card_block = "        </div>\r\n\r\n        <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4\">\r\n          <Card>\r\n            <CardHeader className=\"flex flex-col gap-2\">\r\n              <div className=\"flex items-center justify-between gap-2\">\r\n                <CardTitle>Execu??ues conclu??das</CardTitle>\r\n                <Select value={selectedMonth} onValueChange={setSelectedMonth} disabled={monthOptions.length === 0}>\r\n                  <SelectTrigger className=\"w-[180px]\">\r\n                    <SelectValue placeholder=\"Selecione o m??s\" />\r\n                  </SelectTrigger>\r\n                  <SelectContent>\r\n                    {monthOptions.map((month) => {\r\n                      const [year, m] = month.split(\"-\");\r\n                      const label = new Date(Number(year), Number(m) - 1, 1).toLocaleDateString(\"pt-BR\", {\r\n                        month: \"long\",\r\n                        year: \"numeric\",\r\n                      });\r\n                      return (\r\n                        <SelectItem key={month} value={month}>\r\n                          {label}\r\n                        </SelectItem>\r\n                      );\r\n                    })}\r\n                  </SelectContent>\r\n                </Select>\r\n              </div>\r\n            </CardHeader>\r\n            <CardContent>\r\n              <p className=\"text-4xl font-bold\">{concludedCountForSelectedMonth}</p>\r\n              <p className=\"text-sm text-muted-foreground\">Execu??ues marcadas como conclu??das no m??s selecionado</p>\r\n            </CardContent>\r\n          </Card>\r\n        </div>\r\n\r\n        <Card>"
+text = text.replace(needle, card_block, 1)
+path.write_text(text, encoding="utf-8")
