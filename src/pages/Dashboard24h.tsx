@@ -41,11 +41,11 @@ interface UnidadeComDados {
   cidade: string;
   uf: string;
   contrato: {
-    nome: string;
+    negocio: string;
     cliente: {
       razao_social: string;
     };
-    sla_alvo_pct?: number | null;
+    conq_perd: number | null;
   };
   sla_atual: number;
   chamados_abertos: number;
@@ -54,7 +54,6 @@ interface UnidadeComDados {
   total_postos: number;
   postos_preenchidos: number;
   porcentagem_ocupacao: number;
-  meta_sla: number | null;
 }
 
 interface ChamadoFeed {
@@ -179,8 +178,8 @@ export default function Dashboard24h() {
           uf,
           contrato_id,
           contratos (
-            nome,
-            sla_alvo_pct,
+            negocio,
+            conq_perd,
             cliente_id,
             clientes (
               razao_social
@@ -219,7 +218,8 @@ export default function Dashboard24h() {
             cidade: unidade.cidade || "",
             uf: unidade.uf || "",
             contrato: {
-              nome: unidade.contratos?.nome || "Sem contrato",
+              negocio: unidade.contratos?.negocio || "Sem contrato",
+              conq_perd: unidade.contratos?.conq_perd ?? null,
               cliente: {
                 razao_social:
                   unidade.contratos?.clientes?.razao_social || "Sem cliente",
@@ -232,7 +232,6 @@ export default function Dashboard24h() {
             total_postos: postosData.total,
             postos_preenchidos: postosPreenchidos,
             porcentagem_ocupacao: porcentagemOcupacao,
-            meta_sla: unidade.contratos?.sla_alvo_pct || null,
           };
         })
       );
@@ -537,9 +536,9 @@ export default function Dashboard24h() {
               unidade.cidade
             }/${unidade.uf}</p>
             <div style="border-top: 1px solid #e5e7eb; padding-top: 8px;">
-              <p style="font-size: 12px; margin-bottom: 4px;">Meta de SLA: <strong>${
-                unidade.meta_sla ?? "N/A"
-              }${unidade.meta_sla ? "%" : ""}</strong></p>
+              <p style="font-size: 12px; margin-bottom: 4px;">Contrato: <strong>${
+                unidade.contrato.negocio
+              }</strong>${unidade.contrato.conq_perd ? ` (${unidade.contrato.conq_perd})` : ""}</p>
               <p style="font-size: 12px; margin-bottom: 4px;">Postos Preenchidos: <strong>${
                 unidade.postos_preenchidos
               }/${unidade.total_postos}</strong></p>

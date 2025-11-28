@@ -32,13 +32,10 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
   const [clientes, setClientes] = useState<any[]>([]);
   const initialState = {
     cliente_id: clienteId || "",
-    nome: "",
-    codigo: "",
+    negocio: "",
     data_inicio: "",
     data_fim: "",
-    sla_alvo_pct: "95",
-    nps_meta: "",
-    status: "ativo",
+    conq_perd: new Date().getFullYear().toString(),
   };
   const [formData, setFormData] = useState(initialState);
 
@@ -56,9 +53,7 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
       setLoading(true);
       const { data, error } = await supabase
         .from("contratos")
-        .select(
-          "cliente_id, nome, codigo, data_inicio, data_fim, sla_alvo_pct, nps_meta, status"
-        )
+        .select("cliente_id, negocio, data_inicio, data_fim, conq_perd")
         .eq("id", contratoId)
         .single();
 
@@ -71,13 +66,10 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
       } else if (data) {
         setFormData({
           cliente_id: data.cliente_id ?? "",
-          nome: data.nome ?? "",
-          codigo: data.codigo ?? "",
+          negocio: data.negocio ?? "",
           data_inicio: data.data_inicio ?? "",
           data_fim: data.data_fim ?? "",
-          sla_alvo_pct: data.sla_alvo_pct?.toString() ?? "95",
-          nps_meta: data.nps_meta?.toString() ?? "",
-          status: data.status ?? "ativo",
+          conq_perd: data.conq_perd?.toString() ?? new Date().getFullYear().toString(),
         });
       }
       setLoading(false);
@@ -89,8 +81,7 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
   const loadClientes = async () => {
     const { data } = await supabase
       .from("clientes")
-      .select("id, razao_social")
-      .eq("status", "ativo")
+      .select("id, razao_social, nome_fantasia")
       .order("razao_social");
     setClientes(data || []);
   };
@@ -100,11 +91,38 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
     setLoading(true);
 
     try {
+      if (!formData.cliente_id) {
+        toast({
+          title: "Cliente obrigatório",
+          description: "Selecione o cliente responsável pelo contrato.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!formData.negocio.trim()) {
+        toast({
+          title: "Nome do negócio obrigatório",
+          description: "Informe um identificador para o contrato.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const parsedConqPerd = parseInt(formData.conq_perd, 10);
+      if (Number.isNaN(parsedConqPerd)) {
+        toast({
+          title: "Ano inválido",
+          description: "Informe um ano válido para Conq/Perd.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const dataToSave = {
-        ...formData,
-        sla_alvo_pct: parseFloat(formData.sla_alvo_pct),
-        nps_meta: formData.nps_meta ? parseFloat(formData.nps_meta) : null,
+        cliente_id: formData.cliente_id,
+        negocio: formData.negocio.trim(),
+        data_inicio: formData.data_inicio,
         data_fim: formData.data_fim || null,
+        conq_perd: parsedConqPerd,
       };
 
       if (contratoId) {
@@ -169,7 +187,7 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
                 <SelectContent>
                   {clientes.map((cliente) => (
                     <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.razao_social}
+                      {cliente.nome_fantasia || cliente.razao_social || cliente.id}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -177,24 +195,12 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="nome">Nome do Contrato *</Label>
+              <Label htmlFor="negocio">Nome do negócio *</Label>
               <Input
-                id="nome"
-                value={formData.nome}
+                id="negocio"
+                value={formData.negocio}
                 onChange={(e) =>
-                  setFormData({ ...formData, nome: e.target.value })
-                }
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="codigo">Código *</Label>
-              <Input
-                id="codigo"
-                value={formData.codigo}
-                onChange={(e) =>
-                  setFormData({ ...formData, codigo: e.target.value })
+                  setFormData({ ...formData, negocio: e.target.value })
                 }
                 required
               />
@@ -226,49 +232,20 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="sla_alvo_pct">SLA Alvo (%)</Label>
+              <Label htmlFor="conq_perd">Ano Conq/Perd *</Label>
               <Input
-                id="sla_alvo_pct"
+                id="conq_perd"
                 type="number"
-                step="0.01"
-                value={formData.sla_alvo_pct}
+                min="1900"
+                max="2100"
+                value={formData.conq_perd}
                 onChange={(e) =>
-                  setFormData({ ...formData, sla_alvo_pct: e.target.value })
+                  setFormData({ ...formData, conq_perd: e.target.value })
                 }
+                required
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="nps_meta">NPS Meta</Label>
-              <Input
-                id="nps_meta"
-                type="number"
-                step="0.01"
-                value={formData.nps_meta}
-                onChange={(e) =>
-                  setFormData({ ...formData, nps_meta: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, status: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ativo">Ativo</SelectItem>
-                  <SelectItem value="inativo">Inativo</SelectItem>
-                  <SelectItem value="suspenso">Suspenso</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <div className="flex justify-end gap-2">
@@ -287,3 +264,6 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
 };
 
 export default ContratoForm;
+
+
+

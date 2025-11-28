@@ -42,6 +42,7 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
     longitude: "",
     status: "ativo",
   });
+  const [cepLoading, setCepLoading] = useState(false);
 
   useEffect(() => {
     loadContratos();
@@ -53,9 +54,8 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
   const loadContratos = async () => {
     const { data } = await supabase
       .from("contratos")
-      .select("id, nome")
-      .eq("status", "ativo")
-      .order("nome");
+      .select("id, negocio, conq_perd")
+      .order("negocio");
     setContratos(data || []);
   };
 
@@ -132,6 +132,44 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
     }
   };
 
+  const handleCepChange = async (value: string) => {
+    setFormData((prev) => ({ ...prev, cep: value }));
+
+    const digitsOnly = value.replace(/\D/g, "");
+    if (digitsOnly.length !== 8) return;
+
+    try {
+      setCepLoading(true);
+      const response = await fetch(`https://viacep.com.br/ws/${digitsOnly}/json/`);
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.erro) {
+        toast({
+          title: "CEP não encontrado",
+          description: "Verifique o CEP informado e tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setFormData((prev) => ({
+        ...prev,
+        endereco: data.logradouro || prev.endereco,
+        cidade: data.localidade || prev.cidade,
+        uf: (data.uf || prev.uf || "").toUpperCase(),
+        cep: value,
+      }));
+    } catch (error) {
+      console.error("Erro ao buscar CEP", error);
+      toast({
+        title: "Erro ao buscar CEP",
+        description: "Não foi possível obter o endereço automaticamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setCepLoading(false);
+    }
+  };
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -157,7 +195,7 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
                 <SelectContent>
                   {contratos.map((contrato) => (
                     <SelectItem key={contrato.id} value={contrato.id}>
-                      {contrato.nome}
+                      {contrato.negocio} ({contrato.conq_perd})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -218,9 +256,13 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
               <Input
                 id="cep"
                 value={formData.cep}
-                onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                onChange={(e) => handleCepChange(e.target.value)}
                 placeholder="00000-000"
+                disabled={cepLoading}
               />
+              {cepLoading && (
+                <p className="text-xs text-muted-foreground">Buscando endereço...</p>
+              )}
             </div>
 
             <div className="space-y-2">

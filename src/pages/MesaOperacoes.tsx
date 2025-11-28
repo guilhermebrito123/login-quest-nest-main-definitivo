@@ -26,8 +26,8 @@ interface UnidadeComSLA {
   cidade: string;
   uf: string;
   contrato: {
-    nome: string;
-    sla_alvo_pct: number;
+    negocio: string;
+    conq_perd: number;
   };
   sla_atual: number;
   postos_total: number;
@@ -177,8 +177,8 @@ const MesaOperacoes = () => {
           status,
           contrato_id,
           contratos (
-            nome,
-            sla_alvo_pct
+            negocio,
+            conq_perd
           )
         `
         )
@@ -203,8 +203,8 @@ const MesaOperacoes = () => {
             cidade: unidade.cidade || "",
             uf: unidade.uf || "",
             contrato: {
-              nome: unidade.contratos?.nome || "Sem contrato",
-              sla_alvo_pct: Number(unidade.contratos?.sla_alvo_pct || 95),
+              negocio: unidade.contratos?.negocio || "Sem contrato",
+              conq_perd: unidade.contratos?.conq_perd ?? new Date().getFullYear(),
             },
             sla_atual: sla,
             postos_total: postosInfo.total,
@@ -323,9 +323,9 @@ const MesaOperacoes = () => {
             unidade.cidade
           }/${unidade.uf}</p>
           <div style="border-top: 1px solid #e5e7eb; padding-top: 8px;">
-            <p style="font-size: 12px; margin-bottom: 4px;">Meta de SLA: <strong>${
-              unidade.contrato.sla_alvo_pct
-            }%</strong></p>
+            <p style="font-size: 12px; margin-bottom: 4px;">Contrato: <strong>${
+              unidade.contrato.negocio
+            }</strong> (${unidade.contrato.conq_perd})</p>
             <p style="font-size: 12px; margin-bottom: 4px;">Postos Preenchidos: <strong>${
               unidade.postos_preenchidos
             }/${unidade.postos_total}</strong></p>
@@ -634,14 +634,14 @@ const MesaOperacoes = () => {
                 <div>
                   <p className="text-sm font-medium mb-1">Contrato</p>
                   <p className="text-sm text-muted-foreground">
-                    {selectedUnidade.contrato.nome}
+                    {selectedUnidade.contrato.negocio}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-sm font-medium mb-1">Meta de SLA</p>
+                  <p className="text-sm font-medium mb-1">Ano Conq/Perd</p>
                   <p className="text-sm text-muted-foreground">
-                    {selectedUnidade.contrato.sla_alvo_pct}%
+                    {selectedUnidade.contrato.conq_perd}
                   </p>
                 </div>
 

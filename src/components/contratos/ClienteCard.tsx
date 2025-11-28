@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Building2, Mail, Phone, User, Trash2, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -20,11 +19,11 @@ interface ClienteCardProps {
   cliente: {
     id: string;
     razao_social: string;
+    nome_fantasia: string | null;
     cnpj: string;
     contato_nome: string | null;
     contato_email: string | null;
     contato_telefone: string | null;
-    status: string;
   };
   onSelect: () => void;
   onEdit: () => void;
@@ -74,19 +73,17 @@ const ClienteCard = ({ cliente, onSelect, onEdit, onDelete }: ClienteCardProps) 
   return (
     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
       <CardHeader onClick={onSelect}>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Building2 className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-base">{cliente.razao_social}</CardTitle>
-              <p className="text-sm text-muted-foreground">{cliente.cnpj}</p>
-            </div>
+        <div className="flex items-start gap-2">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Building2 className="h-4 w-4 text-primary" />
           </div>
-          <Badge variant={cliente.status === "ativo" ? "default" : "secondary"}>
-            {cliente.status}
-          </Badge>
+          <div>
+            <CardTitle className="text-base">{cliente.razao_social}</CardTitle>
+            {cliente.nome_fantasia && (
+              <p className="text-xs text-muted-foreground">{cliente.nome_fantasia}</p>
+            )}
+            <p className="text-sm text-muted-foreground">{cliente.cnpj}</p>
+          </div>
         </div>
       </CardHeader>
       <CardContent>

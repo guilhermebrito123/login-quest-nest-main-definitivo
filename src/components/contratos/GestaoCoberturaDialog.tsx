@@ -75,8 +75,8 @@ interface PostoVago {
     nome: string;
     codigo: string;
     contrato: {
-      nome: string;
-      codigo: string;
+      negocio: string;
+      conq_perd: number;
     } | null;
   };
 }
@@ -95,8 +95,8 @@ interface DiaVago {
     unidade: {
       nome: string;
       contrato: {
-        nome: string;
-        codigo: string;
+        negocio: string;
+        conq_perd: number;
       } | null;
     };
   };
@@ -220,8 +220,8 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
           nome,
           codigo,
           contratos (
-            nome,
-            codigo
+            negocio,
+            conq_perd
           )
         )
       `)
@@ -257,8 +257,8 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
             codigo: posto.unidades?.codigo || "",
             contrato: posto.unidades?.contratos
               ? {
-                  nome: posto.unidades.contratos.nome,
-                  codigo: posto.unidades.contratos.codigo,
+                  negocio: posto.unidades.contratos.negocio,
+                  conq_perd: posto.unidades.contratos.conq_perd,
                 }
               : null,
           },
@@ -285,8 +285,8 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
           unidades (
             nome,
             contratos (
-              nome,
-              codigo
+              negocio,
+              conq_perd
             )
           )
         ),
@@ -324,8 +324,8 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
           nome: item.postos_servico?.unidades?.nome || "Sem unidade",
           contrato: item.postos_servico?.unidades?.contratos
             ? {
-                nome: item.postos_servico.unidades.contratos.nome,
-                codigo: item.postos_servico.unidades.contratos.codigo,
+                negocio: item.postos_servico.unidades.contratos.negocio,
+                conq_perd: item.postos_servico.unidades.contratos.conq_perd,
               }
             : null,
         },
@@ -855,7 +855,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
                             <div className="space-y-1 mb-2">
                               {posto.unidade.contrato && (
                                 <p className="text-sm text-muted-foreground">
-                                  <span className="font-medium">Contrato:</span> {posto.unidade.contrato.codigo} - {posto.unidade.contrato.nome}
+                                  <span className="font-medium">Contrato:</span> {posto.unidade.contrato.negocio} ({posto.unidade.contrato.conq_perd})
                                 </p>
                               )}
                               <p className="text-sm text-muted-foreground">
@@ -989,7 +989,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
                             <div className="space-y-1 mb-2">
                               {dia.posto.unidade.contrato && (
                                 <p className="text-sm text-muted-foreground">
-                                  <span className="font-medium">Contrato:</span> {dia.posto.unidade.contrato.codigo} - {dia.posto.unidade.contrato.nome}
+                                  <span className="font-medium">Contrato:</span> {dia.posto.unidade.contrato.negocio} ({dia.posto.unidade.contrato.conq_perd})
                                 </p>
                               )}
                               <p className="text-sm text-muted-foreground">
@@ -1421,8 +1421,8 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
                   {selectedPostoParaAtribuicao.unidade.contrato && (
                     <p>
                       <span className="font-medium text-foreground">Contrato:</span>{" "}
-                      {selectedPostoParaAtribuicao.unidade.contrato.codigo} -{" "}
-                      {selectedPostoParaAtribuicao.unidade.contrato.nome}
+                      {selectedPostoParaAtribuicao.unidade.contrato.negocio} (
+                      {selectedPostoParaAtribuicao.unidade.contrato.conq_perd})
                     </p>
                   )}
                 </div>

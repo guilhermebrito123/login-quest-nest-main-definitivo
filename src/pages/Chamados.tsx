@@ -42,6 +42,7 @@ export default function Chamados() {
         .select(`
           *,
           unidade:unidades(nome, codigo),
+          contrato:contratos(negocio, conq_perd),
           responsavel:profiles(full_name)
         `)
         .order("data_abertura", { ascending: false });

@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FileText, Calendar, TrendingUp, Trash2, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -21,16 +20,14 @@ interface ContratoCardProps {
   contrato: {
     id: string;
     cliente_id: string;
-    nome: string;
-    codigo: string;
+    negocio: string;
     data_inicio: string;
     data_fim: string | null;
-    sla_alvo_pct: number;
-    nps_meta: number | null;
-    status: string;
+    conq_perd: number;
   };
   cliente?: {
     razao_social: string;
+    nome_fantasia?: string | null;
   };
   onSelect: () => void;
   onEdit: () => void;
@@ -95,26 +92,23 @@ const ContratoCard = ({ contrato, cliente, onSelect, onEdit, onDelete }: Contrat
   return (
     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
       <CardHeader onClick={onSelect}>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <FileText className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-base">{contrato.nome}</CardTitle>
-              <p className="text-sm text-muted-foreground">{contrato.codigo}</p>
-            </div>
+        <div className="flex items-start gap-2">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <FileText className="h-4 w-4 text-primary" />
           </div>
-          <Badge variant={contrato.status === "ativo" ? "default" : "secondary"}>
-            {contrato.status}
-          </Badge>
+          <div>
+            <CardTitle className="text-base">{contrato.negocio}</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Conq/Perd: {contrato.conq_perd}
+            </p>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
           {cliente && (
             <p className="text-sm text-muted-foreground">
-              Cliente: {cliente.razao_social}
+              Cliente: {cliente.nome_fantasia || cliente.razao_social}
             </p>
           )}
           <div className="flex items-center gap-2 text-sm">
@@ -126,8 +120,7 @@ const ContratoCard = ({ contrato, cliente, onSelect, onEdit, onDelete }: Contrat
           </div>
           <div className="flex items-center gap-2 text-sm">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            <span>SLA: {contrato.sla_alvo_pct}%</span>
-            {contrato.nps_meta && <span>• NPS: {contrato.nps_meta}</span>}
+            <span>Ano Conq/Perd: {contrato.conq_perd}</span>
           </div>
         </div>
 

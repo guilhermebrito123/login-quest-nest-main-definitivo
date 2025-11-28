@@ -39,23 +39,20 @@ import { getEfetivoPlanejadoAjustado } from "@/lib/postos";
 interface Cliente {
   id: string;
   razao_social: string;
+  nome_fantasia: string | null;
   cnpj: string;
   contato_nome: string | null;
   contato_email: string | null;
   contato_telefone: string | null;
-  status: string;
 }
 
 interface Contrato {
   id: string;
   cliente_id: string;
-  nome: string;
-  codigo: string;
+  negocio: string;
   data_inicio: string;
   data_fim: string | null;
-  sla_alvo_pct: number;
-  nps_meta: number | null;
-  status: string;
+  conq_perd: number;
 }
 
 interface Unidade {
@@ -122,6 +119,12 @@ const Contratos = () => {
   const [selectedContrato, setSelectedContrato] = useState<string | null>(null);
   const [selectedUnidade, setSelectedUnidade] = useState<string | null>(null);
 
+  const getClienteDisplayName = (clienteId: string | null) => {
+    if (!clienteId) return "";
+    const cliente = clientes.find((c) => c.id === clienteId);
+    return cliente ? cliente.nome_fantasia || cliente.razao_social : "";
+  };
+
   useEffect(() => {
     checkAuth();
     loadData();
@@ -173,7 +176,7 @@ const Contratos = () => {
     const { data, error } = await supabase
       .from("contratos")
       .select("*")
-      .order("nome");
+      .order("negocio");
     
     if (error) throw error;
     setContratos(data || []);
@@ -278,16 +281,20 @@ const Contratos = () => {
     setTotalInspecoes(count || 0);
   };
 
-  const filteredClientes = clientes.filter(c => 
-    c.razao_social.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.cnpj.includes(searchTerm)
-  );
+  const filteredClientes = clientes.filter(c => {
+    const termo = searchTerm.toLowerCase();
+    return (
+      c.razao_social.toLowerCase().includes(termo) ||
+      (c.nome_fantasia ? c.nome_fantasia.toLowerCase().includes(termo) : false) ||
+      c.cnpj.includes(searchTerm)
+    );
+  });
 
   const filteredContratos = selectedCliente 
     ? contratos.filter(c => c.cliente_id === selectedCliente)
     : contratos.filter(c => 
-        c.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.codigo.toLowerCase().includes(searchTerm.toLowerCase())
+        c.negocio.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(c.conq_perd).includes(searchTerm)
       );
 
   const filteredUnidades = selectedContrato
@@ -425,7 +432,7 @@ const Contratos = () => {
                     setActiveTab("contratos");
                   }}
                 >
-                  {clientes.find(c => c.id === selectedCliente)?.razao_social}
+                  {getClienteDisplayName(selectedCliente)}
                 </Button>
               </>
             )}
@@ -440,7 +447,7 @@ const Contratos = () => {
                     setActiveTab("unidades");
                   }}
                 >
-                  {contratos.find(c => c.id === selectedContrato)?.nome}
+                  {contratos.find(c => c.id === selectedContrato)?.negocio}
                 </Button>
               </>
             )}

@@ -394,7 +394,10 @@ const adicionarComentario = useMutation({
               <h3 className="font-semibold">Localização</h3>
               <div className="text-sm space-y-1">
                 {chamado.contrato && (
-                  <div><span className="font-medium">Contrato:</span> {chamado.contrato.nome}</div>
+                  <div>
+                    <span className="font-medium">Contrato:</span> {chamado.contrato.negocio}
+                    {chamado.contrato.conq_perd ? ` (${chamado.contrato.conq_perd})` : null}
+                  </div>
                 )}
                 {chamado.unidade && (
                   <div><span className="font-medium">Unidade:</span> {chamado.unidade.nome}</div>

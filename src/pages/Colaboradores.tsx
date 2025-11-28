@@ -284,7 +284,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
           *,
 
-          unidade:unidades(id, nome, contratos(id, nome, codigo)),
+          unidade:unidades(id, nome, contratos(id, negocio, conq_perd)),
 
           escala:escalas(nome, tipo),
 
@@ -299,7 +299,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
             status,
             ultimo_dia_atividade,
 
-            unidade:unidades(id, nome, contratos(id, nome, codigo))
+            unidade:unidades(id, nome, contratos(id, negocio, conq_perd))
 
           )
 
@@ -1602,11 +1602,11 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
                         <span className="font-medium">Contrato: </span>
 
-                        {colaboradorDetalhe.posto?.unidade?.contratos?.nome ||
-
-                          colaboradorDetalhe.unidade?.contratos?.nome ||
-
-                          "-"}
+                        {colaboradorDetalhe.posto?.unidade?.contratos
+                          ? `${colaboradorDetalhe.posto.unidade.contratos.negocio} (${colaboradorDetalhe.posto.unidade.contratos.conq_perd})`
+                          : colaboradorDetalhe.unidade?.contratos
+                          ? `${colaboradorDetalhe.unidade.contratos.negocio} (${colaboradorDetalhe.unidade.contratos.conq_perd})`
+                          : "-"}
 
                       </p>
 

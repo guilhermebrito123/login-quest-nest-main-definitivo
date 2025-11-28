@@ -20,7 +20,7 @@ type ExecucaoStatus = Database["public"]["Enums"]["status_execucao"];
 type ChecklistSummary = Pick<Database["public"]["Tables"]["checklist"]["Row"], "id" | "nome" | "periodicidade">;
 type ChecklistItem = Pick<Database["public"]["Tables"]["checklist_item"]["Row"], "id" | "checklist_id">;
 type ProfileSummary = Pick<Database["public"]["Tables"]["profiles"]["Row"], "id" | "full_name">;
-type ContratoSummary = Pick<Database["public"]["Tables"]["contratos"]["Row"], "id" | "nome" | "codigo">;
+type ContratoSummary = Pick<Database["public"]["Tables"]["contratos"]["Row"], "id" | "negocio" | "conq_perd">;
 type UnidadeSummary = Pick<Database["public"]["Tables"]["unidades"]["Row"], "id" | "nome" | "codigo" | "contrato_id">;
 
 type ExecucaoWithRelations = ExecucaoRow & {
@@ -94,7 +94,7 @@ const ChecklistExecucoes = () => {
   };
 
   const loadContratos = async () => {
-    const { data, error } = await supabase.from("contratos").select("id, nome, codigo").order("nome");
+    const { data, error } = await supabase.from("contratos").select("id, negocio, conq_perd").order("negocio");
     if (error) throw error;
     setContratos((data as ContratoSummary[]) ?? []);
   };
@@ -124,10 +124,10 @@ const ChecklistExecucoes = () => {
   const loadExecucoes = async () => {
     const { data, error } = await supabase
       .from("execucao_checklist")
-      .select(
-        `
-        id,
-        checklist_id,
+        .select(
+          `
+          id,
+          checklist_id,
         data_prevista,
         supervisor_id,
         status,
@@ -136,12 +136,12 @@ const ChecklistExecucoes = () => {
         finalizado_em,
         created_at,
         updated_at,
-        checklist:checklist ( id, nome, periodicidade ),
-        supervisor:profiles ( id, full_name ),
-        contrato:contratos ( id, nome, codigo ),
-        unidade:unidades ( id, nome, codigo, contrato_id )
-      `
-      )
+          checklist:checklist ( id, nome, periodicidade ),
+          supervisor:profiles ( id, full_name ),
+          contrato:contratos ( id, negocio, conq_perd ),
+          unidade:unidades ( id, nome, codigo, contrato_id )
+        `
+        )
       .order("data_prevista", { ascending: false });
 
     if (error) throw error;
@@ -399,13 +399,13 @@ const ChecklistExecucoes = () => {
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o contrato" />
                     </SelectTrigger>
-                    <SelectContent className="bg-popover">
-                      <SelectItem value="none">Sem contrato</SelectItem>
-                      {contratos.map((contrato) => (
-                        <SelectItem key={contrato.id} value={contrato.id}>
-                          {contrato.nome} ({contrato.codigo})
-                        </SelectItem>
-                      ))}
+                     <SelectContent className="bg-popover">
+                       <SelectItem value="none">Sem contrato</SelectItem>
+                       {contratos.map((contrato) => (
+                         <SelectItem key={contrato.id} value={contrato.id}>
+                          {contrato.negocio} ({contrato.conq_perd})
+                          </SelectItem>
+                       ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -541,12 +541,12 @@ const ChecklistExecucoes = () => {
                     <TableRow key={execucao.id}>
                       <TableCell className="font-medium">{execucao.checklist?.nome || "-"}</TableCell>
                       <TableCell>
-                        {execucao.contrato?.nome ? (
-                          <div className="flex flex-col">
-                            <span>{execucao.contrato.nome}</span>
-                            <span className="text-xs text-muted-foreground">Cod: {execucao.contrato.codigo}</span>
-                          </div>
-                        ) : (
+                        {execucao.contrato?.negocio ? (
+                            <div className="flex flex-col">
+                            <span>{execucao.contrato.negocio}</span>
+                            <span className="text-xs text-muted-foreground">Ano: {execucao.contrato.conq_perd}</span>
+                            </div>
+                          ) : (
                           <span className="text-muted-foreground">Sem contrato</span>
                         )}
                       </TableCell>

@@ -165,9 +165,8 @@ export function ChamadoForm({ open, onOpenChange, chamado, onSuccess }: ChamadoF
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contratos")
-        .select("id, nome, codigo")
-        .eq("status", "ativo")
-        .order("nome");
+        .select("id, negocio, conq_perd")
+        .order("negocio");
       if (error) throw error;
       return data;
     },
@@ -677,11 +676,11 @@ const onSubmit = async (data: ChamadoFormValues) => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {contratos?.map((contrato) => (
-                          <SelectItem key={contrato.id} value={contrato.id}>
-                            {contrato.codigo} - {contrato.nome}
-                          </SelectItem>
-                        ))}
+                    {contratos?.map((contrato) => (
+                      <SelectItem key={contrato.id} value={contrato.id}>
+                        {contrato.negocio} ({contrato.conq_perd})
+                      </SelectItem>
+                    ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

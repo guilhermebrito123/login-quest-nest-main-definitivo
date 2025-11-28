@@ -10,13 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
@@ -28,13 +21,14 @@ interface ClienteFormProps {
 
 const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
   const [loading, setLoading] = useState(false);
+  const isEditing = Boolean(clienteId);
   const initialState = {
     razao_social: "",
+    nome_fantasia: "",
     cnpj: "",
     contato_nome: "",
     contato_email: "",
     contato_telefone: "",
-    status: "ativo",
   };
   const [formData, setFormData] = useState(initialState);
 
@@ -48,7 +42,7 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
       setLoading(true);
       const { data, error } = await supabase
         .from("clientes")
-        .select("razao_social, cnpj, contato_nome, contato_email, contato_telefone, status")
+        .select("razao_social, nome_fantasia, cnpj, contato_nome, contato_email, contato_telefone")
         .eq("id", clienteId)
         .single();
 
@@ -61,11 +55,11 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
       } else if (data) {
         setFormData({
           razao_social: data.razao_social ?? "",
+          nome_fantasia: data.nome_fantasia ?? "",
           cnpj: data.cnpj ?? "",
           contato_nome: data.contato_nome ?? "",
           contato_email: data.contato_email ?? "",
           contato_telefone: data.contato_telefone ?? "",
-          status: data.status ?? "ativo",
         });
       }
       setLoading(false);
@@ -79,10 +73,23 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
     setLoading(true);
 
     try {
+      const razaoSocial = formData.razao_social.trim();
+      const nomeFantasia = formData.nome_fantasia.trim() || razaoSocial;
+      const payloadBase = {
+        ...formData,
+        razao_social: razaoSocial,
+        nome_fantasia: nomeFantasia,
+        cnpj: formData.cnpj.trim(),
+        contato_nome: formData.contato_nome.trim(),
+        contato_email: formData.contato_email.trim(),
+        contato_telefone: formData.contato_telefone.trim(),
+      };
+
       if (clienteId) {
+        const payload = { ...payloadBase };
         const { error } = await supabase
           .from("clientes")
-          .update(formData)
+          .update(payload)
           .eq("id", clienteId);
 
         if (error) throw error;
@@ -92,7 +99,8 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
           description: "Cliente atualizado com sucesso",
         });
       } else {
-        const { error } = await supabase.from("clientes").insert([formData]);
+        const payload = { ...payloadBase, id: payloadBase.cnpj };
+        const { error } = await supabase.from("clientes").insert([payload]);
 
         if (error) throw error;
 
@@ -137,14 +145,32 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="nome_fantasia">Nome Fantasia *</Label>
+              <Input
+                id="nome_fantasia"
+                value={formData.nome_fantasia}
+                onChange={(e) =>
+                  setFormData({ ...formData, nome_fantasia: e.target.value })
+                }
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="cnpj">CNPJ *</Label>
               <Input
                 id="cnpj"
                 value={formData.cnpj}
+                disabled={isEditing}
                 onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
                 placeholder="00.000.000/0000-00"
                 required
               />
+              {isEditing && (
+                <p className="text-xs text-muted-foreground">
+                  O CNPJ passa a ser o identificador do cliente e nǜo pode ser alterado.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -180,22 +206,6 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
                 }
                 placeholder="(00) 00000-0000"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => setFormData({ ...formData, status: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ativo">Ativo</SelectItem>
-                  <SelectItem value="inativo">Inativo</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
 
