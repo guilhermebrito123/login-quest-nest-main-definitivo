@@ -128,12 +128,10 @@ export type PostoDiaVago = {
   posto?: {
     id: string;
     nome: string;
-    codigo: string | null;
     valor_diaria: number | null;
     unidade?: {
       id: string;
       nome: string;
-      codigo: string | null;
     } | null;
   } | null;
 };
@@ -181,12 +179,10 @@ export function useDiariasData(selectedMonth: string) {
           posto:postos_servico (
             id,
             nome,
-            codigo,
             valor_diaria,
             unidade:unidades (
               id,
-              nome,
-              codigo
+              nome
             )
           )
         `
@@ -242,12 +238,10 @@ export function useDiariasData(selectedMonth: string) {
             posto:postos_servico (
               id,
               nome,
-              codigo,
               valor_diaria,
               unidade:unidades (
                 id,
-                nome,
-                codigo
+                nome
               )
             )
           )

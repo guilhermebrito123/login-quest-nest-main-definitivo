@@ -53,7 +53,6 @@ type PostoStatus = (typeof POSTO_STATUS_OPTIONS)[number]["value"];
 interface PostoFormState {
   unidade_id: string;
   nome: string;
-  codigo: string;
   funcao: string;
   valor_diaria: string;
   escala: string;
@@ -79,7 +78,6 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
   const initialState: PostoFormState = {
     unidade_id: unidadeId || "",
     nome: "",
-    codigo: "",
     funcao: "",
     valor_diaria: "",
     escala: "",
@@ -121,7 +119,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
       const { data, error } = await supabase
         .from("postos_servico")
         .select(
-          "unidade_id, nome, codigo, funcao, valor_diaria, escala, dias_semana, jornada, horario_inicio, horario_fim, intervalo_refeicao, status, observacoes, beneficios, primeiro_dia_atividade, ultimo_dia_atividade"
+          "unidade_id, nome, funcao, valor_diaria, escala, dias_semana, jornada, horario_inicio, horario_fim, intervalo_refeicao, status, observacoes, beneficios, primeiro_dia_atividade, ultimo_dia_atividade"
         )
         .eq("id", postoId)
         .single();
@@ -136,7 +134,6 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         setFormData({
           unidade_id: data.unidade_id ?? "",
           nome: data.nome ?? "",
-          codigo: data.codigo ?? "",
           funcao: data.funcao ?? "",
           valor_diaria: data.valor_diaria?.toString() ?? "",
           escala: data.escala ?? "",
@@ -166,7 +163,6 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
     const { data } = await supabase
       .from("unidades")
       .select("id, nome")
-      .eq("status", "ativo")
       .order("nome");
     setUnidades(data || []);
   };
@@ -179,7 +175,6 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
       const {
         unidade_id,
         nome,
-        codigo,
         funcao,
         valor_diaria,
         escala,
@@ -212,7 +207,6 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
       const dataToSave = {
         unidade_id,
         nome,
-        codigo,
         funcao,
         valor_diaria: valor_diaria ? parseFloat(valor_diaria) : 0,
         escala,
@@ -313,19 +307,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                 required
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="codigo">Código *</Label>
-              <Input
-                id="codigo"
-                value={formData.codigo}
-                onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
+            </div><div className="space-y-2">
               <Label htmlFor="funcao">Função</Label>
               <Input
                 id="funcao"

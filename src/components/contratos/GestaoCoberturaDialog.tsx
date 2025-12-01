@@ -65,7 +65,6 @@ interface GestaoCoberturaDialogProps {
 interface PostoVago {
   id: string;
   nome: string;
-  codigo: string;
   funcao: string;
   efetivo_planejado: number;
   efetivo_atual: number;
@@ -73,7 +72,6 @@ interface PostoVago {
   unidade: {
     id?: string | null;
     nome: string;
-    codigo: string;
     contrato: {
       negocio: string;
       conq_perd: number;
@@ -90,7 +88,6 @@ interface DiaVago {
   posto: {
     id?: string;
     nome: string;
-    codigo: string;
     valor_diaria?: number | null;
     unidade: {
       nome: string;
@@ -132,7 +129,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
   const [filterPosto, setFilterPosto] = useState<string>("all");
   const [filterData, setFilterData] = useState<Date | undefined>(undefined);
   const [filterDia, setFilterDia] = useState<string>("all");
-  const [postos, setPostos] = useState<{ id: string; nome: string; codigo: string }[]>([]);
+  const [postos, setPostos] = useState<{ id: string; nome: string }[]>([]);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedDiaParaCadastro, setSelectedDiaParaCadastro] = useState<DiaVago | null>(null);
   const [selectedDiaristaId, setSelectedDiaristaId] = useState("");
@@ -196,7 +193,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
   const loadPostos = async () => {
     const { data, error } = await supabase
       .from("postos_servico")
-      .select("id, nome, codigo")
+      .select("id, nome")
       .in("status", ["vago", "vago_temporariamente"])
       .order("nome");
 
@@ -211,14 +208,12 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
       .select(`
         id,
         nome,
-        codigo,
         funcao,
         escala,
         unidade_id,
         unidades (
           id,
           nome,
-          codigo,
           contratos (
             negocio,
             conq_perd
@@ -246,7 +241,6 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
         postosVagosData.push({
           id: posto.id,
           nome: posto.nome,
-          codigo: posto.codigo,
           funcao: posto.funcao,
           efetivo_planejado: efetivoNecessario,
           efetivo_atual: efetivoAtual,
@@ -254,7 +248,6 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
           unidade: {
             id: posto.unidades?.id ?? null,
             nome: posto.unidades?.nome || "Sem unidade",
-            codigo: posto.unidades?.codigo || "",
             contrato: posto.unidades?.contratos
               ? {
                   negocio: posto.unidades.contratos.negocio,
@@ -280,7 +273,6 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
         postos_servico (
           id,
           nome,
-          codigo,
           valor_diaria,
           unidades (
             nome,
@@ -318,7 +310,6 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
       posto: {
         id: item.postos_servico?.id,
         nome: item.postos_servico?.nome || "Desconhecido",
-        codigo: item.postos_servico?.codigo || "",
         valor_diaria: item.postos_servico?.valor_diaria ?? null,
         unidade: {
           nome: item.postos_servico?.unidades?.nome || "Sem unidade",
@@ -737,7 +728,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
   const filteredDiasVagos = diasVagos.filter((dia) => {
     if (filterPosto !== "all") {
       const postoMatch = postos.find((p) => p.id === filterPosto);
-      if (postoMatch && dia.posto.codigo !== postoMatch.codigo) return false;
+      if (postoMatch && dia.posto.id !== postoMatch.id) return false;
     }
     if (filterData) {
       const diaDate = parseDateFromDB(dia.data);
@@ -785,7 +776,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
                     <SelectItem value="all">Todos os postos</SelectItem>
                     {postos.map((posto) => (
                       <SelectItem key={posto.id} value={posto.id}>
-                        {posto.codigo} - {posto.nome}
+                        {posto.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -850,7 +841,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="font-semibold">{posto.nome}</h4>
-                              <Badge variant="outline">{posto.codigo}</Badge>
+                              <Badge variant="outline">{posto.nome}</Badge>
                             </div>
                             <div className="space-y-1 mb-2">
                               {posto.unidade.contrato && (
@@ -984,7 +975,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
                                   locale: ptBR,
                                 })}
                               </h4>
-                              <Badge variant="outline">{dia.posto.codigo}</Badge>
+                              <Badge variant="outline">{dia.posto.nome}</Badge>
                             </div>
                             <div className="space-y-1 mb-2">
                               {dia.posto.unidade.contrato && (
@@ -1060,7 +1051,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
                                             {format(parseDateFromDB(dia.data), "dd/MM/yyyy", { locale: ptBR })}
                                           </p>
                                           <p>
-                                            Posto: {dia.posto.nome} {dia.posto.codigo ? `(${dia.posto.codigo})` : ""}
+                                            Posto: {dia.posto.nome}
                                           </p>
                                           <p>Unidade: {dia.posto.unidade?.nome || "Sem unidade"}</p>
                                           <p>Motivo do dia: {dia.motivo || "Não informado"}</p>
@@ -1309,7 +1300,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
                 <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground space-y-1">
                   <p>
                     <span className="font-medium text-foreground">Posto:</span>{" "}
-                    {selectedPostoParaAgendamento.nome} ({selectedPostoParaAgendamento.codigo})
+                    {selectedPostoParaAgendamento.nome}
                   </p>
                   <p>
                     <span className="font-medium text-foreground">Unidade:</span>{" "}
@@ -1416,7 +1407,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
                 <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground space-y-1">
                   <p>
                     <span className="font-medium text-foreground">Unidade:</span>{" "}
-                    {selectedPostoParaAtribuicao.unidade.codigo} - {selectedPostoParaAtribuicao.unidade.nome}
+                    {selectedPostoParaAtribuicao.unidade.nome}
                   </p>
                   {selectedPostoParaAtribuicao.unidade.contrato && (
                     <p>

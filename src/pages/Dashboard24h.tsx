@@ -35,7 +35,6 @@ import "mapbox-gl/dist/mapbox-gl.css";
 interface UnidadeComDados {
   id: string;
   nome: string;
-  codigo: string;
   latitude: number;
   longitude: number;
   cidade: string;
@@ -171,7 +170,6 @@ export default function Dashboard24h() {
           `
           id,
           nome,
-          codigo,
           latitude,
           longitude,
           cidade,
@@ -187,7 +185,6 @@ export default function Dashboard24h() {
           )
         `
         )
-        .eq("status", "ativo")
         .not("latitude", "is", null)
         .not("longitude", "is", null);
 
@@ -212,7 +209,6 @@ export default function Dashboard24h() {
           return {
             id: unidade.id,
             nome: unidade.nome,
-            codigo: unidade.codigo,
             latitude: Number(unidade.latitude),
             longitude: Number(unidade.longitude),
             cidade: unidade.cidade || "",

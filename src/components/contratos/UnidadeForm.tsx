@@ -33,14 +33,14 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
   const [formData, setFormData] = useState({
     contrato_id: contratoId || "",
     nome: "",
-    codigo: "",
     endereco: "",
     cidade: "",
     uf: "",
     cep: "",
     latitude: "",
     longitude: "",
-    status: "ativo",
+    created_at: "",
+    faturamento_vendido: "",
   });
   const [cepLoading, setCepLoading] = useState(false);
 
@@ -81,27 +81,103 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
       setFormData({
         contrato_id: data.contrato_id || "",
         nome: data.nome,
-        codigo: data.codigo,
         endereco: data.endereco || "",
         cidade: data.cidade || "",
         uf: data.uf || "",
         cep: data.cep || "",
         latitude: data.latitude ? String(data.latitude) : "",
         longitude: data.longitude ? String(data.longitude) : "",
-        status: data.status || "ativo",
+        created_at: data.created_at || "",
+        faturamento_vendido:
+          data.faturamento_vendido !== undefined && data.faturamento_vendido !== null
+            ? String(data.faturamento_vendido)
+            : "",
       });
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!formData.contrato_id) {
+      toast({
+        title: "Contrato obrigatório",
+        description: "Selecione um contrato para vincular a unidade.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const trimmedNome = formData.nome.trim();
+    const trimmedEndereco = formData.endereco.trim();
+    const trimmedCidade = formData.cidade.trim();
+    const trimmedUf = formData.uf.trim().toUpperCase();
+
+    if (!trimmedNome || !trimmedEndereco || !trimmedCidade || trimmedUf.length !== 2) {
+      toast({
+        title: "Preencha todos os campos obrigatórios",
+        description: "Nome, endereço, cidade e UF precisam ser informados.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.latitude || !formData.longitude) {
+      toast({
+        title: "Coordenadas obrigatórias",
+        description: "Informe latitude e longitude válidas para a unidade.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.faturamento_vendido) {
+      toast({
+        title: "Faturamento obrigatório",
+        description: "Informe o faturamento vendido da unidade.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const latitude = parseFloat(formData.latitude);
+    const longitude = parseFloat(formData.longitude);
+    const faturamento = parseFloat(formData.faturamento_vendido);
+
+    if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+      toast({
+        title: "Coordenadas inválidas",
+        description: "Latitude e longitude devem ser números válidos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (Number.isNaN(faturamento)) {
+      toast({
+        title: "Valor inválido",
+        description: "O faturamento vendido deve ser um número válido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const now = new Date().toISOString();
       const payload = {
-        ...formData,
-        latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-        longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+        contrato_id: formData.contrato_id,
+        nome: trimmedNome,
+        endereco: trimmedEndereco,
+        cidade: trimmedCidade,
+        uf: trimmedUf,
+        cep: formData.cep || null,
+        latitude,
+        longitude,
+        faturamento_vendido: faturamento,
+        created_at: unidadeId ? formData.created_at || now : now,
+        updated_at: now,
       };
 
       if (unidadeId) {
@@ -213,11 +289,13 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="codigo">Código *</Label>
+              <Label htmlFor="faturamento_vendido">Faturamento vendido (R$)</Label>
               <Input
-                id="codigo"
-                value={formData.codigo}
-                onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
+                id="faturamento_vendido"
+                type="number"
+                step="0.01"
+                value={formData.faturamento_vendido}
+                onChange={(e) => setFormData({ ...formData, faturamento_vendido: e.target.value })}
                 required
               />
             </div>
@@ -228,6 +306,7 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
                 id="endereco"
                 value={formData.endereco}
                 onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                required
               />
             </div>
 
@@ -237,6 +316,7 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
                 id="cidade"
                 value={formData.cidade}
                 onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+                required
               />
             </div>
 
@@ -248,6 +328,7 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
                 onChange={(e) => setFormData({ ...formData, uf: e.target.value.toUpperCase() })}
                 maxLength={2}
                 placeholder="SP"
+                required
               />
             </div>
 
@@ -274,6 +355,7 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
                 value={formData.latitude}
                 onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
                 placeholder="-15.7801"
+                required
               />
             </div>
 
@@ -286,24 +368,10 @@ const UnidadeForm = ({ unidadeId, contratoId, onClose, onSuccess }: UnidadeFormP
                 value={formData.longitude}
                 onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
                 placeholder="-47.9292"
+                required
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => setFormData({ ...formData, status: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ativo">Ativo</SelectItem>
-                  <SelectItem value="inativo">Inativo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <div className="flex justify-end gap-2">

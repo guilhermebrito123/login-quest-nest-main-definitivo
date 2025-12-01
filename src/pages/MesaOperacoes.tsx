@@ -20,7 +20,6 @@ import "mapbox-gl/dist/mapbox-gl.css";
 interface UnidadeComSLA {
   id: string;
   nome: string;
-  codigo: string;
   latitude: number;
   longitude: number;
   cidade: string;
@@ -169,12 +168,10 @@ const MesaOperacoes = () => {
           `
           id,
           nome,
-          codigo,
           latitude,
           longitude,
           cidade,
           uf,
-          status,
           contrato_id,
           contratos (
             negocio,
@@ -182,7 +179,6 @@ const MesaOperacoes = () => {
           )
         `
         )
-        .eq("status", "ativo")
         .not("latitude", "is", null)
         .not("longitude", "is", null);
 
@@ -197,7 +193,6 @@ const MesaOperacoes = () => {
           return {
             id: unidade.id,
             nome: unidade.nome,
-            codigo: unidade.codigo,
             latitude: Number(unidade.latitude),
             longitude: Number(unidade.longitude),
             cidade: unidade.cidade || "",
@@ -608,12 +603,9 @@ const MesaOperacoes = () => {
           {selectedUnidade && (
             <div className="w-80 border-l bg-background p-6 overflow-y-auto">
               <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-bold">{selectedUnidade.nome}</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedUnidade.codigo}
-                  </p>
-                </div>
+              <div>
+                <h2 className="text-xl font-bold">{selectedUnidade.nome}</h2>
+              </div>
                 <Button
                   variant="ghost"
                   size="sm"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -53,7 +53,7 @@ interface ItemRespostaForm {
 
 const statusLabels: Record<ExecucaoStatus, string> = {
   ativo: "Ativo",
-  concluido: "Concluído",
+  concluido: "ConcluÃ­do",
   atrasado: "Atrasado",
   cancelado: "Cancelado",
 };
@@ -105,8 +105,8 @@ const ChecklistRespostas = () => {
       if (error) throw error;
       setExecucoes((data as ExecucaoWithRelations[]) ?? []);
     } catch (error) {
-      console.error("Erro ao carregar execuções:", error);
-      toast.error("Não foi possível carregar as execuções.");
+      console.error("Erro ao carregar execuÃ§Ãµes:", error);
+      toast.error("NÃ£o foi possÃ­vel carregar as execuÃ§Ãµes.");
     } finally {
       setLoading(false);
     }
@@ -173,8 +173,8 @@ const ChecklistRespostas = () => {
       if (respExecError) throw respExecError;
       setExecucaoResposta((respExec?.[0] as RespostaExecucaoRow) ?? null);
     } catch (error) {
-      console.error("Erro ao carregar detalhes da execução:", error);
-      toast.error("Não foi possível carregar os detalhes da execução selecionada.");
+      console.error("Erro ao carregar detalhes da execuÃ§Ã£o:", error);
+      toast.error("NÃ£o foi possÃ­vel carregar os detalhes da execuÃ§Ã£o selecionada.");
     } finally {
       setContextLoading(false);
     }
@@ -188,6 +188,12 @@ const ChecklistRespostas = () => {
     }
     if (!execucaoResponseForm.resposta) {
       toast.error("Descreva a resposta da execução.");
+      return;
+    }
+
+    const execucaoSelecionada = execucoes.find((execucao) => execucao.id === selectedExecucaoId);
+    const execucaoNome = execucaoSelecionada?.checklist?.nome || execucaoSelecionada?.id || "execução selecionada";
+    if (!window.confirm(`Deseja registrar a resposta geral para "${execucaoNome}"?`)) {
       return;
     }
 
@@ -218,6 +224,12 @@ const ChecklistRespostas = () => {
     const form = itemResponses[itemId];
     if (!form || !form.resposta) {
       toast.error("Informe a resposta do item.");
+      return;
+    }
+
+    const itemSelecionado = execucaoItems.find((item) => item.id === itemId);
+    const itemLabel = itemSelecionado?.checklist_item?.descricao || "item do checklist";
+    if (!window.confirm(`Deseja registrar a resposta para "${itemLabel}"?`)) {
       return;
     }
 
@@ -276,7 +288,7 @@ const ChecklistRespostas = () => {
           <div>
             <h1 className="text-3xl font-bold">Respostas de checklist</h1>
             <p className="text-muted-foreground">
-              Registre respostas das execuções e acompanhe o progresso item a item.
+              Registre respostas das execuÃ§Ãµes e acompanhe o progresso item a item.
             </p>
           </div>
           <div className="flex gap-2">
@@ -305,13 +317,13 @@ const ChecklistRespostas = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Selecione a execução</CardTitle>
-            <CardDescription>Escolha uma execução para responder e ver o progresso.</CardDescription>
+            <CardTitle>Selecione a execuÃ§Ã£o</CardTitle>
+            <CardDescription>Escolha uma execuÃ§Ã£o para responder e ver o progresso.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Select value={selectedExecucaoId} onValueChange={(value) => setSelectedExecucaoId(value)}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione a execução" />
+                <SelectValue placeholder="Selecione a execuÃ§Ã£o" />
               </SelectTrigger>
               <SelectContent className="bg-popover">
                 {filteredExecucoes.map((execucao) => (
@@ -333,7 +345,7 @@ const ChecklistRespostas = () => {
                       <ClipboardList className="h-5 w-5" />
                       {selectedExecucao.checklist?.nome || "Checklist"}
                     </CardTitle>
-                    <CardDescription>Dados básicos da execução</CardDescription>
+                    <CardDescription>Dados bÃ¡sicos da execuÃ§Ã£o</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -366,7 +378,7 @@ const ChecklistRespostas = () => {
                       <div className="rounded-md border bg-muted/30 p-3 space-y-1">
                         <div className="flex items-center gap-2">
                           <Badge variant={execucaoResposta.conforme ? "default" : "destructive"}>
-                            {execucaoResposta.conforme ? "Conforme" : "Não conforme"}
+                            {execucaoResposta.conforme ? "Conforme" : "NÃ£o conforme"}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
                             {execucaoResposta.registrado_em
@@ -385,8 +397,8 @@ const ChecklistRespostas = () => {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Resposta da execução</CardTitle>
-                    <CardDescription>Registro geral (opcional) da execução.</CardDescription>
+                    <CardTitle>Resposta da execuÃ§Ã£o</CardTitle>
+                    <CardDescription>Registro geral (opcional) da execuÃ§Ã£o.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <form className="space-y-3" onSubmit={handleExecucaoResponse}>
@@ -397,7 +409,7 @@ const ChecklistRespostas = () => {
                           onChange={(e) =>
                             setExecucaoResponseForm((prev) => ({ ...prev, resposta: e.target.value }))
                           }
-                          placeholder="Resumo da execução, observações gerais..."
+                          placeholder="Resumo da execuÃ§Ã£o, observaÃ§Ãµes gerais..."
                         />
                       </div>
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -414,7 +426,7 @@ const ChecklistRespostas = () => {
                             </SelectTrigger>
                             <SelectContent className="bg-popover">
                               <SelectItem value="true">Conforme</SelectItem>
-                              <SelectItem value="false">Não conforme</SelectItem>
+                              <SelectItem value="false">NÃ£o conforme</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -429,7 +441,7 @@ const ChecklistRespostas = () => {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label>Observações</Label>
+                        <Label>ObservaÃ§Ãµes</Label>
                         <Textarea
                           value={execucaoResponseForm.observacoes}
                           onChange={(e) =>
@@ -452,7 +464,7 @@ const ChecklistRespostas = () => {
         {selectedExecucao && (
           <Card>
             <CardHeader>
-              <CardTitle>Itens da execução</CardTitle>
+              <CardTitle>Itens da execuÃ§Ã£o</CardTitle>
               <CardDescription>Responda cada item e acompanhe o status individual.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -460,10 +472,10 @@ const ChecklistRespostas = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Ordem</TableHead>
-                    <TableHead>Descrição</TableHead>
+                    <TableHead>DescriÃ§Ã£o</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Resposta</TableHead>
-                    <TableHead className="text-right">Ação</TableHead>
+                    <TableHead className="text-right">AÃ§Ã£o</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -510,11 +522,11 @@ const ChecklistRespostas = () => {
                             </SelectTrigger>
                             <SelectContent className="bg-popover">
                               <SelectItem value="true">Conforme</SelectItem>
-                              <SelectItem value="false">Não conforme</SelectItem>
+                              <SelectItem value="false">NÃ£o conforme</SelectItem>
                             </SelectContent>
                           </Select>
                           <Input
-                            placeholder="Observações"
+                            placeholder="ObservaÃ§Ãµes"
                             value={itemResponses[item.id]?.observacoes || ""}
                             onChange={(e) =>
                               setItemResponses((prev) => ({
@@ -546,7 +558,7 @@ const ChecklistRespostas = () => {
                   {execucaoItems.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        Nenhum item encontrado para esta execução.
+                        Nenhum item encontrado para esta execuÃ§Ã£o.
                       </TableCell>
                     </TableRow>
                   )}
@@ -568,3 +580,8 @@ const defaultItemForm: ItemRespostaForm = {
 };
 
 export default ChecklistRespostas;
+
+
+
+
+

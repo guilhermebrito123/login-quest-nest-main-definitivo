@@ -104,8 +104,8 @@ const Checklist = () => {
     };
 
     const updatePayload: ChecklistUpdate = {
-      ...payload,
-      updated_at: new Date().toISOString(),
+      nome: formData.nome.trim(),
+      periodicidade: formData.periodicidade,
     };
 
     try {
@@ -130,6 +130,10 @@ const Checklist = () => {
   };
 
   const handleEdit = (entry: ChecklistRow) => {
+    const confirmed = window.confirm(`Deseja editar o checklist "${entry.nome}"?`);
+    if (!confirmed) {
+      return;
+    }
     setEditingId(entry.id);
     setFormData({
       nome: entry.nome,
@@ -137,9 +141,13 @@ const Checklist = () => {
     });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (entry: ChecklistRow) => {
+    const confirmed = window.confirm(`Confirma a exclusão do checklist "${entry.nome}"?`);
+    if (!confirmed) {
+      return;
+    }
     try {
-      const { error } = await supabase.from("checklist").delete().eq("id", id);
+      const { error } = await supabase.from("checklist").delete().eq("id", entry.id);
       if (error) throw error;
       toast.success("Checklist removido com sucesso.");
       await loadChecklists();
@@ -278,7 +286,7 @@ const Checklist = () => {
                           <Button size="icon" variant="ghost" onClick={() => handleEdit(checklist)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="ghost" onClick={() => handleDelete(checklist.id)}>
+                          <Button size="icon" variant="ghost" onClick={() => handleDelete(checklist)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>

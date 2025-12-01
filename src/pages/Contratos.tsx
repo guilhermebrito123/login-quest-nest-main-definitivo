@@ -59,18 +59,16 @@ interface Unidade {
   id: string;
   contrato_id: string;
   nome: string;
-  codigo: string;
   endereco: string | null;
   cidade: string | null;
   uf: string | null;
-  status: string;
+  faturamento_vendido: number;
 }
 
 interface Posto {
   id: string;
   unidade_id: string;
   nome: string;
-  codigo: string;
   funcao: string;
   status: string;
   escala?: string | null;
@@ -300,15 +298,13 @@ const Contratos = () => {
   const filteredUnidades = selectedContrato
     ? unidades.filter(u => u.contrato_id === selectedContrato)
     : unidades.filter(u => 
-        u.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.codigo.toLowerCase().includes(searchTerm.toLowerCase())
+        u.nome.toLowerCase().includes(searchTerm.toLowerCase())
       );
 
   const filteredPostos = selectedUnidade
     ? postos.filter(p => {
         const matchesUnidade = p.unidade_id === selectedUnidade;
-        const matchesSearch = p.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.codigo.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = p.nome.toLowerCase().includes(searchTerm.toLowerCase());
         
         if (filterOcupacao === "all") return matchesUnidade && matchesSearch;
         
@@ -320,8 +316,7 @@ const Contratos = () => {
         return matchesUnidade && matchesSearch && matchesOcupacao;
       })
     : postos.filter(p => {
-        const matchesSearch = p.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.codigo.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = p.nome.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesUnidade = filterUnidadeId === "all" || p.unidade_id === filterUnidadeId;
         
         if (filterOcupacao === "all") return matchesSearch && matchesUnidade;

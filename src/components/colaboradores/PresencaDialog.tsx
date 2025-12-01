@@ -30,6 +30,25 @@ const PRESENCA_TIPOS = [
   { value: "folga", label: "Folga" },
 ] as const;
 
+const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+const motivoFromTipo = (tipo: string) => {
+  switch (tipo) {
+    case "falta":
+      return "falta injustificada";
+    case "falta_justificada":
+      return "falta justificada";
+    case "ferias":
+      return "férias";
+    case "atestado":
+      return "atestado";
+    case "folga":
+      return "folga";
+    default:
+      return tipo.replace(/_/g, " ").trim();
+  }
+};
+
 export function PresencaDialog({ colaborador, open, onClose, onSuccess }: PresencaDialogProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -82,6 +101,32 @@ export function PresencaDialog({ colaborador, open, onClose, onSuccess }: Presen
 
       const { error } = await supabase.from("presencas").insert(payload);
       if (error) throw error;
+
+      if (formData.tipo !== "presente" && colaborador?.posto_servico_id) {
+        const motivoVago = motivoFromTipo(formData.tipo);
+        const { error: updateDiaError } = await supabase
+          .from("dias_trabalho")
+          .update({
+            status: "vago",
+            motivo_vago: motivoVago,
+            colaborador_id: null,
+          })
+          .eq("posto_servico_id", colaborador.posto_servico_id)
+          .eq("colaborador_id", colaborador.id)
+          .eq("data", formData.data);
+
+        if (updateDiaError) throw updateDiaError;
+
+        const { error: diaVagoError } = await supabase.from("posto_dias_vagos").upsert({
+          posto_servico_id: colaborador.posto_servico_id,
+          colaborador_id: colaborador.id,
+          data: formData.data,
+          motivo: motivoVago,
+          created_by: payload.registrado_por ?? SYSTEM_USER_ID,
+        });
+
+        if (diaVagoError) throw diaVagoError;
+      }
 
       toast.success("Presença registrada com sucesso");
       onSuccess();

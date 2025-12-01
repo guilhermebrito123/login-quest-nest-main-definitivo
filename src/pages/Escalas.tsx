@@ -22,7 +22,6 @@ export default function Escalas() {
         .select(`
           id,
           nome,
-          codigo,
           escala,
           turno,
           jornada,
@@ -31,7 +30,7 @@ export default function Escalas() {
           de,
           ate,
           dias_semana,
-          unidade:unidades(nome, codigo)
+          unidade:unidades(nome)
         `)
         .eq("status", "ativo")
         .order("escala");
@@ -69,7 +68,6 @@ export default function Escalas() {
           escalaEntry.postos.push({
             id: posto.id,
             nome: posto.nome,
-            codigo: posto.codigo,
             unidade: posto.unidade,
           });
         }
@@ -194,7 +192,7 @@ export default function Escalas() {
                               <div key={posto.id} className="flex items-center gap-2 text-sm">
                                 <MapPin className="h-3 w-3 text-muted-foreground" />
                                 <span>
-                                  {posto.codigo} - {posto.nome}
+                                  {posto.nome}
                                   {posto.unidade && (
                                     <span className="text-muted-foreground ml-1">
                                       ({posto.unidade.nome})

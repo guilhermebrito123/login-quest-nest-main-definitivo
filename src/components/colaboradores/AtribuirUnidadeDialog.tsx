@@ -46,12 +46,11 @@ export function AtribuirUnidadeDialog({
   );
 
   const { data: unidades, isLoading: loadingUnidades } = useQuery({
-    queryKey: ["unidades-ativas"],
+    queryKey: ["unidades"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("unidades")
-        .select("id, nome, codigo")
-        .eq("status", "ativo")
+        .select("id, nome")
         .order("nome");
       if (error) throw error;
       return data;
@@ -64,7 +63,7 @@ export function AtribuirUnidadeDialog({
       if (!unidadeId) return [];
       const { data, error } = await supabase
         .from("postos_servico")
-        .select("id, nome, codigo, status, ultimo_dia_atividade")
+        .select("id, nome, status, ultimo_dia_atividade")
         .eq("unidade_id", unidadeId)
         .order("nome");
       if (error) throw error;
@@ -143,7 +142,7 @@ export function AtribuirUnidadeDialog({
               </p>
             ) : !unidades || unidades.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Nenhuma unidade ativa encontrada. Cadastre unidades primeiro.
+                Nenhuma unidade encontrada. Cadastre unidades primeiro.
               </p>
             ) : (
               <Select
@@ -159,7 +158,7 @@ export function AtribuirUnidadeDialog({
                 <SelectContent>
                   {unidades.map((unidade) => (
                     <SelectItem key={unidade.id} value={unidade.id}>
-                      {unidade.codigo} - {unidade.nome}
+                      {unidade.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -205,7 +204,7 @@ export function AtribuirUnidadeDialog({
                       className="flex flex-col"
                     >
                       <span>
-                        {posto.codigo} - {posto.nome} {statusLabel}
+                        {posto.nome} {statusLabel}
                       </span>
                       {secondaryText && (
                         <span className="text-xs text-muted-foreground">

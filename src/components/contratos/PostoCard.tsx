@@ -33,7 +33,6 @@ interface PostoCardProps {
     id: string;
     unidade_id: string;
     nome: string;
-    codigo: string;
     funcao: string;
     status: string;
     horario_inicio?: string;
@@ -618,7 +617,6 @@ const calcularDiasJornada = async () => {
             </div>
             <div>
               <CardTitle className="text-base">{posto.nome}</CardTitle>
-              <p className="text-sm text-muted-foreground">{posto.codigo}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 items-center sm:justify-end">

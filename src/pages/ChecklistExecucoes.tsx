@@ -13,6 +13,7 @@ import { Clock, Edit2, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { toBrazilDateISOString } from "@/lib/dateUtils";
 
 type ExecucaoRow = Database["public"]["Tables"]["execucao_checklist"]["Row"];
 type ExecucaoInsert = Database["public"]["Tables"]["execucao_checklist"]["Insert"];
@@ -21,7 +22,7 @@ type ChecklistSummary = Pick<Database["public"]["Tables"]["checklist"]["Row"], "
 type ChecklistItem = Pick<Database["public"]["Tables"]["checklist_item"]["Row"], "id" | "checklist_id">;
 type ProfileSummary = Pick<Database["public"]["Tables"]["profiles"]["Row"], "id" | "full_name">;
 type ContratoSummary = Pick<Database["public"]["Tables"]["contratos"]["Row"], "id" | "negocio" | "conq_perd">;
-type UnidadeSummary = Pick<Database["public"]["Tables"]["unidades"]["Row"], "id" | "nome" | "codigo" | "contrato_id">;
+type UnidadeSummary = Pick<Database["public"]["Tables"]["unidades"]["Row"], "id" | "nome" | "contrato_id">;
 
 type ExecucaoWithRelations = ExecucaoRow & {
   checklist?: ChecklistSummary | null;
@@ -57,6 +58,13 @@ const initialFormData: ExecucaoForm = {
   status: "ativo",
   contrato_id: "none",
   unidade_id: "none",
+};
+
+const statusConfirmMessages: Record<ExecucaoStatus, string> = {
+  ativo: "Deseja reabrir esta execução como ativa?",
+  concluido: "Deseja marcar esta execução como concluída?",
+  atrasado: "Deseja marcar esta execução como atrasada?",
+  cancelado: "Deseja cancelar esta execução?",
 };
 
 const ChecklistExecucoes = () => {
@@ -100,7 +108,7 @@ const ChecklistExecucoes = () => {
   };
 
   const loadUnidades = async () => {
-    const { data, error } = await supabase.from("unidades").select("id, nome, codigo, contrato_id").order("nome");
+    const { data, error } = await supabase.from("unidades").select("id, nome, contrato_id").order("nome");
     if (error) throw error;
     setUnidades((data as UnidadeSummary[]) ?? []);
   };
@@ -139,7 +147,7 @@ const ChecklistExecucoes = () => {
           checklist:checklist ( id, nome, periodicidade ),
           supervisor:profiles ( id, full_name ),
           contrato:contratos ( id, negocio, conq_perd ),
-          unidade:unidades ( id, nome, codigo, contrato_id )
+          unidade:unidades ( id, nome, contrato_id )
         `
         )
       .order("data_prevista", { ascending: false });
@@ -194,10 +202,11 @@ const ChecklistExecucoes = () => {
 
     const contratoId = formData.contrato_id === "none" ? null : formData.contrato_id;
     const unidadeId = formData.unidade_id === "none" ? null : formData.unidade_id;
+    const dataPrevistaBrazil = toBrazilDateISOString(formData.data_prevista);
 
     const payload: ExecucaoInsert = {
       checklist_id: formData.checklist_id,
-      data_prevista: formData.data_prevista,
+      data_prevista: dataPrevistaBrazil,
       supervisor_id: formData.supervisor_id === "none" ? null : formData.supervisor_id,
       status: formData.status,
       contrato_id: contratoId,
@@ -240,10 +249,14 @@ const ChecklistExecucoes = () => {
   };
 
   const handleEdit = (execucao: ExecucaoWithRelations) => {
+    const checklistNome = execucao.checklist?.nome || "esta execução";
+    if (!window.confirm(`Deseja editar a execução do checklist "${checklistNome}"?`)) {
+      return;
+    }
     setEditingId(execucao.id);
     setFormData({
       checklist_id: execucao.checklist_id,
-      data_prevista: execucao.data_prevista,
+      data_prevista: formatInputDate(execucao.data_prevista),
       supervisor_id: execucao.supervisor_id ?? "none",
       status: execucao.status,
       contrato_id: execucao.contrato_id ?? "none",
@@ -252,6 +265,8 @@ const ChecklistExecucoes = () => {
   };
 
   const handleStatusUpdate = async (id: string, status: ExecucaoStatus) => {
+    const message = statusConfirmMessages[status] ?? `Deseja alterar o status para ${statusLabels[status]}?`;
+    if (!window.confirm(message)) return;
     try {
       const { error } = await supabase.from("execucao_checklist").update({ status }).eq("id", id);
       if (error) throw error;
@@ -263,14 +278,18 @@ const ChecklistExecucoes = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (execucao: ExecucaoWithRelations) => {
+    const checklistNome = execucao.checklist?.nome || execucao.id;
+    if (!window.confirm(`Confirma a exclusão da execução "${checklistNome}"?`)) {
+      return;
+    }
     try {
-      setDeletingId(id);
+      setDeletingId(execucao.id);
 
       const { data: itens } = await supabase
         .from("execucao_checklist_item")
         .select("id")
-        .eq("execucao_checklist_id", id);
+        .eq("execucao_checklist_id", execucao.id);
 
       const itemIds = (itens || []).map((item) => item.id);
 
@@ -285,13 +304,16 @@ const ChecklistExecucoes = () => {
       const { error: respExecError } = await supabase
         .from("resposta_execucao_checklist")
         .delete()
-        .eq("execucao_checklist_id", id);
+        .eq("execucao_checklist_id", execucao.id);
       if (respExecError) throw respExecError;
 
-      const { error: itensError } = await supabase.from("execucao_checklist_item").delete().eq("execucao_checklist_id", id);
+      const { error: itensError } = await supabase
+        .from("execucao_checklist_item")
+        .delete()
+        .eq("execucao_checklist_id", execucao.id);
       if (itensError) throw itensError;
 
-      const { error: execError } = await supabase.from("execucao_checklist").delete().eq("id", id);
+      const { error: execError } = await supabase.from("execucao_checklist").delete().eq("id", execucao.id);
       if (execError) throw execError;
 
       toast.success("Execução excluída.");
@@ -423,7 +445,7 @@ const ChecklistExecucoes = () => {
                       <SelectItem value="none">Sem unidade</SelectItem>
                       {unidadesFiltradas.map((unidade) => (
                         <SelectItem key={unidade.id} value={unidade.id}>
-                          {unidade.nome} ({unidade.codigo})
+                          {unidade.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -554,7 +576,6 @@ const ChecklistExecucoes = () => {
                         {execucao.unidade?.nome ? (
                           <div className="flex flex-col">
                             <span>{execucao.unidade.nome}</span>
-                            <span className="text-xs text-muted-foreground">Cod: {execucao.unidade.codigo}</span>
                           </div>
                         ) : (
                           <span className="text-muted-foreground">Sem unidade</span>
@@ -580,33 +601,17 @@ const ChecklistExecucoes = () => {
                           <Button size="icon" variant="ghost" onClick={() => handleEdit(execucao)}>
                             <Edit2 className="h-4 w-4" />
                           </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => {
-                              if (window.confirm("Deseja realmente marcar esta execução como cancelada?")) {
-                                handleStatusUpdate(execucao.id, "cancelado");
-                              }
-                            }}
-                          >
+                          <Button size="icon" variant="ghost" onClick={() => handleStatusUpdate(execucao.id, "cancelado")}>
                             <XCircle className="h-4 w-4" />
                           </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => {
-                              if (window.confirm("Deseja marcar esta execução como atrasada?")) {
-                                handleStatusUpdate(execucao.id, "atrasado");
-                              }
-                            }}
-                          >
+                          <Button size="icon" variant="ghost" onClick={() => handleStatusUpdate(execucao.id, "atrasado")}>
                             <Clock className="h-4 w-4" />
                           </Button>
                           {execucao.status !== "concluido" && (
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => handleDelete(execucao.id)}
+                              onClick={() => handleDelete(execucao)}
                               disabled={deletingId === execucao.id}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -634,3 +639,8 @@ const ChecklistExecucoes = () => {
 };
 
 export default ChecklistExecucoes;
+  const formatInputDate = (value: string) => {
+    if (!value) return "";
+    return value.includes("T") ? value.split("T")[0] : value;
+  };
+

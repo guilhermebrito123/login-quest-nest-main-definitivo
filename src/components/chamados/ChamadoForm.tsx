@@ -42,7 +42,6 @@ type ChamadoAnexo = {
 type PostoOption = {
   id: string;
   nome: string;
-  codigo: string;
   status?: string | null;
 };
 
@@ -146,8 +145,7 @@ export function ChamadoForm({ open, onOpenChange, chamado, onSuccess }: ChamadoF
     queryFn: async () => {
       let query = supabase
         .from("unidades")
-        .select("id, nome, codigo")
-        .eq("status", "ativo")
+        .select("id, nome")
         .order("nome");
 
       if (selectedContratoId) {
@@ -199,7 +197,7 @@ export function ChamadoForm({ open, onOpenChange, chamado, onSuccess }: ChamadoF
       if (!selectedUnidadeId) return [];
       const { data, error } = await supabase
         .from("postos_servico")
-        .select("id, nome, codigo, status")
+        .select("id, nome, status")
         .eq("unidade_id", selectedUnidadeId)
         .neq("status", "inativo")
         .order("nome");
@@ -703,7 +701,7 @@ const onSubmit = async (data: ChamadoFormValues) => {
                       <SelectContent>
                         {unidades?.map((unidade) => (
                           <SelectItem key={unidade.id} value={unidade.id}>
-                            {unidade.codigo} - {unidade.nome}
+                            {unidade.nome}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -730,7 +728,7 @@ const onSubmit = async (data: ChamadoFormValues) => {
                           const statusLabel = formatPostoStatus(posto.status);
                           return (
                             <SelectItem key={posto.id} value={posto.id}>
-                              {posto.codigo} - {posto.nome}
+                              {posto.nome}
                               {statusLabel ? ` (${statusLabel})` : ""}
                             </SelectItem>
                           );

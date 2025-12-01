@@ -41,7 +41,7 @@ export default function Chamados() {
         .from("chamados")
         .select(`
           *,
-          unidade:unidades(nome, codigo),
+          unidade:unidades(nome),
           contrato:contratos(negocio, conq_perd),
           responsavel:profiles(full_name)
         `)

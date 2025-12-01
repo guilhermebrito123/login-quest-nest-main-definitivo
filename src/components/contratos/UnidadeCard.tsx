@@ -1,9 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { MapPin, Trash2, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  minimumFractionDigits: 2,
+});
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,11 +26,10 @@ interface UnidadeCardProps {
     id: string;
     contrato_id: string;
     nome: string;
-    codigo: string;
     endereco: string | null;
     cidade: string | null;
     uf: string | null;
-    status: string;
+    faturamento_vendido: number;
   };
   contrato?: {
     negocio: string;
@@ -130,12 +134,8 @@ const UnidadeCard = ({ unidade, contrato, onSelect, onEdit, onDelete }: UnidadeC
             </div>
             <div>
               <CardTitle className="text-base">{unidade.nome}</CardTitle>
-              <p className="text-sm text-muted-foreground">{unidade.codigo}</p>
             </div>
           </div>
-          <Badge variant={unidade.status === "ativo" ? "default" : "secondary"}>
-            {unidade.status}
-          </Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -145,6 +145,9 @@ const UnidadeCard = ({ unidade, contrato, onSelect, onEdit, onDelete }: UnidadeC
               Contrato: {contrato.negocio}
             </p>
           )}
+          <p className="text-sm text-muted-foreground">
+            Faturamento vendido: {currencyFormatter.format(unidade.faturamento_vendido)}
+          </p>
           {unidade.endereco && (
             <p className="text-sm">{unidade.endereco}</p>
           )}

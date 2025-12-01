@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -294,8 +294,6 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
             nome,
 
-            codigo,
-
             status,
             ultimo_dia_atividade,
 
@@ -364,9 +362,6 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
         .from("unidades")
 
         .select("id, nome")
-
-        .eq("status", "ativo")
-
         .order("nome");
 
       if (error) throw error;
@@ -382,7 +377,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
     queryFn: async () => {
       const { data, error } = await supabase
         .from("postos_servico")
-        .select("id, nome, codigo, status")
+        .select("id, nome, status")
         .eq("status", "vago")
         .order("nome");
       if (error) throw error;
@@ -409,7 +404,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
           data: datas[0] ?? "",
         }));
       } catch (error: any) {
-        toast.error(error.message || "Erro ao carregar dias disponÃ­veis para o posto.");
+        toast.error(error.message || "Erro ao carregar dias disponíveis para o posto.");
         setDatasDisponiveisVinculacao([]);
         setAgendamentoForm((prev) => ({ ...prev, data: "" }));
       }
@@ -497,7 +492,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
       if (error) throw error;
 
-      toast.success("Colaborador excluÃƒÂƒÃ‚Â­do com sucesso");
+      toast.success("Colaborador excluÃÂ­do com sucesso");
 
       refetch();
 
@@ -533,13 +528,13 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
       if (error) throw error;
 
-      toast.success("Posto de serviÃƒÂƒÃ‚Â§o desvinculado com sucesso");
+      toast.success("Posto de serviÃÂ§o desvinculado com sucesso");
 
       refetch();
 
     } catch (error: any) {
 
-      toast.error(error.message || "Erro ao desvincular posto de serviÃƒÂƒÃ‚Â§o");
+      toast.error(error.message || "Erro ao desvincular posto de serviÃÂ§o");
 
     }
 
@@ -626,9 +621,9 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
           : prev
       );
 
-      toast.success("PresenÃ§a confirmada com sucesso.");
+      toast.success("Presença confirmada com sucesso.");
     } catch (error: any) {
-      toast.error(error.message || "Erro ao confirmar presenÃ§a.");
+      toast.error(error.message || "Erro ao confirmar presença.");
     }
   };
 
@@ -649,14 +644,14 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
       return;
     }
     if (agendamento.tipo === "vincular" && !agendamentoForm.postoDestino) {
-      toast.error("Selecione o posto de destino para a vinculaÃ§Ã£o.");
+      toast.error("Selecione o posto de destino para a vinculação.");
       return;
     }
     if (
       agendamento.tipo === "vincular" &&
       (!agendamentoForm.data || !datasDisponiveisVinculacao.includes(agendamentoForm.data))
     ) {
-      toast.error("Selecione uma data disponÃ­vel para o posto escolhido.");
+      toast.error("Selecione uma data disponível para o posto escolhido.");
       return;
     }
 
@@ -666,7 +661,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) throw new Error("UsuÃ¡rio nÃ£o autenticado");
+      if (!user) throw new Error("Usuário não autenticado");
 
       const payload: Record<string, any> = {
         colaborador_id: agendamento.colaborador.id,
@@ -702,13 +697,13 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
       toast.success(
         agendamento.tipo === "desvincular"
-          ? "DesvinculaÃ§Ã£o agendada com sucesso."
-          : "VinculaÃ§Ã£o agendada com sucesso."
+          ? "Desvinculação agendada com sucesso."
+          : "Vinculação agendada com sucesso."
       );
       setAgendamento(null);
       setAgendamentoForm({ data: "", postoDestino: "" });
     } catch (error: any) {
-      toast.error(error.message || "Erro ao agendar movimentaÃ§Ã£o.");
+      toast.error(error.message || "Erro ao agendar movimentação.");
     } finally {
       setAgendamentoLoading(false);
     }
@@ -733,7 +728,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
       const { error: updateDiasError } = await supabase
         .from("dias_trabalho")
-        .update({ status: "vago", motivo_vago: motivoNormalizado })
+        .update({ status: "vago", motivo_vago: motivoNormalizado, colaborador_id: null })
         .eq("posto_servico_id", escalaVisualizada.postoId)
         .eq("data", diaData);
 
@@ -743,7 +738,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
         .from("posto_dias_vagos")
         .upsert({
           posto_servico_id: escalaVisualizada.postoId,
-          colaborador_id: null,
+          colaborador_id: escalaVisualizada.colaborador?.id ?? null,
           data: diaData,
           motivo: motivoNormalizado,
           created_by: user?.id ?? SYSTEM_USER_ID,
@@ -822,7 +817,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
           </div>
 
           <div className="space-y-2">
-            <Label>Alocação</Label>
+            <Label>Aloca��o</Label>
             <Select value={alocacaoFilter} onValueChange={setAlocacaoFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Todos" />
@@ -830,7 +825,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="alocado">Alocados</SelectItem>
-                <SelectItem value="nao_alocado">Não alocados</SelectItem>
+                <SelectItem value="nao_alocado">N�o alocados</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -879,7 +874,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
               <p className="text-xs text-muted-foreground">
                 {filteredColaboradores && totalColaboradores !== colaboradores?.length
                   ? "Exibindo resultados com filtros aplicados"
-                  : "Exibindo todos os colaboradores disponíveis"}
+                  : "Exibindo todos os colaboradores dispon�veis"}
               </p>
             </div>
           </div>
@@ -927,11 +922,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
                     <TableCell className="align-top">
                       {colaborador.posto ? (
                         <div className="space-y-1 text-sm">
-                          <p className="font-medium">
-                            {colaborador.posto.codigo
-                              ? `${colaborador.posto.codigo} - ${colaborador.posto.nome}`
-                              : colaborador.posto.nome}
-                          </p>
+                          <p className="font-medium">{colaborador.posto.nome}</p>
                           {colaborador.posto.unidade?.nome && (
                             <p className="text-xs text-muted-foreground">
                               Unidade: {colaborador.posto.unidade.nome}
@@ -939,7 +930,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
                           )}
                           {colaborador.posto.ultimo_dia_atividade && (
                             <p className="text-xs text-muted-foreground">
-                              Último dia: {format(parseDbDate(colaborador.posto.ultimo_dia_atividade), "dd/MM/yyyy", { locale: ptBR })}
+                              �ltimo dia: {format(parseDbDate(colaborador.posto.ultimo_dia_atividade), "dd/MM/yyyy", { locale: ptBR })}
                             </p>
                           )}
                         </div>
@@ -984,10 +975,10 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
                               event.stopPropagation();
                               openAgendamento("vincular", colaborador);
                             }}
-                            title="Agendar ocupação"
+                            title="Agendar ocupa��o"
                           >
                             <CalendarPlus className="h-4 w-4" />
-                            <span className="sr-only">Agendar ocupação</span>
+                            <span className="sr-only">Agendar ocupa��o</span>
                           </Button>
                         )}
                         {colaborador.posto_servico_id && (
@@ -1024,10 +1015,10 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
                             event.stopPropagation();
                             setCalendarioColaborador(colaborador);
                           }}
-                          title="Histórico de presença"
+                          title="Hist�rico de presen�a"
                         >
                           <History className="h-4 w-4" />
-                          <span className="sr-only">Histórico de presença</span>
+                          <span className="sr-only">Hist�rico de presen�a</span>
                         </Button>*/}
                         <Button
                           variant="ghost"
@@ -1055,7 +1046,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                              <AlertDialogTitle>Confirmar exclus�o</AlertDialogTitle>
                               <AlertDialogDescription>
                                 Tem certeza que deseja excluir este colaborador?
                               </AlertDialogDescription>
@@ -1222,9 +1213,9 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
                   {agendamento.tipo === "desvincular"
 
-                    ? "Agendar desvinculaÃ§Ã£o"
+                    ? "Agendar desvinculação"
 
-                    : "Agendar vinculaÃ§Ã£o"}
+                    : "Agendar vinculação"}
 
                 </DialogTitle>
 
@@ -1254,12 +1245,12 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
                         <SelectContent className="max-h-72 overflow-y-auto">
                           {postosDisponiveis.length === 0 ? (
                             <SelectItem value="none" disabled>
-                              Nenhum posto vago disponÃ­vel
+                              Nenhum posto vago disponível
                             </SelectItem>
                           ) : (
                             postosDisponiveis.map((posto: any) => (
                               <SelectItem key={posto.id} value={posto.id}>
-                                {posto.codigo ? `${posto.codigo} - ${posto.nome}` : posto.nome}
+                                {posto.nome}
                               </SelectItem>
                             ))
                           )}
@@ -1267,7 +1258,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Data disponÃ­vel</Label>
+                      <Label>Data disponível</Label>
                       <Select
                         value={agendamentoForm.data}
                         onValueChange={(value) =>
@@ -1294,7 +1285,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
                       </Select>
                       {agendamentoForm.postoDestino && datasDisponiveisVinculacao.length === 0 && (
                         <p className="text-xs text-muted-foreground">
-                          Nenhuma data disponÃ­vel para o posto selecionado.
+                          Nenhuma data disponível para o posto selecionado.
                         </p>
                       )}
                     </div>
@@ -1433,7 +1424,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
                             </Button>
                             {/*{dia.status !== "presenca_confirmada" && (
                               <Button size="sm" onClick={() => handleConfirmarPresencaEscala(dia.id)}>
-                                Confirmar presenÃ§a
+                                Confirmar presença
                               </Button>
                             )}*/}
                           </div>
@@ -1488,7 +1479,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
               <DialogDescription>
 
-                InformaÃƒÂ§ÃƒÂµes completas do colaborador
+                InformaÃ§Ãµes completas do colaborador
 
               </DialogDescription>
 
@@ -1560,7 +1551,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
                 <div className="rounded-md border p-4 space-y-2">
 
-                  <p className="font-semibold">AlocaÃƒÂ§ÃƒÂ£o</p>
+                  <p className="font-semibold">AlocaÃ§Ã£o</p>
 
                   {colaboradorDetalhe.posto_servico_id ? (
 
@@ -1570,11 +1561,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
                         <span className="font-medium">Posto: </span>
 
-                        {colaboradorDetalhe.posto?.codigo
-
-                          ? `${colaboradorDetalhe.posto.codigo} - ${colaboradorDetalhe.posto.nome}`
-
-                          : colaboradorDetalhe.posto?.nome || "-"}
+                        {colaboradorDetalhe.posto?.nome || "-"}
 
                       </p>
 
@@ -1616,7 +1603,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
                     <p className="text-sm text-muted-foreground">
 
-                      NÃƒÂ£o alocado a um posto de serviÃƒÂ§o.
+                      NÃ£o alocado a um posto de serviÃ§o.
 
                     </p>
 
@@ -1639,3 +1626,5 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
   );
 
 }
+
+
