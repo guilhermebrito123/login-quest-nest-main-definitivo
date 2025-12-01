@@ -681,7 +681,7 @@ export default function Dashboard24h() {
           <Card className="h-[500px]">
             <CardHeader>
               <CardTitle>Chamados em aberto</CardTitle>
-              <CardDescription>Chamados ainda não conclu�dos</CardDescription>
+              <CardDescription>Chamados ainda não concluídos</CardDescription>
             </CardHeader>
             <CardContent className="h-[calc(100%-100px)] overflow-y-auto space-y-3">
               {chamadosFeed.length === 0 && (

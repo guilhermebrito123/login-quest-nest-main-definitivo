@@ -28,7 +28,17 @@ import {
   DiariasReprovadasPage,
   DiariasCanceladasPage,
 } from "./pages/diarias/DiariasStatusPages";
+import {
+  Diarias2AguardandoPage,
+  Diarias2ConfirmadasPage,
+  Diarias2AprovadasPage,
+  Diarias2LancadasPage,
+  Diarias2AprovadasPagamentoPage,
+  Diarias2ReprovadasPage,
+  Diarias2CanceladasPage,
+} from "./pages/diarias/DiariasStatusPages2";
 import Diarias from "./pages/Diarias";
+import Diarias2 from "./pages/Diarias2";
 import Inspecao from "./pages/Inspecao";
 import Checklist from "./pages/Checklist";
 import ChecklistItens from "./pages/ChecklistItens";
@@ -76,6 +86,21 @@ const App = () => (
           />
           <Route path="/diarias/canceladas" element={<ProtectedRoute><DiariasCanceladasPage /></ProtectedRoute>} />
           <Route path="/diarias" element={<ProtectedRoute><Diarias /></ProtectedRoute>} />
+          <Route path="/diarias2/aguardando" element={<ProtectedRoute><Diarias2AguardandoPage /></ProtectedRoute>} />
+          <Route path="/diarias2/confirmadas" element={<ProtectedRoute><Diarias2ConfirmadasPage /></ProtectedRoute>} />
+          <Route path="/diarias2/aprovadas" element={<ProtectedRoute><Diarias2AprovadasPage /></ProtectedRoute>} />
+          <Route path="/diarias2/lancadas" element={<ProtectedRoute><Diarias2LancadasPage /></ProtectedRoute>} />
+          <Route
+            path="/diarias2/aprovadas-pagamento"
+            element={
+              <ProtectedRoute>
+                <Diarias2AprovadasPagamentoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/diarias2/reprovadas" element={<ProtectedRoute><Diarias2ReprovadasPage /></ProtectedRoute>} />
+          <Route path="/diarias2/canceladas" element={<ProtectedRoute><Diarias2CanceladasPage /></ProtectedRoute>} />
+          <Route path="/diarias2" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
           <Route path="/inspecao" element={<ProtectedRoute><Inspecao /></ProtectedRoute>} />
           <Route path="/checklists" element={<ProtectedRoute><Checklist /></ProtectedRoute>} />
           <Route path="/checklist-itens" element={<ProtectedRoute><ChecklistItens /></ProtectedRoute>} />

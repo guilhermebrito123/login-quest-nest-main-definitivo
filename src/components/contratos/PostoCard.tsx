@@ -91,7 +91,7 @@ const POSTO_STATUS_LABELS: Record<string, string> = {
   vago_temporariamente: "Vago temporariamente",
   ocupado_temporariamente: "Ocupado temporariamente",
   presenca_confirmada: "Presenca confirmada",
-  ocupacao_agendada: "Ocupa??o agendada",
+  ocupacao_agendada: "Ocupação agendada",
   inativo: "Inativo",
 };
 
@@ -318,8 +318,8 @@ const PostoCard = ({ posto, unidade, onEdit, onDelete }: PostoCardProps) => {
 
       if (colaboradores && colaboradores.length > 0) {
         toast({
-          title: "NÃ£o Ã© possÃ­vel excluir",
-          description: "Este posto possui colaboradores relacionados. Remova a vinculaÃ§Ã£o dos colaboradores primeiro.",
+          title: "Não é possível excluir",
+          description: "Este posto possui colaboradores relacionados. Remova a vinculação dos colaboradores primeiro.",
           variant: "destructive",
         });
         return;
@@ -327,7 +327,7 @@ const PostoCard = ({ posto, unidade, onEdit, onDelete }: PostoCardProps) => {
 
       if (chamados && chamados.length > 0) {
         toast({
-          title: "NÃ£o Ã© possÃ­vel excluir",
+          title: "Não é possível excluir",
           description: "Este posto possui chamados relacionados. Exclua os chamados primeiro.",
           variant: "destructive",
         });
@@ -342,8 +342,8 @@ const PostoCard = ({ posto, unidade, onEdit, onDelete }: PostoCardProps) => {
       if (error) throw error;
 
       toast({
-        title: "Posto excluÃ­do",
-        description: "Posto de serviÃ§o excluÃ­do com sucesso",
+        title: "Posto excluído",
+        description: "Posto de serviço excluído com sucesso",
       });
       onDelete();
     } catch (error: any) {
@@ -530,12 +530,12 @@ const calcularDiasJornada = async () => {
       
       setDayActionOpen(false);
       toast({
-        title: "PresenÃ§a confirmada",
-        description: `PresenÃ§a confirmada para ${selectedDayForAction.toLocaleDateString('pt-BR')}`,
+        title: "Presença confirmada",
+        description: `Presença confirmada para ${selectedDayForAction.toLocaleDateString('pt-BR')}`,
       });
     } catch (error: any) {
       toast({
-        title: "Erro ao confirmar presenÃ§a",
+        title: "Erro ao confirmar presença",
         description: error.message,
         variant: "destructive",
       });
@@ -545,7 +545,7 @@ const calcularDiasJornada = async () => {
     const handleMarcarVago = async () => {
     if (!selectedDayForAction || !motivoVago) {
       toast({
-        title: "Motivo obrigat?rio",
+        title: "Motivo obrigatório",
         description: "Selecione um motivo para marcar o posto como vago",
         variant: "destructive",
       });
@@ -771,9 +771,9 @@ const calcularDiasJornada = async () => {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Confirmar exclusÃ£o</AlertDialogTitle>
+                <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Tem certeza que deseja excluir este posto? Esta aÃ§Ã£o nÃ£o pode ser desfeita.
+                  Tem certeza que deseja excluir este posto? Esta ação não pode ser desfeita.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -804,11 +804,11 @@ const calcularDiasJornada = async () => {
               className="w-full bg-green-600 hover:bg-green-700"
             >
               <UserCheck className="h-4 w-4 mr-2" />
-              Confirmar PresenÃ§a
+              Confirmar Presença
             </Button>
             
             <div className="space-y-2">
-              <Label htmlFor="motivo">Motivo da AusÃªncia</Label>
+              <Label htmlFor="motivo">Motivo da Ausência</Label>
               <Select value={motivoVago} onValueChange={setMotivoVago}>
                 <SelectTrigger id="motivo">
                   <SelectValue placeholder="Selecione o motivo" />

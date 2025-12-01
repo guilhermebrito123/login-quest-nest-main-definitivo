@@ -37,6 +37,7 @@ type MenuItem = {
   url: string;
   icon: any;
   children?: { title: string; url: string; status?: string }[];
+  statusCountsKey?: "diarias" | "diariasTemporarias";
 };
 
 const diariasChildren = [
@@ -49,6 +50,16 @@ const diariasChildren = [
   { title: "Canceladas", url: "/diarias/canceladas" },
 ];
 
+const diariasTemporariasChildren = [
+  { title: "Aguardando confirmação", url: "/diarias2/aguardando", status: "Aguardando confirmacao" },
+  { title: "Confirmadas", url: "/diarias2/confirmadas", status: "Confirmada" },
+  { title: "Aprovadas", url: "/diarias2/aprovadas", status: "Aprovada" },
+  { title: "Lançadas", url: "/diarias2/lancadas", status: "Lançada para pagamento" },
+  { title: "Aprovadas p/ pagamento", url: "/diarias2/aprovadas-pagamento" },
+  { title: "Reprovadas", url: "/diarias2/reprovadas" },
+  { title: "Canceladas", url: "/diarias2/canceladas" },
+];
+
 const menuItems: MenuItem[] = [
   { title: "Dashboard 24/7", url: "/dashboard-24h", icon: LayoutDashboard },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -58,7 +69,14 @@ const menuItems: MenuItem[] = [
   { title: "Ordens de Serviço", url: "/ordens-servico", icon: ClipboardList },
   { title: "Colaboradores", url: "/colaboradores", icon: UserCheck },
   { title: "Diaristas", url: "/diaristas", icon: UserCircle },
-  { title: "Diarias", url: "/diarias", icon: Calendar, children: diariasChildren },
+  { title: "Diarias (versão futura)", url: "/diarias", icon: Calendar, children: diariasChildren, statusCountsKey: "diarias" },
+  {
+    title: "Diarias (versão 1)",
+    url: "/diarias2",
+    icon: Calendar,
+    children: diariasTemporariasChildren,
+    statusCountsKey: "diariasTemporarias",
+  },
   { title: "Ativos", url: "/ativos", icon: Package },
   { title: "Estoque", url: "/estoque", icon: Package },
   { title: "Checklists", url: "/checklists", icon: ClipboardCheck },
@@ -73,34 +91,45 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const currentPath = location.pathname;
   const [diariasCounts, setDiariasCounts] = useState<Record<string, number>>({});
+  const [diariasTemporariasCounts, setDiariasTemporariasCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let isMounted = true;
 
+    const fetchCounts = async (
+      children: { title: string; url: string; status?: string }[],
+      tableName: string,
+    ) => {
+      const statuses = children.filter((child) => child.status);
+      if (statuses.length === 0) return {};
+      const results = await Promise.all(
+        statuses.map(async (child) => {
+          const { count, error } = await supabase
+            .from(tableName)
+            .select("id", { count: "exact", head: true })
+            .eq("status", child.status);
+          if (error) throw error;
+          return { status: child.status!, count: count || 0 };
+        }),
+      );
+      const next: Record<string, number> = {};
+      results.forEach(({ status, count }) => {
+        next[status] = count;
+      });
+      return next;
+    };
+
     const loadCounts = async () => {
-      const statusesWithBadge = diariasChildren.filter((child) => child.status);
-      if (statusesWithBadge.length === 0) return;
-
       try {
-        const results = await Promise.all(
-          statusesWithBadge.map(async (child) => {
-            const { count, error } = await supabase
-              .from("diarias")
-              .select("id", { count: "exact", head: true })
-              .eq("status", child.status);
-            if (error) throw error;
-            return { status: child.status!, count: count || 0 };
-          }),
-        );
-
+        const [origCounts, temporariasCounts] = await Promise.all([
+          fetchCounts(diariasChildren, "diarias"),
+          fetchCounts(diariasTemporariasChildren, "diarias_temporarias"),
+        ]);
         if (!isMounted) return;
-        const next: Record<string, number> = {};
-        results.forEach(({ status, count }) => {
-          next[status] = count;
-        });
-        setDiariasCounts(next);
+        setDiariasCounts(origCounts);
+        setDiariasTemporariasCounts(temporariasCounts);
       } catch (error) {
-        console.error("Erro ao carregar contagens de diárias:", error);
+        console.error("Erro ao carregar contagens de diarias:", error);
       }
     };
 
@@ -131,6 +160,8 @@ export function AppSidebar() {
               {menuItems.map((item) => {
                 const hasChildren = Array.isArray(item.children) && item.children.length > 0;
                 const itemActive = hasChildren ? isActive(item.url, false) : isActive(item.url);
+                const countsMap =
+                  item.statusCountsKey === "diariasTemporarias" ? diariasTemporariasCounts : diariasCounts;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={itemActive}>
@@ -156,9 +187,9 @@ export function AppSidebar() {
                                 activeClassName="bg-accent text-accent-foreground font-medium"
                               >
                                 <span className="truncate">{child.title}</span>
-                                {child.status && (diariasCounts[child.status] ?? 0) > 0 && (
+                                {child.status && (countsMap[child.status] ?? 0) > 0 && (
                                   <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
-                                    {diariasCounts[child.status]}
+                                    {countsMap[child.status]}
                                   </span>
                                 )}
                               </NavLink>
@@ -184,3 +215,6 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
+
+
+

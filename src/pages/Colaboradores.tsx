@@ -817,7 +817,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
           </div>
 
           <div className="space-y-2">
-            <Label>Aloca��o</Label>
+            <Label>Alocação</Label>
             <Select value={alocacaoFilter} onValueChange={setAlocacaoFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Todos" />
@@ -874,7 +874,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
               <p className="text-xs text-muted-foreground">
                 {filteredColaboradores && totalColaboradores !== colaboradores?.length
                   ? "Exibindo resultados com filtros aplicados"
-                  : "Exibindo todos os colaboradores dispon�veis"}
+                  : "Exibindo todos os colaboradores disponíveis"}
               </p>
             </div>
           </div>
@@ -1479,7 +1479,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
               <DialogDescription>
 
-                InformaÃ§Ãµes completas do colaborador
+                Informações completas do colaborador
 
               </DialogDescription>
 
@@ -1551,7 +1551,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
                 <div className="rounded-md border p-4 space-y-2">
 
-                  <p className="font-semibold">AlocaÃ§Ã£o</p>
+                  <p className="font-semibold">Alocação</p>
 
                   {colaboradorDetalhe.posto_servico_id ? (
 
@@ -1603,7 +1603,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
                     <p className="text-sm text-muted-foreground">
 
-                      NÃ£o alocado a um posto de serviÃ§o.
+                      Não alocado a um posto de serviço.
 
                     </p>
 
