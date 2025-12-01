@@ -131,7 +131,7 @@ const Diarias2 = () => {
       <div className="space-y-6 p-4 md:p-6">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm text-muted-foreground uppercase tracking-wide">Gestao de diarias temporarias</p>
+            <p className="text-sm text-muted-foreground uppercase tracking-wide">Gestao de diarias</p>
             <h1 className="text-3xl font-bold">Diarias (versão 1.0.0)</h1>
             <p className="text-sm text-muted-foreground">
               Registre diarias em casos de ausencia utilizando colaboradores alocados.
