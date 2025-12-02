@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
 import {
@@ -453,7 +453,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col gap-3">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-1">
                     <Label htmlFor={`filtro-temp-diarista-${statusKey}`}>Diarista</Label>
                     <Select
@@ -558,15 +558,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     <TableHeader>
                       <TableRow>
                         <TableHead>Data</TableHead>
-                        <TableHead>Colaborador ausente</TableHead>
-                        <TableHead>Posto</TableHead>
-                        <TableHead>Unidade</TableHead>
-                        <TableHead>Diarista</TableHead>
-                        <TableHead>Motivo</TableHead>
-                        <TableHead>Valor</TableHead>
-                        <TableHead>Atualizado em</TableHead>
-                        {showReasonColumn && <TableHead>Motivo status</TableHead>}
-                        <TableHead className="text-right">Acoes</TableHead>
+                      <TableHead className="hidden md:table-cell">Colaborador ausente</TableHead>
+                      <TableHead className="hidden md:table-cell">Posto</TableHead>
+                      <TableHead className="hidden md:table-cell">Unidade</TableHead>
+                      <TableHead>Diarista</TableHead>
+                      <TableHead className="hidden md:table-cell">Motivo</TableHead>
+                      <TableHead className="hidden md:table-cell">Valor</TableHead>
+                      <TableHead className="hidden md:table-cell">Atualizado em</TableHead>
+                      <TableHead className="hidden md:table-cell text-right">Acoes</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -589,21 +588,90 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             onClick={() => handleRowClick(diaria)}
                           >
                             <TableCell>{formatDate(diaria.data_diaria)}</TableCell>
-                            <TableCell>{colaboradorInfo?.nome_completo || "-"}</TableCell>
-                            <TableCell>{postoInfo?.nome || "-"}</TableCell>
-                            <TableCell>{postoInfo?.unidade?.nome || "-"}</TableCell>
-                            <TableCell>{diaristaInfo?.nome_completo || "-"}</TableCell>
-                            <TableCell>{diaria.motivo_vago || "-"}</TableCell>
-                            <TableCell>{currencyFormatter.format(diaria.valor_diaria || 0)}</TableCell>
-                            <TableCell>{formatDateTime(diaria.updated_at)}</TableCell>
-                            {showReasonColumn && (
-                              <TableCell className="text-sm text-muted-foreground max-w-xs whitespace-pre-line">
-                                {normalizedKey === normalizedReprovadaStatus
-                                  ? diaria.motivo_reprovacao || "-"
-                                  : diaria.motivo_cancelamento || "-"}
-                              </TableCell>
-                            )}
-                            <TableCell onClick={(event) => event.stopPropagation()}>
+                          <TableCell className="hidden md:table-cell">
+                            {colaboradorInfo?.nome_completo || "-"}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">{postoInfo?.nome || "-"}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {postoInfo?.unidade?.nome || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-2">
+                              <span>{diaristaInfo?.nome_completo || "-"}</span>
+                              <div
+                                className="md:hidden flex flex-col gap-2 pt-2"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <div className="flex flex-wrap gap-2">
+                                  {statusKey === STATUS.confirmada && (
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      disabled={updatingId === diaria.id.toString()}
+                                      onClick={() => openReasonDialog(diaria.id.toString(), STATUS.reprovada)}
+                                    >
+                                      Reprovar
+                                    </Button>
+                                  )}
+                                  {isCancelPage && (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="text-destructive"
+                                      disabled={deletingId === diaria.id.toString()}
+                                      onClick={() => handleDeleteDiaria(diaria.id.toString())}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      <span className="sr-only">Excluir diaria</span>
+                                    </Button>
+                                  )}
+                                </div>
+                                {actionElement && <div>{actionElement}</div>}
+                                <div className="flex flex-col gap-2">
+                                  <Select
+                                    value={customStatusSelection[diaria.id.toString()] || ""}
+                                    onValueChange={(value) =>
+                                      setCustomStatusSelection((prev) => ({
+                                        ...prev,
+                                        [diaria.id.toString()]: value,
+                                      }))
+                                    }
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Alterar status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {statusOptions.map((statusOption) => (
+                                        <SelectItem key={statusOption} value={statusOption}>
+                                          {STATUS_LABELS[statusOption]}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    disabled={
+                                      updatingId === diaria.id.toString() ||
+                                      !customStatusSelection[diaria.id.toString()] ||
+                                      customStatusSelection[diaria.id.toString()] === diaria.status
+                                    }
+                                    onClick={() => handleCustomStatusApply(diaria.id.toString())}
+                                  >
+                                    Aplicar
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">{diaria.motivo_vago || "-"}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {currencyFormatter.format(diaria.valor_diaria || 0)}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {formatDateTime(diaria.updated_at)}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell" onClick={(event) => event.stopPropagation()}>
                               <div className="flex flex-col items-end gap-2">
                                 <div className="flex flex-wrap justify-end gap-2">
                                   {statusKey === STATUS.confirmada && (
@@ -739,7 +807,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               <div className="space-y-6 text-sm">
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Informacoes gerais</p>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Data</p>
                       <p className="font-medium">{formatDate(selectedDiaria.data_diaria)}</p>
@@ -787,7 +855,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Colaborador ausente</p>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Nome</p>
                       <p className="font-medium">{selectedColaboradorInfo?.nome_completo || "-"}</p>
@@ -801,7 +869,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Diarista</p>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Nome</p>
                       <p className="font-medium">{selectedDiaristaInfo?.nome_completo || "-"}</p>
@@ -815,7 +883,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Dados bancarios</p>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Banco</p>
                       <p className="font-medium">{selectedDiaristaInfo?.banco || "-"}</p>
@@ -859,4 +927,5 @@ export const Diarias2LancadasPage = createStatusPage(STATUS_CONFIGS[3]);
 export const Diarias2AprovadasPagamentoPage = createStatusPage(STATUS_CONFIGS[4]);
 export const Diarias2ReprovadasPage = createStatusPage(STATUS_CONFIGS[5]);
 export const Diarias2CanceladasPage = createStatusPage(STATUS_CONFIGS[6]);
+
 

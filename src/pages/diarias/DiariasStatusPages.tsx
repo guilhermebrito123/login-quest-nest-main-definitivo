@@ -63,41 +63,41 @@ interface StatusPageConfig {
 const STATUS_CONFIGS: StatusPageConfig[] = [
   {
     statusKey: STATUS.aguardando,
-    title: "Diárias aguardando confirmação",
-    description: "Confirme as diárias recém cadastradas antes de liberar para aprovação.",
-    emptyMessage: "Nenhuma diária aguardando confirmação.",
+    title: "Di├írias aguardando confirma├º├úo",
+    description: "Confirme as di├írias rec├®m cadastradas antes de liberar para aprova├º├úo.",
+    emptyMessage: "Nenhuma di├íria aguardando confirma├º├úo.",
   },
   {
     statusKey: STATUS.confirmada,
-    title: "Diárias confirmadas",
-    description: "Diárias prontas para aprovação financeira.",
+    title: "Di├írias confirmadas",
+    description: "Di├írias prontas para aprova├º├úo financeira.",
   },
   {
     statusKey: STATUS.aprovada,
-    title: "Diárias aprovadas",
-    description: "Avance as diárias aprovadas para lançamento.",
+    title: "Di├írias aprovadas",
+    description: "Avance as di├írias aprovadas para lan├ºamento.",
   },
   {
     statusKey: STATUS.lancada,
-    title: "Diárias lançadas para pagamento",
-    description: "Diárias lançadas aguardando aprovação de pagamento.",
+    title: "Di├írias lan├ºadas para pagamento",
+    description: "Di├írias lan├ºadas aguardando aprova├º├úo de pagamento.",
   },
   {
     statusKey: STATUS.aprovadaPagamento,
-    title: "Diárias aprovadas para pagamento",
-    description: "Acompanhe as diárias aprovadas que estão em fase final de pagamento.",
+    title: "Di├írias aprovadas para pagamento",
+    description: "Acompanhe as di├írias aprovadas que est├úo em fase final de pagamento.",
   },
   {
     statusKey: STATUS.reprovada,
-    title: "Diárias reprovadas",
-    description: "Histórico de diárias reprovadas com seus respectivos motivos.",
-    emptyMessage: "Nenhuma diária reprovada.",
+    title: "Di├írias reprovadas",
+    description: "Hist├│rico de di├írias reprovadas com seus respectivos motivos.",
+    emptyMessage: "Nenhuma di├íria reprovada.",
   },
   {
     statusKey: STATUS.cancelada,
-    title: "Diárias canceladas",
-    description: "Histórico de diárias canceladas.",
-    emptyMessage: "Nenhuma diária cancelada.",
+    title: "Di├írias canceladas",
+    description: "Hist├│rico de di├írias canceladas.",
+    emptyMessage: "Nenhuma di├íria cancelada.",
   },
 ];
 
@@ -311,7 +311,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         toast.success(`Status atualizado para ${STATUS_LABELS[nextStatus]}.`);
         await refetchDiarias();
       } catch (error: any) {
-        toast.error(error.message || "Erro ao atualizar status da diária.");
+        toast.error(error.message || "Erro ao atualizar status da di├íria.");
       } finally {
         setUpdatingId(null);
       }
@@ -422,7 +422,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         <div className="space-y-6 p-4 md:p-6">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm text-muted-foreground uppercase tracking-wide">Diárias</p>
+              <p className="text-sm text-muted-foreground uppercase tracking-wide">Di├írias</p>
               <h1 className="text-3xl font-bold">{title}</h1>
               <p className="text-sm text-muted-foreground">{description}</p>
             </div>
@@ -438,7 +438,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             <Card className="shadow-lg">
               <CardContent className="flex items-center justify-between py-4">
                 <p className="text-sm text-muted-foreground">
-                  Existem diárias neste status fora do mês selecionado.
+                  Existem di├írias neste status fora do m├¬s selecionado.
                 </p>
                 <Button
                   variant="outline"
@@ -446,7 +446,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   className="bg-red-600 text-white hover:bg-red-700"
                   onClick={() => setSelectedMonth(fallbackMonth)}
                 >
-                  Ver mês com registros
+                  Ver m├¬s com registros
                 </Button>
               </CardContent>
             </Card>
@@ -459,12 +459,12 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 <CardDescription>Período selecionado: {selectedMonth}</CardDescription>
               </div>
               <Badge variant={STATUS_BADGE[statusKey] || "outline"}>
-                {diariasDoStatus.length} diária(s)
+                {diariasDoStatus.length} di├íria(s)
               </Badge>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col gap-3">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-1">
                     <Label htmlFor={`filtro-diarista-${statusKey}`}>Diarista</Label>
                     <Select
@@ -569,14 +569,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     <TableHeader>
                       <TableRow>
                         <TableHead>Data</TableHead>
-                        <TableHead>Posto</TableHead>
-                        <TableHead>Unidade</TableHead>
-                        <TableHead>Motivo (dia vago)</TableHead>
-                        <TableHead>Diarista</TableHead>
-                        <TableHead>Valor</TableHead>
-                        <TableHead>Atualizado em</TableHead>
-                        {showReasonColumn && <TableHead>Motivo</TableHead>}
-                        <TableHead className="text-right">Acoes</TableHead>
+                      <TableHead className="hidden md:table-cell">Posto</TableHead>
+                      <TableHead className="hidden md:table-cell">Unidade</TableHead>
+                      <TableHead className="hidden md:table-cell">Motivo (dia vago)</TableHead>
+                      <TableHead>Diarista</TableHead>
+                      <TableHead className="hidden md:table-cell">Valor</TableHead>
+                      <TableHead className="hidden md:table-cell">Atualizado em</TableHead>
+                      <TableHead className="hidden md:table-cell text-right">Acoes</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -602,29 +601,93 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             onClick={() => handleRowClick(diaria)}
                           >
                             <TableCell>{formatDate(diaInfo?.data)}</TableCell>
-                            <TableCell>{postoInfo?.nome || "-"}</TableCell>
-                            <TableCell>{postoInfo?.unidade?.nome || "-"}</TableCell>
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <span>{diaInfo?.motivo || "-"}</span>
-                                {deveExibirOcupanteNaLinha && ocupanteInfo && (
-                                  <span className="text-xs text-muted-foreground">
-                                    Ocupado por: {ocupanteInfo.nome_completo}
-                                  </span>
-                                )}
+                          <TableCell className="hidden md:table-cell">{postoInfo?.nome || "-"}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {postoInfo?.unidade?.nome || "-"}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <div className="flex flex-col">
+                              <span>{diaInfo?.motivo || "-"}</span>
+                              {deveExibirOcupanteNaLinha && ocupanteInfo && (
+                                <span className="text-xs text-muted-foreground">
+                                  Ocupado por: {ocupanteInfo.nome_completo}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-2">
+                              <span>{diaristaInfo?.nome_completo || "-"}</span>
+                              <div
+                                className="md:hidden flex flex-col gap-2 pt-2"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <div className="flex flex-wrap gap-2">
+                                  {statusKey === STATUS.confirmada && (
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      disabled={updatingId === diaria.id || isAlreadyReprovada}
+                                      onClick={() => openReasonDialog(diaria.id, STATUS.reprovada)}
+                                    >
+                                      Reprovar
+                                    </Button>
+                                  )}
+                                  {isCancelPage && (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="text-destructive"
+                                      disabled={deletingId === diaria.id}
+                                      onClick={() => handleDeleteDiaria(diaria.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      <span className="sr-only">Excluir diaria</span>
+                                    </Button>
+                                  )}
+                                </div>
+                                {actionElement && <div>{actionElement}</div>}
+                                <div className="flex flex-col gap-2">
+                                  <Select
+                                    value={customStatusSelection[diaria.id] || ""}
+                                    onValueChange={(value) =>
+                                      setCustomStatusSelection((prev) => ({ ...prev, [diaria.id]: value }))
+                                    }
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Alterar status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {statusOptions.map((statusOption) => (
+                                        <SelectItem key={statusOption} value={statusOption}>
+                                          {STATUS_LABELS[statusOption]}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    disabled={
+                                      updatingId === diaria.id ||
+                                      !customStatusSelection[diaria.id] ||
+                                      customStatusSelection[diaria.id] === diaria.status
+                                    }
+                                    onClick={() => handleCustomStatusApply(diaria.id)}
+                                  >
+                                    Aplicar
+                                  </Button>
+                                </div>
                               </div>
-                            </TableCell>
-                            <TableCell>{diaristaInfo?.nome_completo || "-"}</TableCell>
-                            <TableCell>{currencyFormatter.format(diaria.valor || 0)}</TableCell>
-                            <TableCell>{formatDateTime(diaria.updated_at)}</TableCell>
-                            {showReasonColumn && (
-                              <TableCell className="text-sm text-muted-foreground max-w-xs whitespace-pre-line">
-                                {normalizedKey === normalizedReprovadaStatus
-                                  ? diaria.motivo_reprovacao || "-"
-                                  : diaria.motivo_cancelamento || "-"}
-                              </TableCell>
-                            )}
-                            <TableCell onClick={(event) => event.stopPropagation()}>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {currencyFormatter.format(diaria.valor || 0)}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {formatDateTime(diaria.updated_at)}
+                          </TableCell>                          
+                          <TableCell className="hidden md:table-cell" onClick={(event) => event.stopPropagation()}>
                               <div className="flex flex-col items-end gap-2">
                                 <div className="flex flex-wrap justify-end gap-2">
                                   {statusKey === STATUS.confirmada && (
@@ -706,7 +769,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           </Card>
 
           {loadingDiarias && (
-            <p className="text-sm text-muted-foreground text-center">Atualizando informações...</p>
+            <p className="text-sm text-muted-foreground text-center">Atualizando informa├º├Áes...</p>
           )}
         </div>
 
@@ -721,7 +784,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               <DialogDescription>
                 Informe o motivo para {normalizeStatus(reasonDialog.targetStatus || "") === normalizedReprovadaStatus
                   ? "reprovar"
-                  : "cancelar"} esta diária.
+                  : "cancelar"} esta di├íria.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
@@ -752,16 +815,16 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         <Dialog open={detailsDialogOpen} onOpenChange={(open) => (open ? null : closeDetailsDialog())}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Detalhes da diária</DialogTitle>
+              <DialogTitle>Detalhes da di├íria</DialogTitle>
               <DialogDescription>
-                Visualize as informações completas da diária selecionada e os dados bancários do diarista.
+                Visualize as informa├º├Áes completas da di├íria selecionada e os dados banc├írios do diarista.
               </DialogDescription>
             </DialogHeader>
             {selectedDiaria && (
               <div className="space-y-6 text-sm">
                 <div>
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Informações gerais</p>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Informa├º├Áes gerais</p>
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Data</p>
                       <p className="font-medium">{formatDate(selectedDiaInfo?.data)}</p>
@@ -821,7 +884,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Diarista</p>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Nome</p>
                       <p className="font-medium">{selectedDiaristaInfo?.nome_completo || "-"}</p>
@@ -834,18 +897,18 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Dados bancários</p>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Dados banc├írios</p>
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Banco</p>
                       <p className="font-medium">{selectedDiaristaInfo?.banco || "-"}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground text-xs">Agência</p>
+                      <p className="text-muted-foreground text-xs">Ag├¬ncia</p>
                       <p className="font-medium">{selectedDiaristaInfo?.agencia || "-"}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground text-xs">Número da conta</p>
+                      <p className="text-muted-foreground text-xs">N├║mero da conta</p>
                       <p className="font-medium">{selectedDiaristaInfo?.numero_conta || "-"}</p>
                     </div>
                     <div>
@@ -879,4 +942,5 @@ export const DiariasLancadasPage = createStatusPage(STATUS_CONFIGS[3]);
 export const DiariasAprovadasPagamentoPage = createStatusPage(STATUS_CONFIGS[4]);
 export const DiariasReprovadasPage = createStatusPage(STATUS_CONFIGS[5]);
 export const DiariasCanceladasPage = createStatusPage(STATUS_CONFIGS[6]);
+
 
