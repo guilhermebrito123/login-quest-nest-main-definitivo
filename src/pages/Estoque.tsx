@@ -114,12 +114,12 @@ const Estoque = () => {
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Estoque</h1>
             <p className="text-muted-foreground">Controle de materiais e insumos.</p>
           </div>
-          <Button onClick={handleNew}>
+          <Button onClick={handleNew} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Novo Item
           </Button>
@@ -159,7 +159,7 @@ const Estoque = () => {
 
         <Card>
           <CardHeader>
-            <div className="relative flex-1">
+            <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por SKU, nome ou descricao..."
@@ -200,58 +200,65 @@ const Estoque = () => {
                 </div>
               )}
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Descricao</TableHead>
-                  <TableHead>Unidade</TableHead>
-                  <TableHead>Un. Medida</TableHead>
-                  <TableHead>Qtd. Minima</TableHead>
-                  <TableHead>Qtd. Atual</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Acoes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItens.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.sku}</TableCell>
-                    <TableCell>{item.nome}</TableCell>
-                    <TableCell>{item.descricao}</TableCell>
-                    <TableCell>{item.unidades?.nome || "-"}</TableCell>
-                    <TableCell>{item.unidade_medida}</TableCell>
-                    <TableCell>{item.quantidade_minima}</TableCell>
-                    <TableCell>{item.quantidade_atual}</TableCell>
-                    <TableCell>
-                      {isAbaixoMinimo(item) ? (
-                        <Badge variant="destructive">Abaixo do minimo</Badge>
-                      ) : (
-                        <Badge>Normal</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredItens.length === 0 && (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-sm text-muted-foreground">
-                      Nenhum item encontrado
-                    </TableCell>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Descricao</TableHead>
+                    <TableHead>Unidade</TableHead>
+                    <TableHead>Un. Medida</TableHead>
+                    <TableHead>Qtd. Minima</TableHead>
+                    <TableHead>Qtd. Atual</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Acoes</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredItens.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.sku}</TableCell>
+                      <TableCell>{item.nome}</TableCell>
+                      <TableCell>{item.descricao}</TableCell>
+                      <TableCell>{item.unidades?.nome || "-"}</TableCell>
+                      <TableCell>{item.unidade_medida}</TableCell>
+                      <TableCell>{item.quantidade_minima}</TableCell>
+                      <TableCell>{item.quantidade_atual}</TableCell>
+                      <TableCell>
+                        {isAbaixoMinimo(item) ? (
+                          <Badge variant="destructive">Abaixo do minimo</Badge>
+                        ) : (
+                          <Badge>Normal</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)} className="sm:w-auto">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(item.id)}
+                            className="sm:w-auto"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredItens.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center text-sm text-muted-foreground">
+                        Nenhum item encontrado
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -147,7 +147,7 @@ export default function Ativos() {
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold">Gestão de Ativos</h1>
           <Button onClick={handleNewAtivo}>
             <Plus className="h-4 w-4 mr-2" />
@@ -401,7 +401,7 @@ export default function Ativos() {
                 <span className="text-xs text-muted-foreground">Crítico</span>
                 <span className="font-medium">{ativoDetalhe.critico ? "Sim" : "Não"}</span>
               </div>
-              <div className="flex gap-2 pt-2 sm:col-span-2">
+              <div className="flex flex-col gap-2 pt-2 sm:col-span-2 sm:flex-row sm:justify-end">
                 <Button
                   variant="outline"
                   onClick={() => {

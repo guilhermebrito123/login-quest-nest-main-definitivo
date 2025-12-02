@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ClipboardList, RefreshCw, Send } from "lucide-react";
 import { format } from "date-fns";
@@ -75,6 +76,7 @@ const ChecklistRespostas = () => {
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ExecucaoStatus | "all">("all");
+  const [mobileItemDetalhe, setMobileItemDetalhe] = useState<ExecucaoItemWithDetails | null>(null);
 
   useEffect(() => {
     loadExecucoes();
@@ -466,8 +468,6 @@ const defaultItemForm: ItemRespostaForm = {
 };
 
 export default ChecklistRespostas;
-
-
 
 
 

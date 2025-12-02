@@ -138,7 +138,7 @@ export function ItemEstoqueForm({ open, onOpenChange, item, onSuccess }: ItemEst
             <Input placeholder="Ex: UN, KG, L" {...register("unidade_medida", { required: true })} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="quantidade_minima">Quantidade Mínima *</Label>
               <Input type="number" {...register("quantidade_minima", { required: true, min: 0 })} />
@@ -149,11 +149,11 @@ export function ItemEstoqueForm({ open, onOpenChange, item, onSuccess }: ItemEst
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="sm:w-auto">
               {loading ? "Salvando..." : item ? "Atualizar" : "Cadastrar"}
             </Button>
           </div>

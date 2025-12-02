@@ -193,7 +193,7 @@ export function AtivoForm({ open, onOpenChange, ativo, onSuccess }: AtivoFormPro
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
@@ -201,7 +201,7 @@ export function AtivoForm({ open, onOpenChange, ativo, onSuccess }: AtivoFormPro
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="sm:w-auto">
               {loading ? "Salvando..." : "Cadastrar"}
             </Button>
           </div>
