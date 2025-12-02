@@ -317,13 +317,13 @@ const ChecklistRespostas = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Selecione a execuÃ§Ã£o</CardTitle>
-            <CardDescription>Escolha uma execuÃ§Ã£o para responder e ver o progresso.</CardDescription>
+            <CardTitle>Selecione a execução</CardTitle>
+            <CardDescription>Escolha uma execução para responder e ver o progresso.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Select value={selectedExecucaoId} onValueChange={(value) => setSelectedExecucaoId(value)}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione a execuÃ§Ã£o" />
+                <SelectValue placeholder="Selecione a execução" />
               </SelectTrigger>
               <SelectContent className="bg-popover">
                 {filteredExecucoes.map((execucao) => (
