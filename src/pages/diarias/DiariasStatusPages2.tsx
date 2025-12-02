@@ -126,6 +126,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     }>({ open: false, diariaId: null, targetStatus: null });
     const [reasonText, setReasonText] = useState("");
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [filters, setFilters] = useState({
+      diaristaId: "",
+      motivo: "",
+      postoId: "",
+      data: "",
+    });
+    const selectAllValue = "__all__";
     const statusOptions = useMemo(
       () => Object.values(STATUS).filter((status) => status !== STATUS.reprovada),
       [],
@@ -140,6 +147,79 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       () => filteredDiarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
       [filteredDiarias, normalizedKey],
     );
+
+    const diaristaOptions = useMemo(() => {
+      const map = new Map<string, string>();
+      diariasDoStatus.forEach((diaria) => {
+        const diaristaInfo =
+          diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
+        if (diaria.diarista_id && diaristaInfo?.nome_completo) {
+          map.set(diaria.diarista_id, diaristaInfo.nome_completo);
+        }
+      });
+      return Array.from(map.entries())
+        .map(([id, nome]) => ({ id, nome }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+    }, [diariasDoStatus, diaristaMap]);
+
+    const motivoOptions = useMemo(() => {
+      const set = new Set<string>();
+      diariasDoStatus.forEach((diaria) => {
+        if (diaria.motivo_vago) {
+          set.add(diaria.motivo_vago);
+        }
+      });
+      return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [diariasDoStatus]);
+
+    const postoOptions = useMemo(() => {
+      const map = new Map<string, string>();
+      diariasDoStatus.forEach((diaria) => {
+        const postoInfo =
+          diaria.posto ||
+          (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+        if (diaria.posto_servico_id && postoInfo?.nome) {
+          const unidade = postoInfo.unidade?.nome ? ` - ${postoInfo.unidade.nome}` : "";
+          map.set(diaria.posto_servico_id, `${postoInfo.nome}${unidade}`);
+        }
+      });
+      return Array.from(map.entries())
+        .map(([id, nome]) => ({ id, nome }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+    }, [diariasDoStatus, postoMap]);
+
+    const diariasFiltradas = useMemo(() => {
+      return diariasDoStatus.filter((diaria) => {
+        const diaristaId = diaria.diarista_id || "";
+        const motivo = diaria.motivo_vago || "";
+        const postoId = diaria.posto_servico_id || "";
+        const data = diaria.data_diaria || "";
+
+        if (filters.diaristaId && filters.diaristaId !== diaristaId) {
+          return false;
+        }
+        if (filters.motivo && filters.motivo !== motivo) {
+          return false;
+        }
+        if (filters.postoId && filters.postoId !== postoId) {
+          return false;
+        }
+        if (filters.data && filters.data !== data) {
+          return false;
+        }
+        return true;
+      });
+    }, [diariasDoStatus, filters]);
+
+    const hasActiveFilters = useMemo(() => Object.values(filters).some(Boolean), [filters]);
+
+    const handleClearFilters = () =>
+      setFilters({
+        diaristaId: "",
+        motivo: "",
+        postoId: "",
+        data: "",
+      });
 
     const allDiariasDoStatus = useMemo(
       () => diarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
@@ -371,141 +451,239 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 {diariasDoStatus.length} diaria(s)
               </Badge>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              {diariasDoStatus.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">
-                  {emptyMessage || "Nenhuma diaria para este status no periodo selecionado."}
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Colaborador ausente</TableHead>
-                      <TableHead>Posto</TableHead>
-                      <TableHead>Unidade</TableHead>
-                      <TableHead>Diarista</TableHead>
-                      <TableHead>Motivo</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead>Atualizado em</TableHead>
-                      {showReasonColumn && <TableHead>Motivo status</TableHead>}
-                      <TableHead className="text-right">Acoes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {diariasDoStatus.map((diaria) => {
-                      const colaboradorInfo =
-                        diaria.colaborador ||
-                        (diaria.colaborador_ausente
-                          ? colaboradoresMap.get(diaria.colaborador_ausente)
-                          : null);
-                      const postoInfo =
-                        diaria.posto ||
-                        (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
-                      const diaristaInfo =
-                        diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
-                      const actionElement = renderAction(diaria.id.toString(), diaria.status);
-                      return (
-                        <TableRow
-                          key={diaria.id}
-                          className="cursor-pointer transition hover:bg-muted/40"
-                          onClick={() => handleRowClick(diaria)}
-                        >
-                          <TableCell>{formatDate(diaria.data_diaria)}</TableCell>
-                          <TableCell>{colaboradorInfo?.nome_completo || "-"}</TableCell>
-                          <TableCell>{postoInfo?.nome || "-"}</TableCell>
-                          <TableCell>{postoInfo?.unidade?.nome || "-"}</TableCell>
-                          <TableCell>{diaristaInfo?.nome_completo || "-"}</TableCell>
-                          <TableCell>{diaria.motivo_vago || "-"}</TableCell>
-                          <TableCell>{currencyFormatter.format(diaria.valor_diaria || 0)}</TableCell>
-                          <TableCell>{formatDateTime(diaria.updated_at)}</TableCell>
-                          {showReasonColumn && (
-                            <TableCell className="text-sm text-muted-foreground max-w-xs whitespace-pre-line">
-                              {normalizedKey === normalizedReprovadaStatus
-                                ? diaria.motivo_reprovacao || "-"
-                                : diaria.motivo_cancelamento || "-"}
-                            </TableCell>
-                          )}
-                          <TableCell onClick={(event) => event.stopPropagation()}>
-                            <div className="flex flex-col items-end gap-2">
-                              <div className="flex flex-wrap justify-end gap-2">
-                                {statusKey === STATUS.confirmada && (
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-3">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="space-y-1">
+                    <Label htmlFor={`filtro-temp-diarista-${statusKey}`}>Diarista</Label>
+                    <Select
+                      value={filters.diaristaId || selectAllValue}
+                      onValueChange={(value) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          diaristaId: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`filtro-temp-diarista-${statusKey}`}>
+                        <SelectValue placeholder="Todos os diaristas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Todos os diaristas</SelectItem>
+                        {diaristaOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`filtro-temp-motivo-${statusKey}`}>Motivo</Label>
+                    <Select
+                      value={filters.motivo || selectAllValue}
+                      onValueChange={(value) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          motivo: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`filtro-temp-motivo-${statusKey}`}>
+                        <SelectValue placeholder="Todos os motivos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Todos os motivos</SelectItem>
+                        {motivoOptions.map((motivo) => (
+                          <SelectItem key={motivo} value={motivo}>
+                            {motivo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`filtro-temp-posto-${statusKey}`}>Posto de servico</Label>
+                    <Select
+                      value={filters.postoId || selectAllValue}
+                      onValueChange={(value) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          postoId: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`filtro-temp-posto-${statusKey}`}>
+                        <SelectValue placeholder="Todos os postos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Todos os postos</SelectItem>
+                        {postoOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`filtro-temp-data-${statusKey}`}>Data</Label>
+                    <Input
+                      id={`filtro-temp-data-${statusKey}`}
+                      type="date"
+                      value={filters.data}
+                      onChange={(event) =>
+                        setFilters((prev) => ({ ...prev, data: event.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                {hasActiveFilters && (
+                  <div className="flex justify-end">
+                    <Button variant="ghost" size="sm" onClick={handleClearFilters}>
+                      Limpar filtros
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                {diariasFiltradas.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    {hasActiveFilters
+                      ? "Nenhuma diaria encontrada com os filtros selecionados."
+                      : emptyMessage || "Nenhuma diaria para este status no periodo selecionado."}
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Colaborador ausente</TableHead>
+                        <TableHead>Posto</TableHead>
+                        <TableHead>Unidade</TableHead>
+                        <TableHead>Diarista</TableHead>
+                        <TableHead>Motivo</TableHead>
+                        <TableHead>Valor</TableHead>
+                        <TableHead>Atualizado em</TableHead>
+                        {showReasonColumn && <TableHead>Motivo status</TableHead>}
+                        <TableHead className="text-right">Acoes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {diariasFiltradas.map((diaria) => {
+                        const colaboradorInfo =
+                          diaria.colaborador ||
+                          (diaria.colaborador_ausente
+                            ? colaboradoresMap.get(diaria.colaborador_ausente)
+                            : null);
+                        const postoInfo =
+                          diaria.posto ||
+                          (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+                        const diaristaInfo =
+                          diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
+                        const actionElement = renderAction(diaria.id.toString(), diaria.status);
+                        return (
+                          <TableRow
+                            key={diaria.id}
+                            className="cursor-pointer transition hover:bg-muted/40"
+                            onClick={() => handleRowClick(diaria)}
+                          >
+                            <TableCell>{formatDate(diaria.data_diaria)}</TableCell>
+                            <TableCell>{colaboradorInfo?.nome_completo || "-"}</TableCell>
+                            <TableCell>{postoInfo?.nome || "-"}</TableCell>
+                            <TableCell>{postoInfo?.unidade?.nome || "-"}</TableCell>
+                            <TableCell>{diaristaInfo?.nome_completo || "-"}</TableCell>
+                            <TableCell>{diaria.motivo_vago || "-"}</TableCell>
+                            <TableCell>{currencyFormatter.format(diaria.valor_diaria || 0)}</TableCell>
+                            <TableCell>{formatDateTime(diaria.updated_at)}</TableCell>
+                            {showReasonColumn && (
+                              <TableCell className="text-sm text-muted-foreground max-w-xs whitespace-pre-line">
+                                {normalizedKey === normalizedReprovadaStatus
+                                  ? diaria.motivo_reprovacao || "-"
+                                  : diaria.motivo_cancelamento || "-"}
+                              </TableCell>
+                            )}
+                            <TableCell onClick={(event) => event.stopPropagation()}>
+                              <div className="flex flex-col items-end gap-2">
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  {statusKey === STATUS.confirmada && (
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      disabled={updatingId === diaria.id.toString()}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openReasonDialog(diaria.id.toString(), STATUS.reprovada);
+                                      }}
+                                    >
+                                      Reprovar
+                                    </Button>
+                                  )}
+                                  {isCancelPage && (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="text-destructive"
+                                      disabled={deletingId === diaria.id.toString()}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleDeleteDiaria(diaria.id.toString());
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      <span className="sr-only">Excluir diaria</span>
+                                    </Button>
+                                  )}
+                                </div>
+                                {actionElement && (
+                                  <div onClick={(event) => event.stopPropagation()}>{actionElement}</div>
+                                )}
+                                <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+                                  <Select
+                                    value={customStatusSelection[diaria.id.toString()] || ""}
+                                    onValueChange={(value) =>
+                                      setCustomStatusSelection((prev) => ({
+                                        ...prev,
+                                        [diaria.id.toString()]: value,
+                                      }))
+                                    }
+                                  >
+                                    <SelectTrigger className="w-[220px]">
+                                      <SelectValue placeholder="Alterar status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {statusOptions.map((statusOption) => (
+                                        <SelectItem key={statusOption} value={statusOption}>
+                                          {STATUS_LABELS[statusOption]}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                   <Button
                                     size="sm"
-                                    variant="destructive"
-                                    disabled={updatingId === diaria.id.toString()}
+                                    variant="secondary"
+                                    disabled={
+                                      updatingId === diaria.id.toString() ||
+                                      !customStatusSelection[diaria.id.toString()] ||
+                                      customStatusSelection[diaria.id.toString()] === diaria.status
+                                    }
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      openReasonDialog(diaria.id.toString(), STATUS.reprovada);
+                                      handleCustomStatusApply(diaria.id.toString());
                                     }}
                                   >
-                                    Reprovar
+                                    Aplicar
                                   </Button>
-                                )}
-                                {isCancelPage && (
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="text-destructive"
-                                    disabled={deletingId === diaria.id.toString()}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      handleDeleteDiaria(diaria.id.toString());
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Excluir diaria</span>
-                                  </Button>
-                                )}
+                                </div>
                               </div>
-                              {actionElement && (
-                                <div onClick={(event) => event.stopPropagation()}>{actionElement}</div>
-                              )}
-                              <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
-                                <Select
-                                  value={customStatusSelection[diaria.id.toString()] || ""}
-                                  onValueChange={(value) =>
-                                    setCustomStatusSelection((prev) => ({
-                                      ...prev,
-                                      [diaria.id.toString()]: value,
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger className="w-[220px]">
-                                    <SelectValue placeholder="Alterar status" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {statusOptions.map((statusOption) => (
-                                      <SelectItem key={statusOption} value={statusOption}>
-                                        {STATUS_LABELS[statusOption]}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  disabled={
-                                    updatingId === diaria.id.toString() ||
-                                    !customStatusSelection[diaria.id.toString()] ||
-                                    customStatusSelection[diaria.id.toString()] === diaria.status
-                                  }
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleCustomStatusApply(diaria.id.toString());
-                                  }}
-                                >
-                                  Aplicar
-                                </Button>
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -554,7 +732,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         <Dialog open={detailsDialogOpen} onOpenChange={(open) => (open ? null : closeDetailsDialog())}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Detalhes da diaria temporaria</DialogTitle>
+              <DialogTitle>Detalhes da diaria</DialogTitle>
               <DialogDescription>Informacoes completas da diaria selecionada.</DialogDescription>
             </DialogHeader>
             {selectedDiaria && (
@@ -681,3 +859,4 @@ export const Diarias2LancadasPage = createStatusPage(STATUS_CONFIGS[3]);
 export const Diarias2AprovadasPagamentoPage = createStatusPage(STATUS_CONFIGS[4]);
 export const Diarias2ReprovadasPage = createStatusPage(STATUS_CONFIGS[5]);
 export const Diarias2CanceladasPage = createStatusPage(STATUS_CONFIGS[6]);
+
