@@ -34,6 +34,7 @@ export type DiariaTemporaria = {
   updated_at: string;
   motivo_cancelamento: string | null;
   motivo_reprovacao: string | null;
+  motivo_vago: string;
   diarista?: Diarista | null;
   colaborador?: ColaboradorAlocado | null;
   posto?: PostoServicoResumo | null;
@@ -159,4 +160,3 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     loadingDiarias,
   };
 }
-

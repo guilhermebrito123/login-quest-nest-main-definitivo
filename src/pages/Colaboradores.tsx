@@ -720,6 +720,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
       return;
     }
     const motivoNormalizado = normalizeMotivoVago(motivo);
+    const novoStatus = escalaVisualizada.colaborador?.id ? "vago_temporariamente" : "vago";
 
     try {
       const {
@@ -728,7 +729,7 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
 
       const { error: updateDiasError } = await supabase
         .from("dias_trabalho")
-        .update({ status: "vago", motivo_vago: motivoNormalizado, colaborador_id: null })
+        .update({ status: novoStatus, motivo_vago: motivoNormalizado })
         .eq("posto_servico_id", escalaVisualizada.postoId)
         .eq("data", diaData);
 
@@ -752,7 +753,11 @@ const [escalaVisualizada, setEscalaVisualizada] = useState<{
               ...prev,
               dias: prev.dias.map((d) =>
                 d.data === diaData
-                  ? { ...d, status: "vago", motivo_vago: motivoNormalizado }
+                  ? {
+                      ...d,
+                      status: novoStatus,
+                      motivo_vago: motivoNormalizado,
+                    }
                   : d
               ),
             }
