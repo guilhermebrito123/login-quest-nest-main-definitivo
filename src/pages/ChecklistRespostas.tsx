@@ -288,7 +288,7 @@ const ChecklistRespostas = () => {
           <div>
             <h1 className="text-3xl font-bold">Respostas de checklist</h1>
             <p className="text-muted-foreground">
-              Registre respostas das execuÃ§Ãµes e acompanhe o progresso item a item.
+              Registre respostas das execuções e acompanhe o progresso item a item.
             </p>
           </div>
           <div className="flex gap-2">
@@ -345,7 +345,7 @@ const ChecklistRespostas = () => {
                       <ClipboardList className="h-5 w-5" />
                       {selectedExecucao.checklist?.nome || "Checklist"}
                     </CardTitle>
-                    <CardDescription>Dados bÃ¡sicos da execuÃ§Ã£o</CardDescription>
+                    <CardDescription>Dados básicos da execução</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -397,8 +397,8 @@ const ChecklistRespostas = () => {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Resposta da execuÃ§Ã£o</CardTitle>
-                    <CardDescription>Registro geral (opcional) da execuÃ§Ã£o.</CardDescription>
+                    <CardTitle>Resposta da execução</CardTitle>
+                    <CardDescription>Registro geral (opcional) da execução.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <form className="space-y-3" onSubmit={handleExecucaoResponse}>
@@ -409,7 +409,7 @@ const ChecklistRespostas = () => {
                           onChange={(e) =>
                             setExecucaoResponseForm((prev) => ({ ...prev, resposta: e.target.value }))
                           }
-                          placeholder="Resumo da execuÃ§Ã£o, observaÃ§Ãµes gerais..."
+                          placeholder="Resumo da execução, observações gerais..."
                         />
                       </div>
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -426,22 +426,13 @@ const ChecklistRespostas = () => {
                             </SelectTrigger>
                             <SelectContent className="bg-popover">
                               <SelectItem value="true">Conforme</SelectItem>
-                              <SelectItem value="false">NÃ£o conforme</SelectItem>
+                              <SelectItem value="false">Não conforme</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-2">
-                          <Label>Foto (URL)</Label>
-                          <Input
-                            value={execucaoResponseForm.foto}
-                            onChange={(e) =>
-                              setExecucaoResponseForm((prev) => ({ ...prev, foto: e.target.value }))
-                            }
-                          />
-                        </div>
                       </div>
                       <div className="space-y-2">
-                        <Label>ObservaÃ§Ãµes</Label>
+                        <Label>Observações</Label>
                         <Textarea
                           value={execucaoResponseForm.observacoes}
                           onChange={(e) =>
@@ -464,7 +455,7 @@ const ChecklistRespostas = () => {
         {selectedExecucao && (
           <Card>
             <CardHeader>
-              <CardTitle>Itens da execuÃ§Ã£o</CardTitle>
+              <CardTitle>Itens da execução</CardTitle>
               <CardDescription>Responda cada item e acompanhe o status individual.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -472,10 +463,10 @@ const ChecklistRespostas = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Ordem</TableHead>
-                    <TableHead>DescriÃ§Ã£o</TableHead>
+                    <TableHead>Descrição</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Resposta</TableHead>
-                    <TableHead className="text-right">AÃ§Ã£o</TableHead>
+                    <TableHead className="text-right">Ação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -522,11 +513,11 @@ const ChecklistRespostas = () => {
                             </SelectTrigger>
                             <SelectContent className="bg-popover">
                               <SelectItem value="true">Conforme</SelectItem>
-                              <SelectItem value="false">NÃ£o conforme</SelectItem>
+                              <SelectItem value="false">Não conforme</SelectItem>
                             </SelectContent>
                           </Select>
                           <Input
-                            placeholder="ObservaÃ§Ãµes"
+                            placeholder="Observações"
                             value={itemResponses[item.id]?.observacoes || ""}
                             onChange={(e) =>
                               setItemResponses((prev) => ({
@@ -558,7 +549,7 @@ const ChecklistRespostas = () => {
                   {execucaoItems.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        Nenhum item encontrado para esta execuÃ§Ã£o.
+                        Nenhum item encontrado para esta execução.
                       </TableCell>
                     </TableRow>
                   )}
