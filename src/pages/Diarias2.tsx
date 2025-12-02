@@ -36,12 +36,22 @@ const STATUS_ORDER = [
   STATUS.cancelada,
 ];
 
+const MOTIVO_VAGO_OPTIONS = [
+  "falta justificada",
+  "falta injustificada",
+  "afastamento INSS",
+  "férias",
+  "suspensão",
+  "Posto vago",
+];
+
 const initialFormState = {
   dataDiaria: "",
   colaboradorId: "",
   postoServicoId: "",
   valorDiaria: "",
   diaristaId: "",
+  motivoVago: "falta injustificada",
 };
 
 const Diarias2 = () => {
@@ -86,7 +96,8 @@ const Diarias2 = () => {
       !formState.colaboradorId ||
       !formState.postoServicoId ||
       !formState.valorDiaria ||
-      !formState.diaristaId
+      !formState.diaristaId ||
+      !formState.motivoVago
     ) {
       toast.error("Preencha todos os campos para registrar a diaria.");
       return;
@@ -106,6 +117,7 @@ const Diarias2 = () => {
         posto_servico_id: formState.postoServicoId,
         valor_diaria: valorNumber,
         diarista_id: formState.diaristaId,
+        motivo_vago: formState.motivoVago,
       });
       if (error) throw error;
 
@@ -161,6 +173,25 @@ const Diarias2 = () => {
                   value={formState.dataDiaria}
                   onChange={(event) => setFormState((prev) => ({ ...prev, dataDiaria: event.target.value }))}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Motivo</Label>
+                <Select
+                  value={formState.motivoVago}
+                  onValueChange={(value) => setFormState((prev) => ({ ...prev, motivoVago: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o motivo" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    {MOTIVO_VAGO_OPTIONS.map((motivo) => (
+                      <SelectItem key={motivo} value={motivo}>
+                        {motivo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

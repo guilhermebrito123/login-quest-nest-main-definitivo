@@ -1,0 +1,80 @@
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  STATUS,
+  STATUS_LABELS,
+  currentMonthValue,
+  normalizeStatus,
+} from "./diarias/utils";
+import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
+
+const STATUS_ROUTES_TEMP: Record<string, string> = {
+  [STATUS.aguardando]: "/diarias2/aguardando",
+  [STATUS.confirmada]: "/diarias2/confirmadas",
+  [STATUS.aprovada]: "/diarias2/aprovadas",
+  [STATUS.lancada]: "/diarias2/lancadas",
+  [STATUS.aprovadaPagamento]: "/diarias2/aprovadas-pagamento",
+  [STATUS.reprovada]: "/diarias2/reprovadas",
+  [STATUS.cancelada]: "/diarias2/canceladas",
+};
+
+const STATUS_ORDER = [
+  STATUS.aguardando,
+  STATUS.confirmada,
+  STATUS.aprovada,
+  STATUS.lancada,
+  STATUS.aprovadaPagamento,
+  STATUS.reprovada,
+  STATUS.cancelada,
+];
+
+const initialFormState = {
+  dataDiaria: "",
+  colaboradorId: "",
+  postoServicoId: "",
+  valorDiaria: "",
+  diaristaId: "",
+};
+
+const Diarias2 = () => {
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
+  const [formState, setFormState] = useState(initialFormState);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const {
+    colaboradores,
+    diaristas,
+    filteredDiarias,
+    refetchDiarias,
+    loadingDiarias,
+  } = useDiariasTemporariasData(selectedMonth);
+
+  const statusCounts = useMemo(() => {
+    return filteredDiarias.reduce<Record<string, number>>((acc, diaria) => {
+      const key = normalizeStatus(diaria.status);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  }, [filteredDiarias]);
+
+  const selectedColaborador = useMemo(
+    () => colaboradores.find((colaborador) => colaborador.id === formState.colaboradorId),
+    [colaboradores, formState.colaboradorId],
+  );
+
+  const handleColaboradorChange = (value: string) => {
+    const colaboradorSelecionado = colaboradores.find((item) => item.id === value);
+    setFormState((prev) => ({
+      ...prev,
+      colaboradorId: value,
+      postoServicoId: colaboradorSelecionado?.posto_servico_id ?? "",
+    }));
+  };

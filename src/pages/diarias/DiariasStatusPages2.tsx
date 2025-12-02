@@ -385,9 +385,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <TableHead>Posto</TableHead>
                       <TableHead>Unidade</TableHead>
                       <TableHead>Diarista</TableHead>
+                      <TableHead>Motivo</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Atualizado em</TableHead>
-                      {showReasonColumn && <TableHead>Motivo</TableHead>}
+                      {showReasonColumn && <TableHead>Motivo status</TableHead>}
                       <TableHead className="text-right">Acoes</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -415,6 +416,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                           <TableCell>{postoInfo?.nome || "-"}</TableCell>
                           <TableCell>{postoInfo?.unidade?.nome || "-"}</TableCell>
                           <TableCell>{diaristaInfo?.nome_completo || "-"}</TableCell>
+                          <TableCell>{diaria.motivo_vago || "-"}</TableCell>
                           <TableCell>{currencyFormatter.format(diaria.valor_diaria || 0)}</TableCell>
                           <TableCell>{formatDateTime(diaria.updated_at)}</TableCell>
                           {showReasonColumn && (
@@ -569,6 +571,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="font-medium">
                         {STATUS_LABELS[selectedDiaria.status] || selectedDiaria.status}
                       </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Motivo</p>
+                      <p className="font-medium">{selectedDiaria.motivo_vago || "-"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Posto</p>
