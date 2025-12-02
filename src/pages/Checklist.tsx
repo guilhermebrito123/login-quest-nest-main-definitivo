@@ -171,23 +171,6 @@ const Checklist = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6 p-4 md:p-6">
-        <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Checklists</h1>
-            <p className="text-muted-foreground">Gerencie os checklists e suas periodicidades.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={loadInitialData}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Atualizar
-            </Button>
-            <Button onClick={resetForm}>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo checklist
-            </Button>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-1">
             <CardHeader>

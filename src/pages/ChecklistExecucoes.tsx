@@ -359,25 +359,6 @@ const ChecklistExecucoes = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6 p-4 md:p-6">
-        <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Execuções de checklist</h1>
-            <p className="text-muted-foreground">
-              Agende e acompanhe execuções vinculadas a contrato e unidade (schema atualizado).
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={loadInitial}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Atualizar
-            </Button>
-            <Button onClick={resetForm}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova execução
-            </Button>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-1">
             <CardHeader>
