@@ -132,6 +132,13 @@ export type PostoDiaVago = {
     unidade?: {
       id: string;
       nome: string;
+      contratos?: {
+        cliente_id: string | null;
+        clientes?: {
+          id: string;
+          razao_social: string | null;
+        } | null;
+      }[] | null;
     } | null;
   } | null;
 };
@@ -182,7 +189,14 @@ export function useDiariasData(selectedMonth: string) {
             valor_diaria,
             unidade:unidades (
               id,
-              nome
+              nome,
+              contratos (
+                cliente_id,
+                clientes (
+                  id,
+                  razao_social
+                )
+              )
             )
           )
         `

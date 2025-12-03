@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
 import {
@@ -130,8 +130,21 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       diaristaId: "",
       motivo: "",
       postoId: "",
-      data: "",
+      startDate: "",
+      endDate: "",
     });
+    const [totalRangeDiarista, setTotalRangeDiarista] = useState({
+      diaristaId: "",
+      startDate: "",
+      endDate: "",
+    });
+    const [totalRangeCliente, setTotalRangeCliente] = useState({
+      diaristaId: "",
+      clienteId: "",
+      startDate: "",
+      endDate: "",
+    });
+    const [totalDialogOpen, setTotalDialogOpen] = useState(false);
     const selectAllValue = "__all__";
     const statusOptions = useMemo(
       () => Object.values(STATUS).filter((status) => status !== STATUS.reprovada),
@@ -148,11 +161,51 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       [filteredDiarias, normalizedKey],
     );
 
+    const diariasDoStatusFull = useMemo(
+      () => diarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
+      [diarias, normalizedKey],
+    );
+
+    const getClienteInfoFromPosto = (postoInfo: any) => {
+      const contrato = postoInfo?.unidade?.contratos?.[0];
+      const cliente = contrato?.clientes;
+      if (contrato?.cliente_id && cliente?.razao_social) {
+        return { id: contrato.cliente_id, nome: cliente.razao_social };
+      }
+      return null;
+    };
+
+    const clienteOptions = useMemo(() => {
+      if (!totalRangeCliente.diaristaId) return [];
+      const map = new Map<string, string>();
+      diariasDoStatusFull.forEach((diaria) => {
+        if (diaria.diarista_id !== totalRangeCliente.diaristaId) {
+          return;
+        }
+        const postoInfo =
+          diaria.posto ||
+          (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+        const clienteInfo = getClienteInfoFromPosto(postoInfo);
+        if (clienteInfo?.id && clienteInfo.nome) {
+          map.set(clienteInfo.id, clienteInfo.nome);
+        }
+      });
+      return Array.from(map.entries())
+        .map(([id, nome]) => ({ id, nome }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+    }, [diariasDoStatusFull, postoMap, totalRangeCliente.diaristaId]);
+
+    useEffect(() => {
+      setTotalRangeCliente((prev) => ({
+        ...prev,
+        clienteId: clienteOptions.some((c) => c.id === prev.clienteId) ? prev.clienteId : "",
+      }));
+    }, [clienteOptions]);
+
     const diaristaOptions = useMemo(() => {
       const map = new Map<string, string>();
-      diariasDoStatus.forEach((diaria) => {
-        const diaristaInfo =
-          diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
+      diariasDoStatusFull.forEach((diaria) => {
+        const diaristaInfo = diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
         if (diaria.diarista_id && diaristaInfo?.nome_completo) {
           map.set(diaria.diarista_id, diaristaInfo.nome_completo);
         }
@@ -160,7 +213,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return Array.from(map.entries())
         .map(([id, nome]) => ({ id, nome }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
-    }, [diariasDoStatus, diaristaMap]);
+    }, [diariasDoStatusFull, diaristaMap]);
 
     const motivoOptions = useMemo(() => {
       const set = new Set<string>();
@@ -188,12 +241,29 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         .sort((a, b) => a.nome.localeCompare(b.nome));
     }, [diariasDoStatus, postoMap]);
 
+    const diariasBase = useMemo(
+      () => (filters.startDate || filters.endDate ? diariasDoStatusFull : diariasDoStatus),
+      [diariasDoStatus, diariasDoStatusFull, filters.endDate, filters.startDate],
+    );
+
     const diariasFiltradas = useMemo(() => {
-      return diariasDoStatus.filter((diaria) => {
+      return diariasBase.filter((diaria) => {
         const diaristaId = diaria.diarista_id || "";
         const motivo = diaria.motivo_vago || "";
         const postoId = diaria.posto_servico_id || "";
         const data = diaria.data_diaria || "";
+
+        if (filters.startDate) {
+          const dataDate = new Date(data);
+          const start = new Date(filters.startDate);
+          if (Number.isNaN(dataDate.getTime()) || dataDate < start) return false;
+        }
+        if (filters.endDate) {
+          const dataDate = new Date(data);
+          const end = new Date(filters.endDate);
+          end.setHours(23, 59, 59, 999);
+          if (Number.isNaN(dataDate.getTime()) || dataDate > end) return false;
+        }
 
         if (filters.diaristaId && filters.diaristaId !== diaristaId) {
           return false;
@@ -204,38 +274,106 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         if (filters.postoId && filters.postoId !== postoId) {
           return false;
         }
-        if (filters.data && filters.data !== data) {
-          return false;
-        }
         return true;
       });
-    }, [diariasDoStatus, filters]);
+    }, [diariasBase, filters]);
 
     const hasActiveFilters = useMemo(() => Object.values(filters).some(Boolean), [filters]);
+
+    const diaristaTotal = useMemo(() => {
+      if (
+        !totalRangeDiarista.diaristaId ||
+        !totalRangeDiarista.startDate ||
+        !totalRangeDiarista.endDate
+      ) {
+        return null;
+      }
+
+      const start = new Date(totalRangeDiarista.startDate);
+      const end = new Date(totalRangeDiarista.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+      end.setHours(23, 59, 59, 999);
+
+      if (start > end) return 0;
+
+      return diariasDoStatusFull.reduce((acc, diaria) => {
+        const diaristaId = diaria.diarista_id || "";
+        if (diaristaId !== totalRangeDiarista.diaristaId) return acc;
+
+        const dataStr = diaria.data_diaria;
+        if (!dataStr) return acc;
+        const diariaDate = new Date(dataStr);
+        if (Number.isNaN(diariaDate.getTime())) return acc;
+        if (diariaDate < start || diariaDate > end) return acc;
+
+        const valorDiaria =
+          typeof diaria.valor_diaria === "number"
+            ? diaria.valor_diaria
+            : Number(diaria.valor_diaria) || 0;
+        return acc + valorDiaria;
+      }, 0);
+    }, [diariasDoStatusFull, totalRangeDiarista]);
+
+    const diaristaClienteTotal = useMemo(() => {
+      if (
+        !totalRangeCliente.diaristaId ||
+        !totalRangeCliente.clienteId ||
+        !totalRangeCliente.startDate ||
+        !totalRangeCliente.endDate
+      ) {
+        return null;
+      }
+
+      const start = new Date(totalRangeCliente.startDate);
+      const end = new Date(totalRangeCliente.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+      end.setHours(23, 59, 59, 999);
+
+      if (start > end) return 0;
+
+      return diariasDoStatusFull.reduce((acc, diaria) => {
+        const diaristaId = diaria.diarista_id || "";
+        if (diaristaId !== totalRangeCliente.diaristaId) return acc;
+
+        const dataStr = diaria.data_diaria;
+        if (!dataStr) return acc;
+        const diariaDate = new Date(dataStr);
+        if (Number.isNaN(diariaDate.getTime())) return acc;
+        if (diariaDate < start || diariaDate > end) return acc;
+
+        const postoInfo =
+          diaria.posto ||
+          (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+        const clienteInfo = getClienteInfoFromPosto(postoInfo);
+        if (!clienteInfo || clienteInfo.id !== totalRangeCliente.clienteId) return acc;
+
+        const valorDiaria =
+          typeof diaria.valor_diaria === "number"
+            ? diaria.valor_diaria
+            : Number(diaria.valor_diaria) || 0;
+        return acc + valorDiaria;
+      }, 0);
+    }, [diariasDoStatusFull, totalRangeCliente, postoMap]);
 
     const handleClearFilters = () =>
       setFilters({
         diaristaId: "",
         motivo: "",
         postoId: "",
-        data: "",
+        startDate: "",
+        endDate: "",
       });
 
-    const allDiariasDoStatus = useMemo(
-      () => diarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
-      [diarias, normalizedKey],
-    );
-
     const fallbackMonth = useMemo(() => {
-      for (const diaria of allDiariasDoStatus) {
+      for (const diaria of diariasDoStatusFull) {
         const monthValue = getMonthValue(diaria.data_diaria);
         if (monthValue) return monthValue;
       }
       return null;
-    }, [allDiariasDoStatus]);
+    }, [diariasDoStatusFull]);
 
     const hasHiddenData =
-      diariasDoStatus.length === 0 && allDiariasDoStatus.length > 0 && Boolean(fallbackMonth);
+      diariasDoStatus.length === 0 && diariasDoStatusFull.length > 0 && Boolean(fallbackMonth);
 
     const requiresReasonForStatus = (status: string) => {
       const normalized = normalizeStatus(status);
@@ -527,13 +665,24 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`filtro-temp-data-${statusKey}`}>Data</Label>
+                    <Label htmlFor={`filtro-temp-data-inicio-${statusKey}`}>Data inicial</Label>
                     <Input
-                      id={`filtro-temp-data-${statusKey}`}
+                      id={`filtro-temp-data-inicio-${statusKey}`}
                       type="date"
-                      value={filters.data}
+                      value={filters.startDate}
                       onChange={(event) =>
-                        setFilters((prev) => ({ ...prev, data: event.target.value }))
+                        setFilters((prev) => ({ ...prev, startDate: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`filtro-temp-data-fim-${statusKey}`}>Data final</Label>
+                    <Input
+                      id={`filtro-temp-data-fim-${statusKey}`}
+                      type="date"
+                      value={filters.endDate}
+                      onChange={(event) =>
+                        setFilters((prev) => ({ ...prev, endDate: event.target.value }))
                       }
                     />
                   </div>
@@ -545,6 +694,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </Button>
                   </div>
                 )}
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setTotalDialogOpen(true)}>
+                  Filtragem
+                </Button>
               </div>
               <div className="overflow-x-auto">
                 {diariasFiltradas.length === 0 ? (
@@ -564,7 +718,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <TableHead>Diarista</TableHead>
                       <TableHead className="hidden md:table-cell">Motivo</TableHead>
                       <TableHead className="hidden md:table-cell">Valor</TableHead>
-                      <TableHead className="hidden md:table-cell">Atualizado em</TableHead>
+                      <TableHead className="hidden md:table-cell">Pix do diarista</TableHead>
                       <TableHead className="hidden md:table-cell text-right">Acoes</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -669,7 +823,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             {currencyFormatter.format(diaria.valor_diaria || 0)}
                           </TableCell>
                           <TableCell className="hidden md:table-cell">
-                            {formatDateTime(diaria.updated_at)}
+                            {diaristaInfo?.pix || "-"}
                           </TableCell>
                           <TableCell className="hidden md:table-cell" onClick={(event) => event.stopPropagation()}>
                               <div className="flex flex-col items-end gap-2">
@@ -792,6 +946,163 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 disabled={!reasonText.trim() || updatingId === reasonDialog.diariaId}
               >
                 {updatingId === reasonDialog.diariaId ? "Salvando..." : "Confirmar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={totalDialogOpen} onOpenChange={setTotalDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Filtragem</DialogTitle>
+              <DialogDescription>
+                Consulte totais das diarias neste status. A primeira sessao considera apenas diarista e datas; a segunda inclui o cliente vinculado ao posto de servico.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+                <p className="text-sm font-semibold text-muted-foreground">Total por diarista</p>
+                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-diarista-${statusKey}`}>Diarista</Label>
+                    <Select
+                      value={totalRangeDiarista.diaristaId || selectAllValue}
+                      onValueChange={(value) =>
+                        setTotalRangeDiarista((prev) => ({
+                          ...prev,
+                          diaristaId: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`total-diarista-${statusKey}`}>
+                        <SelectValue placeholder="Selecione o diarista" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Selecione o diarista</SelectItem>
+                        {diaristaOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-inicio-${statusKey}`}>Data inicial</Label>
+                    <Input
+                      id={`total-inicio-${statusKey}`}
+                      type="date"
+                      value={totalRangeDiarista.startDate}
+                      onChange={(event) =>
+                        setTotalRangeDiarista((prev) => ({ ...prev, startDate: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-fim-${statusKey}`}>Data final</Label>
+                    <Input
+                      id={`total-fim-${statusKey}`}
+                      type="date"
+                      value={totalRangeDiarista.endDate}
+                      onChange={(event) =>
+                        setTotalRangeDiarista((prev) => ({ ...prev, endDate: event.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="rounded-md border bg-background/80 p-3">
+                  <p className="text-sm text-muted-foreground">Total no periodo</p>
+                  <p className="text-2xl font-semibold">
+                    {diaristaTotal !== null ? currencyFormatter.format(diaristaTotal) : "--"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+                <p className="text-sm font-semibold text-muted-foreground">Total por diarista e cliente</p>
+                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-4">
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-diarista-cliente-${statusKey}`}>Diarista</Label>
+                    <Select
+                      value={totalRangeCliente.diaristaId || selectAllValue}
+                      onValueChange={(value) =>
+                        setTotalRangeCliente((prev) => ({
+                          ...prev,
+                          diaristaId: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`total-diarista-cliente-${statusKey}`}>
+                        <SelectValue placeholder="Selecione o diarista" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Selecione o diarista</SelectItem>
+                        {diaristaOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-inicio-cliente-${statusKey}`}>Data inicial</Label>
+                    <Input
+                      id={`total-inicio-cliente-${statusKey}`}
+                      type="date"
+                      value={totalRangeCliente.startDate}
+                      onChange={(event) =>
+                        setTotalRangeCliente((prev) => ({ ...prev, startDate: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-fim-cliente-${statusKey}`}>Data final</Label>
+                    <Input
+                      id={`total-fim-cliente-${statusKey}`}
+                      type="date"
+                      value={totalRangeCliente.endDate}
+                      onChange={(event) =>
+                        setTotalRangeCliente((prev) => ({ ...prev, endDate: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-cliente-${statusKey}`}>Cliente (do posto)</Label>
+                    <Select
+                      value={totalRangeCliente.clienteId || selectAllValue}
+                      onValueChange={(value) =>
+                        setTotalRangeCliente((prev) => ({
+                          ...prev,
+                          clienteId: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`total-cliente-${statusKey}`}>
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Selecione o cliente</SelectItem>
+                        {clienteOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="rounded-md border bg-background/80 p-3">
+                  <p className="text-sm text-muted-foreground">Total no periodo (com cliente)</p>
+                  <p className="text-2xl font-semibold">
+                    {diaristaClienteTotal !== null ? currencyFormatter.format(diaristaClienteTotal) : "--"}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" onClick={() => setTotalDialogOpen(false)}>
+                Fechar
               </Button>
             </DialogFooter>
           </DialogContent>
