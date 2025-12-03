@@ -128,7 +128,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const [filters, setFilters] = useState({
       diaristaId: "",
       motivo: "",
-      postoId: "",
+      clienteId: "",
       startDate: "",
       endDate: "",
     });
@@ -139,6 +139,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     });
     const [totalRangeCliente, setTotalRangeCliente] = useState({
       diaristaId: "",
+      clienteId: "",
+      startDate: "",
+      endDate: "",
+    });
+    const [totalRangeClienteOnly, setTotalRangeClienteOnly] = useState({
       clienteId: "",
       startDate: "",
       endDate: "",
@@ -204,15 +209,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return Array.from(set).sort((a, b) => a.localeCompare(b));
     }, [diariasDoStatus, postoDiaVagoMap]);
 
-    const postoOptions = useMemo(() => {
+    const clienteFilterOptions = useMemo(() => {
       const map = new Map<string, string>();
       diariasDoStatus.forEach((diaria) => {
         const diaInfo =
           postoDiaVagoMap.get(diaria.posto_dia_vago_id) ?? diaria.posto_dia_vago ?? null;
-        const posto = diaInfo?.posto;
-        if (posto?.id && posto.nome) {
-          const unidade = posto.unidade?.nome ? ` - ${posto.unidade.nome}` : "";
-          map.set(posto.id, `${posto.nome}${unidade}`);
+        const cliente = getClienteInfoFromDia(diaInfo);
+        if (cliente?.id && cliente.nome) {
+          map.set(cliente.id, cliente.nome);
         }
       });
       return Array.from(map.entries())
@@ -231,7 +235,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           postoDiaVagoMap.get(diaria.posto_dia_vago_id) ?? diaria.posto_dia_vago ?? null;
         const diaristaId = diaria.diarista_id || "";
         const motivo = diaInfo?.motivo ?? "";
-        const postoId = diaInfo?.posto?.id ?? "";
+        const clienteInfoFiltro = getClienteInfoFromDia(diaInfo);
         const data = diaInfo?.data ?? "";
 
         if (filters.startDate) {
@@ -252,7 +256,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         if (filters.motivo && filters.motivo !== motivo) {
           return false;
         }
-        if (filters.postoId && filters.postoId !== postoId) {
+        if (filters.clienteId && filters.clienteId !== (clienteInfoFiltro?.id || "")) {
           return false;
         }
         return true;
@@ -410,6 +414,52 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }, 0);
     }, [diariasDoStatusFull, postoDiaVagoMap, totalRangeCliente]);
 
+    const clienteTotal = useMemo(() => {
+      if (!totalRangeClienteOnly.clienteId || !totalRangeClienteOnly.startDate || !totalRangeClienteOnly.endDate) {
+        return null;
+      }
+      const start = new Date(totalRangeClienteOnly.startDate);
+      const end = new Date(totalRangeClienteOnly.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+      end.setHours(23, 59, 59, 999);
+      if (start > end) return 0;
+
+      return diariasDoStatusFull.reduce((acc, diaria) => {
+        const diaInfo =
+          postoDiaVagoMap.get(diaria.posto_dia_vago_id) ?? diaria.posto_dia_vago ?? null;
+        const clienteInfo = getClienteInfoFromDia(diaInfo);
+        if (!clienteInfo || clienteInfo.id !== totalRangeClienteOnly.clienteId) return acc;
+
+        const dataStr = diaInfo?.data;
+        if (!dataStr) return acc;
+        const diariaDate = new Date(dataStr);
+        if (Number.isNaN(diariaDate.getTime())) return acc;
+        if (diariaDate < start || diariaDate > end) return acc;
+
+        const valorDiaria =
+          typeof diaria.valor === "number" ? diaria.valor : Number(diaria.valor) || 0;
+        return acc + valorDiaria;
+      }, 0);
+    }, [diariasDoStatusFull, postoDiaVagoMap, totalRangeClienteOnly]);
+
+    const filterDiariasClienteOnly = (clienteId: string, start: string, end: string) => {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return [];
+      endDate.setHours(23, 59, 59, 999);
+      return diariasDoStatusFull.filter((diaria) => {
+        const diaInfo =
+          postoDiaVagoMap.get(diaria.posto_dia_vago_id) ?? diaria.posto_dia_vago ?? null;
+        const clienteInfo = getClienteInfoFromDia(diaInfo);
+        if (!clienteInfo || clienteInfo.id !== clienteId) return false;
+        const dataStr = diaInfo?.data;
+        if (!dataStr) return false;
+        const data = new Date(dataStr);
+        if (Number.isNaN(data.getTime())) return false;
+        return data >= startDate && data <= endDate;
+      });
+    };
+
     const filterDiariasParaTotal = (
       diaristaId: string,
       start: string,
@@ -499,11 +549,41 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       toast.success("Planilha de total gerada.");
     };
 
+    const exportClienteTotal = () => {
+      const { clienteId, startDate, endDate } = totalRangeClienteOnly;
+      if (!clienteId || !startDate || !endDate || clienteTotal === null) {
+        toast.error("Preencha cliente e intervalo para exportar.");
+        return;
+      }
+      const selecionadas = filterDiariasClienteOnly(clienteId, startDate, endDate);
+      if (selecionadas.length === 0) {
+        toast.info("Nenhuma di\u00e1ria no intervalo para exportar.");
+        return;
+      }
+      const clienteNome = clienteFilterOptions.find((c) => c.id === clienteId)?.nome || "";
+      const titulo = `Valor a receber do cliente ${clienteNome || "(sem nome)"} entre ${startDate} e ${endDate}`;
+      const rows = [
+        {
+          Titulo: titulo,
+          Cliente: clienteNome || "-",
+          "Data inicial": startDate,
+          "Data final": endDate,
+          "Valor total (R$)": clienteTotal ?? 0,
+        },
+      ];
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, "Total Cliente");
+      const fileName = `total-cliente-${normalizeStatus(statusKey)}-${Date.now()}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast.success("Planilha do cliente gerada.");
+    };
+
     const handleClearFilters = () =>
       setFilters({
         diaristaId: "",
         motivo: "",
-        postoId: "",
+        clienteId: "",
         startDate: "",
         endDate: "",
       });
@@ -794,22 +874,22 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`filtro-posto-${statusKey}`}>Posto de servico</Label>
+                    <Label htmlFor={`filtro-cliente-${statusKey}`}>Cliente</Label>
                     <Select
-                      value={filters.postoId || selectAllValue}
+                      value={filters.clienteId || selectAllValue}
                       onValueChange={(value) =>
                         setFilters((prev) => ({
                           ...prev,
-                          postoId: value === selectAllValue ? "" : value,
+                          clienteId: value === selectAllValue ? "" : value,
                         }))
                       }
                     >
-                      <SelectTrigger id={`filtro-posto-${statusKey}`}>
-                        <SelectValue placeholder="Todos os postos" />
+                      <SelectTrigger id={`filtro-cliente-${statusKey}`}>
+                        <SelectValue placeholder="Todos os clientes" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={selectAllValue}>Todos os postos</SelectItem>
-                        {postoOptions.map((option) => (
+                        <SelectItem value={selectAllValue}>Todos os clientes</SelectItem>
+                        {clienteFilterOptions.map((option) => (
                           <SelectItem key={option.id} value={option.id}>
                             {option.nome}
                           </SelectItem>
@@ -853,7 +933,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   Exportar XLSX
                 </Button>
                 <Button variant="outline" onClick={() => setTotalDialogOpen(true)}>
-                  Filtragem
+                  Filtragem Avançada
                 </Button>
               </div>
               <div className="overflow-x-auto">
@@ -1292,6 +1372,73 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                           total: diaristaClienteTotal,
                         })
                       }
+                    >
+                      Exportar total
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+                <p className="text-sm font-semibold text-muted-foreground">Total por cliente</p>
+                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-cliente-only-${statusKey}`}>Cliente</Label>
+                    <Select
+                      value={totalRangeClienteOnly.clienteId || selectAllValue}
+                      onValueChange={(value) =>
+                        setTotalRangeClienteOnly((prev) => ({
+                          ...prev,
+                          clienteId: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`total-cliente-only-${statusKey}`}>
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Selecione o cliente</SelectItem>
+                        {clienteFilterOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-cliente-inicio-${statusKey}`}>Data inicial</Label>
+                    <Input
+                      id={`total-cliente-inicio-${statusKey}`}
+                      type="date"
+                      value={totalRangeClienteOnly.startDate}
+                      onChange={(event) =>
+                        setTotalRangeClienteOnly((prev) => ({ ...prev, startDate: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-cliente-fim-${statusKey}`}>Data final</Label>
+                    <Input
+                      id={`total-cliente-fim-${statusKey}`}
+                      type="date"
+                      value={totalRangeClienteOnly.endDate}
+                      onChange={(event) =>
+                        setTotalRangeClienteOnly((prev) => ({ ...prev, endDate: event.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="rounded-md border bg-background/80 p-3">
+                  <p className="text-sm text-muted-foreground">Total no per\u00edodo (cliente)</p>
+                  <p className="text-2xl font-semibold">
+                    {clienteTotal !== null ? currencyFormatter.format(clienteTotal) : "--"}
+                  </p>
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exportClienteTotal}
                     >
                       Exportar total
                     </Button>
