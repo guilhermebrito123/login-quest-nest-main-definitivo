@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import * as XLSX from "xlsx";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
 import {
@@ -166,11 +167,23 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       [diarias, normalizedKey],
     );
 
+    const getContratoInfoFromPosto = (postoInfo: any) => {
+      const contrato = postoInfo?.unidade?.contrato;
+      if (contrato?.id || contrato?.negocio) {
+        return {
+          id: contrato.id,
+          negocio: contrato.negocio ?? null,
+          clienteId: contrato.cliente_id ?? null,
+          clienteNome: contrato.clientes?.razao_social ?? null,
+        };
+      }
+      return null;
+    };
+
     const getClienteInfoFromPosto = (postoInfo: any) => {
-      const contrato = postoInfo?.unidade?.contratos?.[0];
-      const cliente = contrato?.clientes;
-      if (contrato?.cliente_id && cliente?.razao_social) {
-        return { id: contrato.cliente_id, nome: cliente.razao_social };
+      const contratoInfo = getContratoInfoFromPosto(postoInfo);
+      if (contratoInfo?.clienteId && contratoInfo.clienteNome) {
+        return { id: contratoInfo.clienteId, nome: contratoInfo.clienteNome };
       }
       return null;
     };
@@ -278,6 +291,53 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       });
     }, [diariasBase, filters]);
 
+    const buildExportRow = (diaria: DiariaTemporaria) => {
+      const postoInfo =
+        diaria.posto || (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+      const diaristaInfo = diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
+      const colaboradorInfo =
+        diaria.colaborador ||
+        (diaria.colaborador_ausente ? colaboradoresMap.get(diaria.colaborador_ausente) : null);
+      const clienteInfo = getClienteInfoFromPosto(postoInfo);
+      const contratoInfo = getContratoInfoFromPosto(postoInfo);
+      return {
+        Data: formatDate(diaria.data_diaria),
+        Status: STATUS_LABELS[diaria.status] || diaria.status,
+        "Motivo (dia vago)": diaria.motivo_vago || "-",
+        Posto: postoInfo?.nome || "-",
+        Unidade: postoInfo?.unidade?.nome || "-",
+        Cliente: clienteInfo?.nome || "-",
+        Contrato: contratoInfo?.negocio || "-",
+        "Colaborador ausente": colaboradorInfo?.nome_completo || "-",
+        "Cargo colaborador": colaboradorInfo?.cargo || "-",
+        Diarista: diaristaInfo?.nome_completo || "-",
+        "Status diarista": diaristaInfo?.status || "-",
+        "Valor (R$)": diaria.valor_diaria || 0,
+        "Atualizado em": formatDateTime(diaria.updated_at),
+        "Motivo reprovação": diaria.motivo_reprovacao || "",
+        "Motivo cancelamento": diaria.motivo_cancelamento || "",
+        Banco: diaristaInfo?.banco || "-",
+        Agência: diaristaInfo?.agencia || "-",
+        "Número da conta": diaristaInfo?.numero_conta || "-",
+        "Tipo de conta": diaristaInfo?.tipo_conta || "-",
+        Pix: diaristaInfo?.pix || "-",
+      };
+    };
+
+    const handleExportXlsx = () => {
+      if (diariasFiltradas.length === 0) {
+        toast.info("Nenhuma diaria para exportar.");
+        return;
+      }
+      const rows = diariasFiltradas.map(buildExportRow);
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, "Diarias");
+      const fileName = `diarias-temp-${normalizeStatus(statusKey)}-${Date.now()}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast.success("Arquivo XLSX gerado.");
+    };
+
     const hasActiveFilters = useMemo(() => Object.values(filters).some(Boolean), [filters]);
 
     const diaristaTotal = useMemo(() => {
@@ -354,6 +414,98 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         return acc + valorDiaria;
       }, 0);
     }, [diariasDoStatusFull, totalRangeCliente, postoMap]);
+
+    const filterDiariasParaTotal = (
+      diaristaId: string,
+      start: string,
+      end: string,
+      clienteId?: string,
+    ) => {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return [];
+      endDate.setHours(23, 59, 59, 999);
+      return diariasDoStatusFull.filter((diaria) => {
+        if (diaria.diarista_id !== diaristaId) return false;
+        const dataStr = diaria.data_diaria;
+        if (!dataStr) return false;
+        const data = new Date(dataStr);
+        if (Number.isNaN(data.getTime())) return false;
+        if (data < startDate || data > endDate) return false;
+        if (clienteId) {
+          const postoInfo =
+            diaria.posto ||
+            (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+          const clienteInfo = getClienteInfoFromPosto(postoInfo);
+          if (clienteInfo?.id !== clienteId) return false;
+        }
+        return true;
+      });
+    };
+
+    const exportTotal = (opts: {
+      diaristaId: string;
+      diaristaNome: string;
+      start: string;
+      end: string;
+      clienteId?: string;
+      clienteNome?: string;
+      total: number | null;
+    }) => {
+      const { diaristaId, diaristaNome, start, end, clienteId, clienteNome, total } = opts;
+      if (!diaristaId || !start || !end || total === null) {
+        toast.error("Preencha diarista e intervalo para exportar.");
+        return;
+      }
+      const diariasSelecionadas = filterDiariasParaTotal(diaristaId, start, end, clienteId);
+      if (diariasSelecionadas.length === 0) {
+        toast.info("Nenhuma diaria no intervalo para exportar.");
+        return;
+      }
+
+      const postos = new Set<string>();
+      const unidades = new Set<string>();
+      const contratos = new Set<string>();
+      const clientes = new Set<string>();
+
+      diariasSelecionadas.forEach((diaria) => {
+        const postoInfo =
+          diaria.posto ||
+          (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+        if (postoInfo?.nome) postos.add(postoInfo.nome);
+        if (postoInfo?.unidade?.nome) unidades.add(postoInfo.unidade.nome);
+        const contratoInfo = getContratoInfoFromPosto(postoInfo);
+        if (contratoInfo?.negocio) contratos.add(contratoInfo.negocio);
+        if (contratoInfo?.clienteNome) clientes.add(contratoInfo.clienteNome);
+      });
+
+      const tituloBase = clienteNome
+        ? `Valor a receber de ${diaristaNome} entre os dias ${start} e ${end} do cliente ${clienteNome}`
+        : `Valor a receber de ${diaristaNome} entre os dias ${start} e ${end}`;
+
+      const rows = [
+        {
+          Titulo: tituloBase,
+          Diarista: diaristaNome || "-",
+          "Data inicial": start,
+          "Data final": end,
+          Cliente: clienteNome || Array.from(clientes).join(", ") || "-",
+          Contrato: Array.from(contratos).join(", ") || "-",
+          Unidade: Array.from(unidades).join(", ") || "-",
+          Posto: Array.from(postos).join(", ") || "-",
+          "Valor total (R$)": total ?? 0,
+        },
+      ];
+
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, "Total");
+      const fileName = clienteNome
+        ? `total-temp-diarista-cliente-${normalizeStatus(statusKey)}-${Date.now()}.xlsx`
+        : `total-temp-diarista-${normalizeStatus(statusKey)}-${Date.now()}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast.success("Planilha de total gerada.");
+    };
 
     const handleClearFilters = () =>
       setFilters({
@@ -540,6 +692,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       (selectedDiaria?.posto_servico_id ? postoMap.get(selectedDiaria.posto_servico_id) : null);
     const selectedDiaristaInfo =
       selectedDiaria?.diarista || diaristaMap.get(selectedDiaria?.diarista_id || "");
+    const selectedContratoInfo = getContratoInfoFromPosto(selectedPostoInfo);
 
     const showReasonColumn =
       normalizedKey === normalizedCancelStatus || normalizedKey === normalizedReprovadaStatus;
@@ -695,7 +848,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   </div>
                 )}
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={handleExportXlsx}>
+                  Exportar XLSX
+                </Button>
                 <Button variant="outline" onClick={() => setTotalDialogOpen(true)}>
                   Filtragem
                 </Button>
@@ -1015,6 +1171,24 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   <p className="text-2xl font-semibold">
                     {diaristaTotal !== null ? currencyFormatter.format(diaristaTotal) : "--"}
                   </p>
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        exportTotal({
+                          diaristaId: totalRangeDiarista.diaristaId,
+                          diaristaNome:
+                            diaristaMap.get(totalRangeDiarista.diaristaId || "")?.nome_completo || "",
+                          start: totalRangeDiarista.startDate,
+                          end: totalRangeDiarista.endDate,
+                          total: diaristaTotal,
+                        })
+                      }
+                    >
+                      Exportar total
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -1097,6 +1271,27 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   <p className="text-2xl font-semibold">
                     {diaristaClienteTotal !== null ? currencyFormatter.format(diaristaClienteTotal) : "--"}
                   </p>
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        exportTotal({
+                          diaristaId: totalRangeCliente.diaristaId,
+                          diaristaNome:
+                            diaristaMap.get(totalRangeCliente.diaristaId || "")?.nome_completo || "",
+                          start: totalRangeCliente.startDate,
+                          end: totalRangeCliente.endDate,
+                          clienteId: totalRangeCliente.clienteId,
+                          clienteNome:
+                            clienteOptions.find((c) => c.id === totalRangeCliente.clienteId)?.nome || "",
+                          total: diaristaClienteTotal,
+                        })
+                      }
+                    >
+                      Exportar total
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1140,6 +1335,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     <div>
                       <p className="text-muted-foreground text-xs">Unidade</p>
                       <p className="font-medium">{selectedPostoInfo?.unidade?.nome || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Contrato</p>
+                      <p className="font-medium">{selectedContratoInfo?.negocio || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Cliente</p>
+                      <p className="font-medium">{selectedContratoInfo?.clienteNome || "-"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Valor</p>

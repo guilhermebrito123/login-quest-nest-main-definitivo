@@ -132,13 +132,16 @@ export type PostoDiaVago = {
     unidade?: {
       id: string;
       nome: string;
-      contratos?: {
+      contrato_id?: string | null;
+      contrato?: {
+        id: string;
+        negocio?: string | null;
         cliente_id: string | null;
         clientes?: {
           id: string;
           razao_social: string | null;
         } | null;
-      }[] | null;
+      } | null;
     } | null;
   } | null;
 };
@@ -190,7 +193,10 @@ export function useDiariasData(selectedMonth: string) {
             unidade:unidades (
               id,
               nome,
-              contratos (
+              contrato_id,
+              contrato:contratos (
+                id,
+                negocio,
                 cliente_id,
                 clientes (
                   id,
