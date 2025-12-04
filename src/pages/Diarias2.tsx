@@ -37,12 +37,7 @@ const STATUS_ORDER = [
 ];
 
 const MOTIVO_VAGO_OPTIONS = [
-  "falta justificada",
   "falta injustificada",
-  "afastamento INSS",
-  "férias",
-  "suspensão",
-  "Posto vago",
 ];
 
 const initialFormState = {
