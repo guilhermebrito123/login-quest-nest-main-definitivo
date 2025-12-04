@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MessageSquare, Send, UserCircle, Star, UserCheck, Paperclip } from "lucide-react";
+import { MessageSquare, Send, UserCircle, Star, UserCheck, Paperclip, Edit2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -35,6 +35,9 @@ export function ChamadoDetails({ chamado, open, onOpenChange, onEdit, onDelete }
   const [novoComentario, setNovoComentario] = useState("");
   const [avaliacao, setAvaliacao] = useState<number | null>(chamado.avaliacao || null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [editingComentarioId, setEditingComentarioId] = useState<string | null>(null);
+  const [editingComentarioTexto, setEditingComentarioTexto] = useState("");
+  const [deletingComentarioId, setDeletingComentarioId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -232,6 +235,93 @@ const adicionarComentario = useMutation({
     if (novoComentario.trim()) {
       adicionarComentario.mutate(novoComentario);
     }
+  };
+
+  const editarComentario = useMutation({
+    mutationFn: async ({ id, comentario }: { id: string; comentario: string }) => {
+      const { data, error } = await supabase
+        .from("chamados_comentarios")
+        .update({ comentario })
+        .eq("id", id)
+        .select(
+          `
+          *,
+          usuario:profiles(full_name)
+        `,
+        )
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (comentarioAtualizado) => {
+      queryClient.setQueryData<any[]>(["chamados_comentarios", chamado.id], (oldComentarios) => {
+        const lista = oldComentarios || [];
+        return lista.map((item) => (item.id === comentarioAtualizado.id ? comentarioAtualizado : item));
+      });
+      setEditingComentarioId(null);
+      setEditingComentarioTexto("");
+      toast({ title: "Comentário atualizado com sucesso!" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar comentário",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deletarComentario = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("chamados_comentarios").delete().eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: (deletedId) => {
+      queryClient.setQueryData<any[]>(["chamados_comentarios", chamado.id], (oldComentarios) => {
+        const lista = oldComentarios || [];
+        return lista.filter((item) => item.id !== deletedId);
+      });
+      toast({ title: "Comentário removido com sucesso!" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao remover comentário",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+    onSettled: () => setDeletingComentarioId(null),
+  });
+
+  const handleSalvarComentario = (comentarioId: string) => {
+    if (!editingComentarioTexto.trim()) {
+      toast({
+        title: "Comentário vazio",
+        description: "Escreva algo antes de salvar a edição.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!confirm("Tem certeza que deseja atualizar este comentário?")) return;
+    editarComentario.mutate({ id: comentarioId, comentario: editingComentarioTexto.trim() });
+  };
+
+  const handleIniciarEdicao = (comentario: any) => {
+    setEditingComentarioId(comentario.id);
+    setEditingComentarioTexto(comentario.comentario);
+  };
+
+  const handleCancelarEdicao = () => {
+    setEditingComentarioId(null);
+    setEditingComentarioTexto("");
+  };
+
+  const handleDeletarComentario = (comentarioId: string) => {
+    if (!confirm("Tem certeza que deseja excluir este comentário?")) return;
+    setDeletingComentarioId(comentarioId);
+    deletarComentario.mutate(comentarioId);
   };
 
   const handleAvaliar = (nota: number) => {
@@ -483,26 +573,83 @@ const adicionarComentario = useMutation({
               {loadingComentarios ? (
                 <Skeleton className="h-20 w-full" />
               ) : comentarios && comentarios.length > 0 ? (
-                comentarios.map((comentario: any) => (
-                  <Card key={comentario.id} className="p-3">
-                    <div className="flex items-start gap-3">
-                      <UserCircle className="h-8 w-8 text-muted-foreground" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium">
-                            {comentario.usuario?.full_name || "Usuário"}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {format(new Date(comentario.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                          </span>
+                comentarios.map((comentario: any) => {
+                  const isOwner = currentUserId === comentario.usuario_id;
+                  const isEditing = editingComentarioId === comentario.id;
+
+                  return (
+                    <Card key={comentario.id} className="p-3">
+                      <div className="flex items-start gap-3">
+                        <UserCircle className="h-8 w-8 text-muted-foreground" />
+                        <div className="flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">
+                                {comentario.usuario?.full_name || "Usu�rio"}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {format(new Date(comentario.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              </span>
+                            </div>
+                            {isOwner && !isEditing && (
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => handleIniciarEdicao(comentario)}
+                                  disabled={deletingComentarioId === comentario.id}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                  <span className="sr-only">Editar coment�rio</span>
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="text-destructive"
+                                  onClick={() => handleDeletarComentario(comentario.id)}
+                                  disabled={deletingComentarioId === comentario.id || editarComentario.isPending}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Excluir coment�rio</span>
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <Textarea
+                                value={editingComentarioTexto}
+                                onChange={(event) => setEditingComentarioTexto(event.target.value)}
+                                rows={3}
+                              />
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleCancelarEdicao}
+                                  disabled={editarComentario.isPending}
+                                >
+                                  Cancelar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSalvarComentario(comentario.id)}
+                                  disabled={editarComentario.isPending}
+                                >
+                                  Salvar
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm">{comentario.comentario}</p>
+                          )}
                         </div>
-                        <p className="text-sm">{comentario.comentario}</p>
                       </div>
-                    </div>
-                  </Card>
-                ))
+                    </Card>
+                  );
+                })
               ) : (
-                <p className="text-sm text-muted-foreground">Nenhum comentário ainda</p>
+                <p className="text-sm text-muted-foreground">Nenhum coment�rio ainda</p>
               )}
             </div>
 

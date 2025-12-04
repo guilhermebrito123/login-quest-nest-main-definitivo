@@ -983,7 +983,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         return (
                           <TableRow
                             key={diaria.id}
-                            className="cursor-pointer transition hover:bg-muted/40"
+                            className="cursor-pointer transition hover:bg-muted/90"
                             onClick={() => handleRowClick(diaria)}
                           >
                             <TableCell>{formatDate(diaria.data_diaria)}</TableCell>

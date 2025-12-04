@@ -184,6 +184,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return null;
     };
 
+    const getClienteInfoFromDia = (diaInfo: any) => {
+      const contratoInfo = getContratoInfoFromDia(diaInfo);
+      if (contratoInfo?.clienteId && contratoInfo.clienteNome) {
+        return { id: contratoInfo.clienteId, nome: contratoInfo.clienteNome };
+      }
+      return null;
+    };
+
     const diaristaOptions = useMemo(() => {
       const map = new Map<string, string>();
       diariasDoStatus.forEach((diaria) => {
@@ -310,19 +318,12 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       toast.success("Arquivo XLSX gerado.");
     };
 
-    const getClienteInfoFromDia = (diaInfo: any) => {
-      const contratoInfo = getContratoInfoFromDia(diaInfo);
-      if (contratoInfo?.clienteId && contratoInfo.clienteNome) {
-        return { id: contratoInfo.clienteId, nome: contratoInfo.clienteNome };
-      }
-      return null;
-    };
-
     const clienteOptions = useMemo(() => {
-      if (!totalRangeCliente.diaristaId) return [];
       const map = new Map<string, string>();
       diariasDoStatusFull.forEach((diaria) => {
-        if (diaria.diarista_id !== totalRangeCliente.diaristaId) return;
+        if (totalRangeCliente.diaristaId && diaria.diarista_id !== totalRangeCliente.diaristaId) {
+          return;
+        }
         const diaInfo =
           postoDiaVagoMap.get(diaria.posto_dia_vago_id) ?? diaria.posto_dia_vago ?? null;
         const clienteInfo = getClienteInfoFromDia(diaInfo);
@@ -976,7 +977,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         return (
                           <TableRow
                             key={diaria.id}
-                            className="cursor-pointer transition hover:bg-muted/40"
+                            className="cursor-pointer transition hover:bg-muted/90"
                             onClick={() => handleRowClick(diaria)}
                           >
                             <TableCell>{formatDate(diaInfo?.data)}</TableCell>

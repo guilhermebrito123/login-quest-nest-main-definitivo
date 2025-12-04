@@ -75,17 +75,22 @@ const Diarias2 = () => {
     }, {});
   }, [filteredDiarias]);
 
-  const selectedColaborador = useMemo(
-    () => colaboradores.find((colaborador) => colaborador.id === formState.colaboradorId),
-    [colaboradores, formState.colaboradorId],
-  );
+  const postoOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    colaboradores.forEach((colaborador) => {
+      if (colaborador.posto_servico_id && colaborador.posto?.nome) {
+        const unidade = colaborador.posto.unidade?.nome ? ` - ${colaborador.posto.unidade.nome}` : "";
+        map.set(colaborador.posto_servico_id, `${colaborador.posto.nome}${unidade}`);
+      }
+    });
+    return Array.from(map.entries()).map(([id, descricao]) => ({ id, descricao }));
+  }, [colaboradores]);
 
   const handleColaboradorChange = (value: string) => {
-    const colaboradorSelecionado = colaboradores.find((item) => item.id === value);
     setFormState((prev) => ({
       ...prev,
       colaboradorId: value,
-      postoServicoId: colaboradorSelecionado?.posto_servico_id ?? "",
+      postoServicoId: "",
     }));
   };
 
@@ -130,13 +135,6 @@ const Diarias2 = () => {
       setIsSubmitting(false);
     }
   };
-
-  const postoDescricao =
-    selectedColaborador?.posto?.nome
-      ? `${selectedColaborador.posto.nome}${
-          selectedColaborador.posto.unidade?.nome ? ` - ${selectedColaborador.posto.unidade?.nome}` : ""
-        }`
-      : "";
 
   return (
     <DashboardLayout>
@@ -218,7 +216,27 @@ const Diarias2 = () => {
 
               <div className="space-y-2">
                 <Label>Posto de servico</Label>
-                <Input value={postoDescricao} readOnly placeholder="Selecione um colaborador para carregar o posto" />
+                <Select
+                  value={formState.postoServicoId}
+                  onValueChange={(value) => setFormState((prev) => ({ ...prev, postoServicoId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o posto de servico" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    {postoOptions.length === 0 ? (
+                      <SelectItem value="none" disabled>
+                        Nenhum posto encontrado
+                      </SelectItem>
+                    ) : (
+                      postoOptions.map((posto) => (
+                        <SelectItem key={posto.id} value={posto.id}>
+                          {posto.descricao}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
