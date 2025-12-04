@@ -69,7 +69,7 @@ const menuItems: MenuItem[] = [
   { title: "Ordens de Serviço", url: "/ordens-servico", icon: ClipboardList },
   { title: "Colaboradores", url: "/colaboradores", icon: UserCheck },
   { title: "Diaristas", url: "/diaristas", icon: UserCircle },
-  { title: "Diarias (versão futura)", url: "/diarias", icon: Calendar, children: diariasChildren, statusCountsKey: "diarias" },
+  //{ title: "Diarias (versão futura)", url: "/diarias", icon: Calendar, children: diariasChildren, statusCountsKey: "diarias" },
   {
     title: "Diarias (versão 1.0.0)",
     url: "/diarias2",
