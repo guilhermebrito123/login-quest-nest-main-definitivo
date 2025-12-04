@@ -100,6 +100,12 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
     description: "Histórico de diárias canceladas.",
     emptyMessage: "Nenhuma diária cancelada.",
   },
+  {
+    statusKey: STATUS.paga,
+    title: "Diárias pagas",
+    description: "Diárias já pagas. Apenas alteração de status disponível.",
+    emptyMessage: "Nenhuma diária paga.",
+  },
 ];
 
 const createStatusPage = ({ statusKey, title, description, emptyMessage }: StatusPageConfig) => {
@@ -1603,5 +1609,6 @@ export const DiariasLancadasPage = createStatusPage(STATUS_CONFIGS[3]);
 export const DiariasAprovadasPagamentoPage = createStatusPage(STATUS_CONFIGS[4]);
 export const DiariasReprovadasPage = createStatusPage(STATUS_CONFIGS[5]);
 export const DiariasCanceladasPage = createStatusPage(STATUS_CONFIGS[6]);
+export const DiariasPagasPage = createStatusPage(STATUS_CONFIGS[7]);
 
 

@@ -19,6 +19,7 @@ export const STATUS = {
   aprovada: "Aprovada",
   lancada: "Lançada para pagamento",
   aprovadaPagamento: "Aprovada para pagamento",
+  paga: "Paga",
   reprovada: "Reprovada",
   cancelada: "Cancelada",
 } as const;
@@ -29,6 +30,7 @@ export const STATUS_LABELS: Record<string, string> = {
   [STATUS.aprovada]: "Aprovada",
   [STATUS.lancada]: "Lançada para pagamento",
   [STATUS.aprovadaPagamento]: "Aprovada para pagamento",
+  [STATUS.paga]: "Paga",
   [STATUS.reprovada]: "Reprovada",
   [STATUS.cancelada]: "Cancelada",
 };
@@ -39,6 +41,7 @@ export const STATUS_BADGE: Record<string, "default" | "secondary" | "outline" | 
   [STATUS.aprovada]: "default",
   [STATUS.lancada]: "default",
   [STATUS.aprovadaPagamento]: "default",
+  [STATUS.paga]: "secondary",
   [STATUS.reprovada]: "destructive",
   [STATUS.cancelada]: "destructive",
 };
@@ -65,6 +68,11 @@ export const NEXT_STATUS_ACTIONS: Record<
   [normalizeStatus(STATUS.lancada)]: {
     label: "Aprovar para pagamento",
     nextStatus: STATUS.aprovadaPagamento,
+    icon: "advance",
+  },
+  [normalizeStatus(STATUS.aprovadaPagamento)]: {
+    label: "Paga",
+    nextStatus: STATUS.paga,
     icon: "advance",
   },
 };

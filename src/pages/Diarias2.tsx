@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,31 +9,11 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   STATUS,
-  STATUS_LABELS,
   currentMonthValue,
   normalizeStatus,
+  currencyFormatter,
 } from "./diarias/utils";
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
-
-const STATUS_ROUTES_TEMP: Record<string, string> = {
-  [STATUS.aguardando]: "/diarias2/aguardando",
-  [STATUS.confirmada]: "/diarias2/confirmadas",
-  [STATUS.aprovada]: "/diarias2/aprovadas",
-  [STATUS.lancada]: "/diarias2/lancadas",
-  [STATUS.aprovadaPagamento]: "/diarias2/aprovadas-pagamento",
-  [STATUS.reprovada]: "/diarias2/reprovadas",
-  [STATUS.cancelada]: "/diarias2/canceladas",
-};
-
-const STATUS_ORDER = [
-  STATUS.aguardando,
-  STATUS.confirmada,
-  STATUS.aprovada,
-  STATUS.lancada,
-  STATUS.aprovadaPagamento,
-  STATUS.reprovada,
-  STATUS.cancelada,
-];
 
 const MOTIVO_VAGO_OPTIONS = [
   "falta injustificada",
@@ -60,15 +39,8 @@ const Diarias2 = () => {
     filteredDiarias,
     refetchDiarias,
     loadingDiarias,
+    postoMap,
   } = useDiariasTemporariasData(selectedMonth);
-
-  const statusCounts = useMemo(() => {
-    return filteredDiarias.reduce<Record<string, number>>((acc, diaria) => {
-      const key = normalizeStatus(diaria.status);
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
-  }, [filteredDiarias]);
 
   const postoOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -80,6 +52,56 @@ const Diarias2 = () => {
     });
     return Array.from(map.entries()).map(([id, descricao]) => ({ id, descricao }));
   }, [colaboradores]);
+
+  const getClienteInfoFromPosto = (postoInfo: any) => {
+    const contrato = postoInfo?.unidade?.contrato;
+    if (contrato?.cliente_id || contrato?.clientes?.razao_social) {
+      return {
+        id: contrato.cliente_id ?? "",
+        nome: contrato.clientes?.razao_social || "Cliente não informado",
+      };
+    }
+    return null;
+  };
+
+  const normalizedCancelada = normalizeStatus(STATUS.cancelada);
+  const normalizedReprovada = normalizeStatus(STATUS.reprovada);
+  const normalizedPaga = normalizeStatus(STATUS.paga);
+
+  const { clienteReceberTotals, clienteRecebidosTotals } = useMemo(() => {
+    const receber = new Map<string, { nome: string; total: number }>();
+    const recebidos = new Map<string, { nome: string; total: number }>();
+
+    filteredDiarias.forEach((diaria) => {
+      const statusNorm = normalizeStatus(diaria.status);
+      const postoInfo =
+        diaria.posto || (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+      const clienteInfo = getClienteInfoFromPosto(postoInfo);
+      if (!clienteInfo) return;
+
+      const valor =
+        typeof diaria.valor_diaria === "number"
+          ? diaria.valor_diaria
+          : Number(diaria.valor_diaria) || 0;
+
+      const key = clienteInfo.id || clienteInfo.nome;
+
+      if (statusNorm === normalizedPaga) {
+        const current = recebidos.get(key);
+        recebidos.set(key, { nome: clienteInfo.nome, total: (current?.total || 0) + valor });
+        return;
+      }
+      if (statusNorm === normalizedCancelada || statusNorm === normalizedReprovada) return;
+
+      const current = receber.get(key);
+      receber.set(key, { nome: clienteInfo.nome, total: (current?.total || 0) + valor });
+    });
+
+    return {
+      clienteReceberTotals: Array.from(receber.values()).sort((a, b) => a.nome.localeCompare(b.nome)),
+      clienteRecebidosTotals: Array.from(recebidos.values()).sort((a, b) => a.nome.localeCompare(b.nome)),
+    };
+  }, [filteredDiarias, normalizedCancelada, normalizedPaga, normalizedReprovada, postoMap]);
 
   const handleColaboradorChange = (value: string) => {
     setFormState((prev) => ({
@@ -278,37 +300,70 @@ const Diarias2 = () => {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {STATUS_ORDER.map((statusKey) => {
-            const normalizedKey = normalizeStatus(statusKey);
-            return (
-              <Card key={statusKey} className="shadow-lg">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center justify-between">
-                    <span>{STATUS_LABELS[statusKey]}</span>
-                    <span className="text-sm font-normal text-muted-foreground">
-                      {statusCounts[normalizedKey] || 0} diaria(s)
-                    </span>
-                  </CardTitle>
-                  <CardDescription>Acesse a lista completa deste status.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex justify-between items-end">
-                  <div className="text-sm text-muted-foreground">
-                    {statusKey === STATUS.aguardando && "Confirme as diarias registradas recentemente."}
-                    {statusKey === STATUS.confirmada && "Avance diarias confirmadas para aprovacao."}
-                    {statusKey === STATUS.aprovada && "Prepare diarias aprovadas para lancamento."}
-                    {statusKey === STATUS.lancada && "Controle as diarias lancadas para pagamento."}
-                    {statusKey === STATUS.aprovadaPagamento && "Acompanhe diarias aprovadas para pagamento."}
-                    {statusKey === STATUS.reprovada && "Historico de diarias reprovadas."}
-                    {statusKey === STATUS.cancelada && "Historico de diarias canceladas."}
-                  </div>
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={STATUS_ROUTES_TEMP[statusKey]}>Ver detalhes</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold mb-2">Total a receber por cliente</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {clienteReceberTotals.length === 0 ? (
+                <Card className="shadow-lg border border-red-300 bg-red-300">
+                  <CardContent className="py-6">
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum cliente com diarias a receber no periodo selecionado.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                clienteReceberTotals.map((cliente) => (
+                  <Card key={cliente.nome} className="shadow-lg border border-red-300 bg-red-300">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        <span>{cliente.nome}</span>
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {currencyFormatter.format(cliente.total)}
+                        </span>
+                      </CardTitle>
+                      <CardDescription>
+                        Soma de diarias nao pagas, nao canceladas e nao reprovadas.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground">
+                      Somatorio das diarias do cliente no mes filtrado.
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold mb-2">Valores recebidos (pagas)</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {clienteRecebidosTotals.length === 0 ? (
+                <Card className="shadow-lg border border-green-300 bg-green-500">
+                  <CardContent className="py-6">
+                    <p className="text-sm text-muted-foreground">Nenhum pagamento encontrado no periodo.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                clienteRecebidosTotals.map((cliente) => (
+                  <Card key={cliente.nome} className="shadow-lg border border-green-300 bg-green-300">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        <span>{cliente.nome}</span>
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {currencyFormatter.format(cliente.total)}
+                        </span>
+                      </CardTitle>
+                      <CardDescription>Total de diarias com status paga.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground">
+                      Somatorio das diarias pagas do cliente no mes filtrado.
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
         {loadingDiarias && (

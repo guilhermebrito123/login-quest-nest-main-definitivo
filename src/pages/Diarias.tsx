@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,33 +22,13 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   STATUS,
-  STATUS_LABELS,
   currentMonthValue,
   formatDate,
   useDiariasData,
   normalizeStatus,
+  currencyFormatter,
 } from "./diarias/utils";
 import { agendarOcupacaoPosto } from "@/lib/ocupacao";
-
-const STATUS_ROUTES: Record<string, string> = {
-  [STATUS.aguardando]: "/diarias/aguardando",
-  [STATUS.confirmada]: "/diarias/confirmadas",
-  [STATUS.aprovada]: "/diarias/aprovadas",
-  [STATUS.lancada]: "/diarias/lancadas",
-  [STATUS.aprovadaPagamento]: "/diarias/aprovadas-pagamento",
-  [STATUS.reprovada]: "/diarias/reprovadas",
-  [STATUS.cancelada]: "/diarias/canceladas",
-};
-
-const STATUS_ORDER = [
-  STATUS.aguardando,
-  STATUS.confirmada,
-  STATUS.aprovada,
-  STATUS.lancada,
-  STATUS.aprovadaPagamento,
-  STATUS.reprovada,
-  STATUS.cancelada,
-];
 
 export default function Diarias() {
   const queryClient = useQueryClient();
@@ -85,6 +64,42 @@ export default function Diarias() {
     );
     return ativos.length > 0 ? ativos : diaristas;
   }, [diaristas]);
+
+  const normalizedCancelada = normalizeStatus(STATUS.cancelada);
+  const normalizedReprovada = normalizeStatus(STATUS.reprovada);
+  const normalizedPaga = normalizeStatus(STATUS.paga);
+
+  const { clienteReceberTotals, clienteRecebidosTotals } = useMemo(() => {
+    const receber = new Map<string, { nome: string; total: number }>();
+    const recebidos = new Map<string, { nome: string; total: number }>();
+
+    filteredDiarias.forEach((diaria) => {
+      const statusNorm = normalizeStatus(diaria.status);
+      const diaInfo =
+        postoDiaVagoMap.get(diaria.posto_dia_vago_id) ?? diaria.posto_dia_vago ?? null;
+      const contrato = diaInfo?.posto?.unidade?.contrato;
+      const clienteId = contrato?.cliente_id ?? "";
+      const clienteNome = contrato?.clientes?.razao_social || "Cliente não informado";
+      const key = clienteId || clienteNome;
+      const valor =
+        typeof diaria.valor === "number" ? diaria.valor : Number(diaria.valor) || 0;
+
+      if (statusNorm === normalizedPaga) {
+        const current = recebidos.get(key);
+        recebidos.set(key, { nome: clienteNome, total: (current?.total || 0) + valor });
+        return;
+      }
+      if (statusNorm === normalizedCancelada || statusNorm === normalizedReprovada) return;
+
+      const current = receber.get(key);
+      receber.set(key, { nome: clienteNome, total: (current?.total || 0) + valor });
+    });
+
+    return {
+      clienteReceberTotals: Array.from(receber.values()).sort((a, b) => a.nome.localeCompare(b.nome)),
+      clienteRecebidosTotals: Array.from(recebidos.values()).sort((a, b) => a.nome.localeCompare(b.nome)),
+    };
+  }, [filteredDiarias, normalizedCancelada, normalizedPaga, normalizedReprovada, postoDiaVagoMap]);
   const handleDiaVagoSelect = (value: string) => {
     const selecionado = availableDiasVagos.find((dia) => dia.id === value);
     const novoValor = selecionado?.posto?.valor_diaria;
@@ -97,14 +112,6 @@ export default function Diarias() {
           : "",
     }));
   };
-
-  const statusCounts = useMemo(() => {
-    return filteredDiarias.reduce<Record<string, number>>((acc, diaria) => {
-      const key = normalizeStatus(diaria.status);
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
-  }, [filteredDiarias]);
 
   const loadReservasTecnicas = async () => {
     const { data, error } = await supabase
@@ -340,38 +347,70 @@ export default function Diarias() {
         </Card>
 
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {STATUS_ORDER.map((statusKey) => {
-            const normalizedKey = normalizeStatus(statusKey);
-            return (
-            <Card key={statusKey} className="shadow-lg">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center justify-between">
-                  <span>{STATUS_LABELS[statusKey]}</span>
-                  <span className="text-sm font-normal text-muted-foreground">
-                    {statusCounts[normalizedKey] || 0} diária(s)
-                  </span>
-                </CardTitle>
-                <CardDescription>
-                  Acesse a lista completa de diárias {STATUS_LABELS[statusKey].toLowerCase()} em uma página dedicada.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex justify-between items-end">
-                <div className="text-sm text-muted-foreground">
-                  {statusKey === STATUS.aguardando && "Confirme as diárias registradas recentemente."}
-                  {statusKey === STATUS.confirmada && "Avance as diárias confirmadas para aprovação."}
-                  {statusKey === STATUS.aprovada && "Prepare as diárias aprovadas para lançaamento."}
-                  {statusKey === STATUS.lancada && "Gerencie as diárias lançadas para pagamento."}
-                  {statusKey === STATUS.aprovadaPagamento && "Acompanhe as diárias aprovadas para pagamento."}
-                  {statusKey === STATUS.reprovada && "Histórico completo de diárias reprovadas e seus motivos."}
-                  {statusKey === STATUS.cancelada && "Histórico de diárias canceladas."}
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link to={STATUS_ROUTES[statusKey]}>Ver detalhes</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          )})}
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold mb-2">Total a receber por cliente</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {clienteReceberTotals.length === 0 ? (
+                <Card className="shadow-lg border border-red-300 bg-red-200">
+                  <CardContent className="py-6">
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum cliente com diárias a receber no período selecionado.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                clienteReceberTotals.map((cliente) => (
+                  <Card key={cliente.nome} className="shadow-lg border border-red-300 bg-red-300">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        <span>{cliente.nome}</span>
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {currencyFormatter.format(cliente.total)}
+                        </span>
+                      </CardTitle>
+                      <CardDescription>
+                        Soma de diárias não pagas, não canceladas e não reprovadas.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground">
+                      Somatório das diárias do cliente no mês filtrado.
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold mb-2">Valores recebidos (pagas)</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {clienteRecebidosTotals.length === 0 ? (
+                <Card className="shadow-lg border border-green-300 bg-green-500">
+                  <CardContent className="py-6">
+                    <p className="text-sm text-muted-foreground">Nenhum pagamento encontrado no período.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                clienteRecebidosTotals.map((cliente) => (
+                  <Card key={cliente.nome} className="shadow-lg border border-green-300 bg-green-300">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        <span>{cliente.nome}</span>
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {currencyFormatter.format(cliente.total)}
+                        </span>
+                      </CardTitle>
+                      <CardDescription>Total de diárias com status paga.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground">
+                      Somatório das diárias pagas do cliente no mês filtrado.
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
         {loadingDiarias && (

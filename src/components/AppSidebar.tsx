@@ -48,6 +48,7 @@ const diariasChildren = [
   { title: "Aprovadas p/ pagamento", url: "/diarias/aprovadas-pagamento" },
   { title: "Reprovadas", url: "/diarias/reprovadas" },
   { title: "Canceladas", url: "/diarias/canceladas" },
+  { title: "Pagas", url: "/diarias/pagas" },
 ];
 
 const diariasTemporariasChildren = [
@@ -56,6 +57,7 @@ const diariasTemporariasChildren = [
   { title: "Aprovadas", url: "/diarias2/aprovadas", status: "Aprovada" },
   { title: "Lançadas", url: "/diarias2/lancadas", status: "Lançada para pagamento" },
   { title: "Aprovadas p/ pagamento", url: "/diarias2/aprovadas-pagamento" },
+  { title: "Pagas", url: "/diarias2/pagas" },
   { title: "Reprovadas", url: "/diarias2/reprovadas" },
   { title: "Canceladas", url: "/diarias2/canceladas" },
 ];
@@ -215,6 +217,4 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
-
-
 

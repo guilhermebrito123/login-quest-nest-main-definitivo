@@ -223,6 +223,13 @@ export type Database = {
             referencedRelation: "chamados"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "chamados_anexos_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       chamados_comentarios: {
@@ -256,6 +263,13 @@ export type Database = {
             columns: ["chamado_id"]
             isOneToOne: false
             referencedRelation: "chamados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamados_comentarios_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1979,6 +1993,7 @@ export type Database = {
         | "Aprovada para pagamento"
         | "Cancelada"
         | "Reprovada"
+        | "Paga"
       status_diarista: "ativo" | "inativo" | "desligado"
       status_execucao: "ativo" | "concluido" | "atrasado" | "cancelado"
       status_posto:
@@ -2151,6 +2166,7 @@ export const Constants = {
         "Aprovada para pagamento",
         "Cancelada",
         "Reprovada",
+        "Paga",
       ],
       status_diarista: ["ativo", "inativo", "desligado"],
       status_execucao: ["ativo", "concluido", "atrasado", "cancelado"],
