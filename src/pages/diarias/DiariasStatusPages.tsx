@@ -511,6 +511,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const unidades = new Set<string>();
       const clientes = new Set<string>();
       const contratos = new Set<string>();
+      const statuses = new Set<string>();
       diariasSelecionadas.forEach((diaria) => {
         const diaInfo =
           postoDiaVagoMap.get(diaria.posto_dia_vago_id) ?? diaria.posto_dia_vago ?? null;
@@ -520,6 +521,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const contratoInfo = getContratoInfoFromDia(diaInfo);
         if (contratoInfo?.negocio) contratos.add(contratoInfo.negocio);
         if (contratoInfo?.clienteNome) clientes.add(contratoInfo.clienteNome);
+        statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
       });
 
       const tituloBase = clienteNome
@@ -539,6 +541,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           Pix: diaristaInfo?.pix || "-",
           "Data inicial": start,
           "Data final": end,
+          Status: Array.from(statuses).join(", ") || "-",
           Cliente: clienteNome || Array.from(clientes).join(", ") || "-",
           Contrato: Array.from(contratos).join(", ") || "-",
           Unidade: Array.from(unidades).join(", ") || "-",
