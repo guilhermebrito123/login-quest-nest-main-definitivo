@@ -71,7 +71,7 @@ const menuItems: MenuItem[] = [
   { title: "Diaristas", url: "/diaristas", icon: UserCircle },
   { title: "Diarias (versão futura)", url: "/diarias", icon: Calendar, children: diariasChildren, statusCountsKey: "diarias" },
   {
-    title: "Diarias (versão 1)",
+    title: "Diarias (versão 1.0.0)",
     url: "/diarias2",
     icon: Calendar,
     children: diariasTemporariasChildren,

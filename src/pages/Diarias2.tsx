@@ -207,7 +207,6 @@ const Diarias2 = () => {
                     {colaboradores.map((colaborador) => (
                       <SelectItem key={colaborador.id} value={colaborador.id}>
                         {colaborador.nome_completo}
-                        {colaborador.posto?.nome ? ` - ${colaborador.posto.nome}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

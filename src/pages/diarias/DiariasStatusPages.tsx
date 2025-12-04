@@ -526,10 +526,17 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         ? `Valor a receber de ${diaristaNome} entre os dias ${start} e ${end} do cliente ${clienteNome}`
         : `Valor a receber de ${diaristaNome} entre os dias ${start} e ${end}`;
 
+      const diaristaInfo = diaristaMap.get(diaristaId);
+
       const rows = [
         {
           Titulo: tituloBase,
           Diarista: diaristaNome || "-",
+          Banco: diaristaInfo?.banco || "-",
+          "Agencia": diaristaInfo?.agencia || "-",
+          "Numero da conta": diaristaInfo?.numero_conta || "-",
+          "Tipo de conta": diaristaInfo?.tipo_conta || "-",
+          Pix: diaristaInfo?.pix || "-",
           "Data inicial": start,
           "Data final": end,
           Cliente: clienteNome || Array.from(clientes).join(", ") || "-",
