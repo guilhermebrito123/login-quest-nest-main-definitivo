@@ -168,6 +168,27 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const normalizedReprovadaStatus = normalizeStatus(STATUS.reprovada);
     const isCancelPage = normalizedKey === normalizedCancelStatus;
 
+    const formatIntervalValue = (value?: number | null) => {
+      if (value === null || value === undefined) return "-";
+      const parsed = Number(value);
+      if (Number.isNaN(parsed)) return "-";
+      return `${parsed} min`;
+    };
+
+    const formatTimeValue = (value?: string | null) => {
+      if (!value) return "-";
+      const [hour = "", minute = ""] = value.split(":");
+      if (!hour && !minute) return value;
+      return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+    };
+
+    const formatJornadaValue = (value?: number | null) => {
+      if (value === null || value === undefined) return "-";
+      const parsed = Number(value);
+      if (Number.isNaN(parsed)) return "-";
+      return `${parsed.toFixed(2)} h`;
+    };
+
     const diariasDoStatus = useMemo(
       () => filteredDiarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
       [filteredDiarias, normalizedKey],
@@ -251,7 +272,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
     const clienteFilterOptions = useMemo(() => {
       const map = new Map<string, string>();
-      diariasDoStatus.forEach((diaria) => {
+      const source = [...diariasDoStatus, ...diariasDoStatusFull];
+      source.forEach((diaria) => {
         const postoInfo =
           diaria.posto ||
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
@@ -263,7 +285,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return Array.from(map.entries())
         .map(([id, nome]) => ({ id, nome }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
-    }, [diariasDoStatus, postoMap]);
+    }, [diariasDoStatus, diariasDoStatusFull, postoMap]);
 
     const diariasBase = useMemo(
       () => (filters.startDate || filters.endDate ? diariasDoStatusFull : diariasDoStatus),
@@ -317,6 +339,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return {
         Data: formatDate(diaria.data_diaria),
         Status: STATUS_LABELS[diaria.status] || diaria.status,
+        "Horario inicio": formatTimeValue(diaria.horario_inicio),
+        "Horario fim": formatTimeValue(diaria.horario_fim),
+        "Jornada diaria (h)": formatJornadaValue(diaria.jornada_diaria),
+        "Intervalo (min)": formatIntervalValue(diaria.intervalo),
         "Motivo (dia vago)": diaria.motivo_vago || "-",
         Posto: postoInfo?.nome || "-",
         Unidade: postoInfo?.unidade?.nome || "-",
@@ -1536,6 +1562,28 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         <p className="font-medium whitespace-pre-line">{selectedDiaria.motivo_cancelamento}</p>
                       </div>
                     )}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Horarios</p>
+                  <div className="mt-2 grid gap-3 md:grid-cols-4">
+                    <div>
+                      <p className="text-muted-foreground text-xs">Horario inicio</p>
+                      <p className="font-medium">{formatTimeValue(selectedDiaria.horario_inicio)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Horario fim</p>
+                      <p className="font-medium">{formatTimeValue(selectedDiaria.horario_fim)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Jornada diaria</p>
+                      <p className="font-medium">{formatJornadaValue(selectedDiaria.jornada_diaria)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Intervalo</p>
+                      <p className="font-medium">{formatIntervalValue(selectedDiaria.intervalo)}</p>
+                    </div>
                   </div>
                 </div>
 

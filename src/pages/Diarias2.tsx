@@ -21,6 +21,9 @@ const MOTIVO_VAGO_OPTIONS = [
 
 const initialFormState = {
   dataDiaria: "",
+  horarioInicio: "",
+  horarioFim: "",
+  intervalo: "",
   colaboradorId: "",
   postoServicoId: "",
   valorDiaria: "",
@@ -115,6 +118,8 @@ const Diarias2 = () => {
     event.preventDefault();
     if (
       !formState.dataDiaria ||
+      !formState.horarioInicio ||
+      !formState.horarioFim ||
       !formState.colaboradorId ||
       !formState.postoServicoId ||
       !formState.valorDiaria ||
@@ -131,10 +136,20 @@ const Diarias2 = () => {
       return;
     }
 
+    const intervaloNumber =
+      formState.intervalo === "" ? null : Number(formState.intervalo);
+    if (intervaloNumber !== null && (Number.isNaN(intervaloNumber) || intervaloNumber < 0)) {
+      toast.error("Informe um intervalo valido (minutos).");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const { error } = await supabase.from("diarias_temporarias").insert({
         data_diaria: formState.dataDiaria,
+        horario_inicio: formState.horarioInicio,
+        horario_fim: formState.horarioFim,
+        intervalo: intervaloNumber,
         colaborador_ausente: formState.colaboradorId,
         posto_servico_id: formState.postoServicoId,
         valor_diaria: valorNumber,
@@ -187,6 +202,36 @@ const Diarias2 = () => {
                   type="date"
                   value={formState.dataDiaria}
                   onChange={(event) => setFormState((prev) => ({ ...prev, dataDiaria: event.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Horario de inicio</Label>
+                <Input
+                  type="time"
+                  value={formState.horarioInicio}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, horarioInicio: event.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Horario de fim</Label>
+                <Input
+                  type="time"
+                  value={formState.horarioFim}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, horarioFim: event.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Intervalo (minutos)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formState.intervalo}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, intervalo: event.target.value }))}
+                  placeholder="Opcional"
                 />
               </div>
 

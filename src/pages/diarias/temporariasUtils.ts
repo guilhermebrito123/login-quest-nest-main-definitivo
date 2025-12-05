@@ -37,6 +37,10 @@ export type DiariaTemporaria = {
   diarista_id: string;
   colaborador_ausente: string | null;
   posto_servico_id: string | null;
+  intervalo?: number | null;
+  horario_inicio?: string | null;
+  horario_fim?: string | null;
+  jornada_diaria?: number | null;
   valor_diaria: number;
   status: string;
   data_diaria: string;
