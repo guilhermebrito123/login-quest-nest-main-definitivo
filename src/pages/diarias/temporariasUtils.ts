@@ -69,12 +69,15 @@ export type DiariaTemporaria = {
   motivo_reprovacao: string | null;
   motivo_vago: string;
   demissao?: boolean | null;
+  licenca_nojo?: boolean | null;
+  novo_posto?: boolean | null;
   colaborador_demitido?: string | null;
   colaborador_demitido_nome?: string | null;
   observacao?: string | null;
   diarista?: Diarista | null;
   colaborador?: ColaboradorAlocado | null;
   posto?: PostoServicoResumo | null;
+  colaborador_falecido?: string | null;
 };
 
 export function useDiariasTemporariasData(selectedMonth: string) {

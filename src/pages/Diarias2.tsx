@@ -44,12 +44,13 @@ const toUpperOrNull = (value: string | null | undefined) => {
     postoServico: "",
     clienteId: "",
     valorDiaria: "",
-    diaristaId: "",
-    motivoVago: MOTIVO_VAGO_OPTIONS[0],
-    demissao: null as boolean | null,
-    colaboradorDemitidoNome: "",
-    observacao: "",
-  };
+  diaristaId: "",
+  motivoVago: MOTIVO_VAGO_OPTIONS[0],
+  demissao: null as boolean | null,
+  licencaNojo: null as boolean | null,
+  colaboradorDemitidoNome: "",
+  observacao: "",
+};
 
 const Diarias2 = () => {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
@@ -178,6 +179,14 @@ const Diarias2 = () => {
         toast.error("Informe o colaborador demitido.");
         return;
       }
+      if (formState.demissao === false && formState.licencaNojo === null) {
+        toast.error("Informe se e licenca nojo.");
+        return;
+      }
+      if (formState.demissao === false && formState.licencaNojo === true && !formState.colaboradorNome) {
+        toast.error("Informe o colaborador falecido.");
+        return;
+      }
     }
 
     const valorNumber = Number(formState.valorDiaria);
@@ -194,12 +203,23 @@ const Diarias2 = () => {
 
     const colaboradorAusente = null;
     const colaboradorNomeUpper = toUpperOrNull(formState.colaboradorNome);
-    const colaboradorFalecido = isMotivoLicencaNojo ? colaboradorNomeUpper : null;
-    const colaboradorAusenteNome =
-      isMotivoVagaEmAberto || isMotivoLicencaNojo ? null : colaboradorNomeUpper;
     const postoServicoValue = toUpperOrNull(formState.postoServico);
     const clienteIdValue = clienteIdNumber;
     const demissaoValue = isMotivoVagaEmAberto ? formState.demissao : null;
+    const licencaNojoValue =
+      isMotivoVagaEmAberto && demissaoValue === false ? formState.licencaNojo === true : false;
+    const novoPostoValue =
+      isMotivoVagaEmAberto && demissaoValue === false
+        ? !(formState.licencaNojo === true)
+        : isMotivoVagaEmAberto
+          ? false
+          : false;
+    const colaboradorFalecido =
+      (isMotivoLicencaNojo || (isMotivoVagaEmAberto && licencaNojoValue)) && colaboradorNomeUpper
+        ? colaboradorNomeUpper
+        : null;
+    const colaboradorAusenteNome =
+      isMotivoVagaEmAberto || isMotivoLicencaNojo ? null : colaboradorNomeUpper;
     const colaboradorDemitidoValue = null;
     const colaboradorDemitidoNomeValue =
       isMotivoVagaEmAberto && demissaoValue === true
@@ -241,6 +261,8 @@ const Diarias2 = () => {
         diarista_id: formState.diaristaId,
         motivo_vago: motivoVagoValue,
         demissao: demissaoValue,
+        licenca_nojo: licencaNojoValue,
+        novo_posto: novoPostoValue,
         colaborador_demitido: colaboradorDemitidoValue,
         colaborador_demitido_nome: colaboradorDemitidoNomeValue,
         observacao: observacaoValue,
@@ -346,6 +368,7 @@ const Diarias2 = () => {
                       motivoVago: value,
                       colaboradorNome: isVagaAberto || isLicencaNojo ? "" : prev.colaboradorNome,
                       demissao: null,
+                      licencaNojo: null,
                       colaboradorDemitidoNome: "",
                     }));
                   }}
@@ -400,7 +423,10 @@ const Diarias2 = () => {
                         setFormState((prev) => ({
                           ...prev,
                           demissao: value === "" ? null : value === "true",
+                          licencaNojo: value === "true" ? null : prev.licencaNojo,
                           colaboradorDemitidoNome: value === "true" ? prev.colaboradorDemitidoNome : "",
+                          colaboradorNome:
+                            value === "true" ? "" : prev.colaboradorNome,
                         }))
                       }
                     >
@@ -413,6 +439,49 @@ const Diarias2 = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {formState.demissao === false && (
+                    <div className="space-y-2">
+                      <Label>E licenca nojo?</Label>
+                      <Select
+                        required
+                        value={
+                          formState.licencaNojo === null
+                            ? ""
+                            : formState.licencaNojo
+                              ? "true"
+                              : "false"
+                        }
+                        onValueChange={(value) =>
+                          setFormState((prev) => ({
+                            ...prev,
+                            licencaNojo: value === "" ? null : value === "true",
+                            colaboradorNome: value === "true" ? prev.colaboradorNome : "",
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma opcao" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Sim</SelectItem>
+                          <SelectItem value="false">Nao</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {formState.demissao === false && formState.licencaNojo === true && (
+                    <div className="space-y-2">
+                      <Label>Colaborador falecido</Label>
+                      <Input
+                        required
+                        value={formState.colaboradorNome}
+                        onChange={(event) => handleColaboradorNomeChange(event.target.value)}
+                        placeholder="Nome do colaborador falecido"
+                      />
+                    </div>
+                  )}
 
                   {formState.demissao === true && (
                     <div className="space-y-2">

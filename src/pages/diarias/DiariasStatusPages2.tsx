@@ -424,6 +424,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const colaboradorNome = diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
       const colaboradorFalecido = diaria.colaborador_falecido?.trim() || "";
       const colaboradorDemitidoNome = diaria.colaborador_demitido_nome || "";
+      const licencaNojoFlag = diaria.licenca_nojo === true;
+      const novoPostoFlag = diaria.novo_posto === true;
       const isMotivoLicencaNojo = isLicencaNojo(diaria.motivo_vago);
       const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
       const baseRow: Record<string, any> = {
@@ -451,7 +453,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         Observacao: diaria.observacao?.trim() || "",
         "Criado por": criadoPorNome,
       };
-      baseRow["Novo posto?"] = "Não";
+      baseRow["Novo posto?"] = novoPostoFlag ? "Sim" : "N?o";
       if (!isAguardandoPage) {
         baseRow["Responsavel status"] = responsavelStatusNome || "";
       }
@@ -459,14 +461,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       if (isVagaEmAberto(diaria.motivo_vago)) {
         if (colaboradorDemitidoNome) {
           baseRow["Colaborador demitido"] = colaboradorDemitidoNome;
-          baseRow["Novo posto?"] = "Não";
+          baseRow["Novo posto?"] = "N?o";
+        } else if (licencaNojoFlag) {
+          baseRow["Colaborador falecido"] = colaboradorFalecido || "-";
+          baseRow["Novo posto?"] = "N?o";
         } else {
           baseRow["Novo posto?"] = "Sim";
         }
       } else if (isMotivoLicencaNojo) {
         baseRow["Colaborador falecido"] = colaboradorFalecido || "-";
+        baseRow["Novo posto?"] = "N?o";
       } else {
         baseRow["Colaborador ausente"] = colaboradorNome;
+        baseRow["Novo posto?"] = "N?o";
       }
 
       return baseRow;
@@ -954,6 +961,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const selectedPostoNome = selectedDiaria?.posto_servico?.trim() || selectedPostoInfo?.nome || "-";
     const motivoVagaEmAbertoSelecionado = isVagaEmAberto(selectedDiaria?.motivo_vago);
     const motivoLicencaNojoSelecionado = isLicencaNojo(selectedDiaria?.motivo_vago);
+    const selectedLicencaNojoFlag = selectedDiaria?.licenca_nojo === true;
+    const selectedNovoPostoFlag = selectedDiaria?.novo_posto === true;
     const criadoPorNome = getProfileName(selectedDiaria?.criado_por);
     const statusResponsavelInfo = selectedDiaria ? getStatusResponsavel(selectedDiaria) : { id: null, label: "" };
     const statusResponsavelNome = statusResponsavelInfo.id ? getProfileName(statusResponsavelInfo.id) : "";
@@ -1182,13 +1191,22 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         const colaboradorNome =
                           diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
                         const colaboradorFalecido = diaria.colaborador_falecido?.trim() || "";
+                        const licencaNojoFlag = diaria.licenca_nojo === true;
+                        const novoPostoFlag = diaria.novo_posto === true;
                         const isVagaAbertoMotivo = isVagaEmAberto(diaria.motivo_vago);
                         const isLicencaNojoMotivo = isLicencaNojo(diaria.motivo_vago);
-                        const colaboradorDisplay = isVagaAbertoMotivo
-                          ? diaria.colaborador_demitido_nome?.trim() || ""
-                          : isLicencaNojoMotivo
-                            ? colaboradorFalecido || "-"
-                            : colaboradorNome;
+                        let colaboradorDisplay = colaboradorNome;
+                        if (isVagaAbertoMotivo) {
+                          if (diaria.demissao) {
+                            colaboradorDisplay = diaria.colaborador_demitido_nome?.trim() || "";
+                          } else if (licencaNojoFlag) {
+                            colaboradorDisplay = colaboradorFalecido || "-";
+                          } else {
+                            colaboradorDisplay = novoPostoFlag ? "Novo posto" : "-";
+                          }
+                        } else if (isLicencaNojoMotivo) {
+                          colaboradorDisplay = colaboradorFalecido || "-";
+                        }
                         const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
                         const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
                         const actionElement = renderAction(diaria.id.toString(), diaria.status);
@@ -1724,19 +1742,28 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         <p className="font-medium">{statusResponsavelNome || "-"}</p>
                       </div>
                     )}
-                    {selectedColaboradorDemitidoNome.trim() &&
-                      selectedColaboradorDemitidoNome !== "-" && (
-                        <div className="sm:col-span-2">
-                          <p className="text-muted-foreground text-xs">Colaborador demitido</p>
-                          <p className="font-medium">{selectedColaboradorDemitidoNome}</p>
-                        </div>
-                      )}
-                    {motivoVagaEmAbertoSelecionado && !selectedColaboradorDemitidoNome.trim() && (
+                    {motivoVagaEmAbertoSelecionado && selectedDiaria?.demissao === true && (
                       <div className="sm:col-span-2">
-                        <p className="text-muted-foreground text-xs">Novo posto?</p>
-                        <p className="font-medium">Sim</p>
+                        <p className="text-muted-foreground text-xs">Colaborador demitido</p>
+                        <p className="font-medium">{selectedColaboradorDemitidoNome || "-"}</p>
                       </div>
                     )}
+                    {motivoVagaEmAbertoSelecionado &&
+                      selectedDiaria?.demissao === false &&
+                      selectedLicencaNojoFlag && (
+                        <div className="sm:col-span-2">
+                          <p className="text-muted-foreground text-xs">Colaborador falecido</p>
+                          <p className="font-medium">{selectedColaboradorFalecido}</p>
+                        </div>
+                      )}
+                    {motivoVagaEmAbertoSelecionado &&
+                      selectedDiaria?.demissao === false &&
+                      !selectedLicencaNojoFlag && (
+                        <div className="sm:col-span-2">
+                          <p className="text-muted-foreground text-xs">Novo posto?</p>
+                          <p className="font-medium">{selectedNovoPostoFlag ? "Sim" : "Não"}</p>
+                        </div>
+                      )}
                     {selectedDiaria.motivo_reprovacao && (
                       <div className="sm:col-span-2">
                         <p className="text-muted-foreground text-xs">Motivo reprovacao</p>
