@@ -3,6 +3,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
@@ -15,8 +16,17 @@ import {
 } from "./diarias/utils";
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 
+const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
+
 const MOTIVO_VAGO_OPTIONS = [
-  "falta injustificada",
+  MOTIVO_VAGO_VAGA_EM_ABERTO,
+  "LICENÇA MATERNIDADE",
+  "LICENÇA PATERNIDADE",
+  "LICENÇA CASAMENTO",
+  "LICENÇA NOJO (FALECIMENTO)",
+  "AFASTAMENTO INSS",
+  "FÉRIAS",
+  "SUSPENSÃO",
 ];
 
 const initialFormState = {
@@ -24,11 +34,15 @@ const initialFormState = {
   horarioInicio: "",
   horarioFim: "",
   intervalo: "",
-  colaboradorId: "",
-  postoServicoId: "",
+  colaboradorNome: "",
+  postoServico: "",
+  clienteNome: "",
   valorDiaria: "",
   diaristaId: "",
-  motivoVago: "falta injustificada",
+  motivoVago: MOTIVO_VAGO_OPTIONS[0],
+  demissao: null as boolean | null,
+  colaboradorDemitidoNome: "",
+  observacao: "",
 };
 
 const Diarias2 = () => {
@@ -37,36 +51,29 @@ const Diarias2 = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
-    colaboradores,
     diaristas,
     filteredDiarias,
     refetchDiarias,
     loadingDiarias,
     postoMap,
+    diarias,
   } = useDiariasTemporariasData(selectedMonth);
-
-  const postoOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    colaboradores.forEach((colaborador) => {
-      if (colaborador.posto_servico_id && colaborador.posto?.nome) {
-        const unidade = colaborador.posto.unidade?.nome ? ` - ${colaborador.posto.unidade.nome}` : "";
-        map.set(colaborador.posto_servico_id, `${colaborador.posto.nome}${unidade}`);
-      }
-    });
-    return Array.from(map.entries()).map(([id, descricao]) => ({ id, descricao }));
-  }, [colaboradores]);
-
   const getClienteInfoFromPosto = (postoInfo: any) => {
     const contrato = postoInfo?.unidade?.contrato;
-    if (contrato?.cliente_id || contrato?.clientes?.razao_social) {
+    if (contrato?.cliente_id || contrato?.clientes?.nome_fantasia || contrato?.clientes?.razao_social) {
       return {
         id: contrato.cliente_id ?? "",
-        nome: contrato.clientes?.razao_social || "Cliente não informado",
+        nome:
+          contrato.clientes?.nome_fantasia ||
+          contrato.clientes?.razao_social ||
+          "Cliente nao informado",
       };
     }
     return null;
   };
 
+  const isMotivoVagaEmAberto =
+    formState.motivoVago.toUpperCase() === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
   const normalizedCancelada = normalizeStatus(STATUS.cancelada);
   const normalizedReprovada = normalizeStatus(STATUS.reprovada);
   const normalizedPaga = normalizeStatus(STATUS.paga);
@@ -80,24 +87,25 @@ const Diarias2 = () => {
       const postoInfo =
         diaria.posto || (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
       const clienteInfo = getClienteInfoFromPosto(postoInfo);
-      if (!clienteInfo) return;
+      const clienteNome = (diaria.cliente_nome || clienteInfo?.nome || "").trim();
+      if (!clienteNome) return;
 
       const valor =
         typeof diaria.valor_diaria === "number"
           ? diaria.valor_diaria
           : Number(diaria.valor_diaria) || 0;
 
-      const key = clienteInfo.id || clienteInfo.nome;
+      const key = clienteInfo?.id || clienteNome;
 
       if (statusNorm === normalizedPaga) {
         const current = recebidos.get(key);
-        recebidos.set(key, { nome: clienteInfo.nome, total: (current?.total || 0) + valor });
+        recebidos.set(key, { nome: clienteNome, total: (current?.total || 0) + valor });
         return;
       }
       if (statusNorm === normalizedCancelada || statusNorm === normalizedReprovada) return;
 
       const current = receber.get(key);
-      receber.set(key, { nome: clienteInfo.nome, total: (current?.total || 0) + valor });
+      receber.set(key, { nome: clienteNome, total: (current?.total || 0) + valor });
     });
 
     return {
@@ -106,28 +114,44 @@ const Diarias2 = () => {
     };
   }, [filteredDiarias, normalizedCancelada, normalizedPaga, normalizedReprovada, postoMap]);
 
-  const handleColaboradorChange = (value: string) => {
+  const handleColaboradorNomeChange = (value: string) => {
     setFormState((prev) => ({
       ...prev,
-      colaboradorId: value,
-      postoServicoId: "",
+      colaboradorNome: value,
     }));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (
-      !formState.dataDiaria ||
-      !formState.horarioInicio ||
-      !formState.horarioFim ||
-      !formState.colaboradorId ||
-      !formState.postoServicoId ||
-      !formState.valorDiaria ||
-      !formState.diaristaId ||
-      !formState.motivoVago
-    ) {
-      toast.error("Preencha todos os campos para registrar a diaria.");
+    if (!formState.dataDiaria || !formState.horarioInicio || !formState.horarioFim) {
+      toast.error("Preencha data e horarios da diaria.");
       return;
+    }
+
+    if (!formState.postoServico || !formState.valorDiaria || !formState.diaristaId || !formState.motivoVago) {
+      toast.error("Preencha posto, diarista, valor e motivo.");
+      return;
+    }
+
+    if (!formState.clienteNome) {
+      toast.error("Informe o cliente.");
+      return;
+    }
+
+    if (!isMotivoVagaEmAberto && !formState.colaboradorNome) {
+      toast.error("Informe o colaborador ausente.");
+      return;
+    }
+
+    if (isMotivoVagaEmAberto) {
+      if (formState.demissao === null) {
+        toast.error("Informe se e demissao.");
+        return;
+      }
+      if (formState.demissao === true && !formState.colaboradorDemitidoNome) {
+        toast.error("Informe o colaborador demitido.");
+        return;
+      }
     }
 
     const valorNumber = Number(formState.valorDiaria);
@@ -136,25 +160,58 @@ const Diarias2 = () => {
       return;
     }
 
-    const intervaloNumber =
-      formState.intervalo === "" ? null : Number(formState.intervalo);
+    const intervaloNumber = formState.intervalo === "" ? null : Number(formState.intervalo);
     if (intervaloNumber !== null && (Number.isNaN(intervaloNumber) || intervaloNumber < 0)) {
       toast.error("Informe um intervalo valido (minutos).");
       return;
     }
 
+    const colaboradorAusente = null;
+    const colaboradorAusenteNome = isMotivoVagaEmAberto ? null : formState.colaboradorNome || null;
+    const postoServicoValue = formState.postoServico.trim() || null;
+    const clienteNomeValue = formState.clienteNome.trim() || null;
+    const demissaoValue = isMotivoVagaEmAberto ? formState.demissao : null;
+    const colaboradorDemitidoValue = null;
+    const colaboradorDemitidoNomeValue =
+      isMotivoVagaEmAberto && demissaoValue === true ? formState.colaboradorDemitidoNome || null : null;
+    const observacaoValue = formState.observacao.trim() || null;
+
+    const diaristaOcupado = diarias.some(
+      (diaria) =>
+        diaria.diarista_id === formState.diaristaId && diaria.data_diaria === formState.dataDiaria,
+    );
+    if (diaristaOcupado) {
+      toast.error("O diarista escolhido ja tem diarias cadastradas para essa data");
+      return;
+    }
+
     try {
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      const userId = userData?.user?.id;
+      if (!userId) {
+        toast.error("Nao foi possivel identificar o usuario logado.");
+        return;
+      }
       setIsSubmitting(true);
       const { error } = await supabase.from("diarias_temporarias").insert({
         data_diaria: formState.dataDiaria,
         horario_inicio: formState.horarioInicio,
         horario_fim: formState.horarioFim,
         intervalo: intervaloNumber,
-        colaborador_ausente: formState.colaboradorId,
-        posto_servico_id: formState.postoServicoId,
+        colaborador_ausente: colaboradorAusente,
+        colaborador_ausente_nome: colaboradorAusenteNome,
+        posto_servico_id: null,
+        posto_servico: postoServicoValue,
+        cliente_nome: clienteNomeValue,
         valor_diaria: valorNumber,
         diarista_id: formState.diaristaId,
         motivo_vago: formState.motivoVago,
+        demissao: demissaoValue,
+        colaborador_demitido: colaboradorDemitidoValue,
+        colaborador_demitido_nome: colaboradorDemitidoNomeValue,
+        observacao: observacaoValue,
+        criado_por: userId,
       });
       if (error) throw error;
 
@@ -200,6 +257,7 @@ const Diarias2 = () => {
                 <Label>Data da diaria</Label>
                 <Input
                   type="date"
+                  required
                   value={formState.dataDiaria}
                   onChange={(event) => setFormState((prev) => ({ ...prev, dataDiaria: event.target.value }))}
                 />
@@ -209,6 +267,7 @@ const Diarias2 = () => {
                 <Label>Horario de inicio</Label>
                 <Input
                   type="time"
+                  required
                   value={formState.horarioInicio}
                   onChange={(event) => setFormState((prev) => ({ ...prev, horarioInicio: event.target.value }))}
                 />
@@ -218,6 +277,7 @@ const Diarias2 = () => {
                 <Label>Horario de fim</Label>
                 <Input
                   type="time"
+                  required
                   value={formState.horarioFim}
                   onChange={(event) => setFormState((prev) => ({ ...prev, horarioFim: event.target.value }))}
                 />
@@ -229,17 +289,28 @@ const Diarias2 = () => {
                   type="number"
                   min="0"
                   step="1"
+                  required
                   value={formState.intervalo}
                   onChange={(event) => setFormState((prev) => ({ ...prev, intervalo: event.target.value }))}
-                  placeholder="Opcional"
+                  placeholder="Em minutos"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label>Motivo</Label>
                 <Select
+                  required
                   value={formState.motivoVago}
-                  onValueChange={(value) => setFormState((prev) => ({ ...prev, motivoVago: value }))}
+                  onValueChange={(value) => {
+                    const isVagaAberto = value.toUpperCase() === MOTIVO_VAGO_VAGA_EM_ABERTO;
+                    setFormState((prev) => ({
+                      ...prev,
+                      motivoVago: value,
+                      colaboradorNome: isVagaAberto ? "" : prev.colaboradorNome,
+                      demissao: null,
+                      colaboradorDemitidoNome: "",
+                    }));
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o motivo" />
@@ -254,50 +325,82 @@ const Diarias2 = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Colaborador ausente</Label>
-                <Select value={formState.colaboradorId} onValueChange={handleColaboradorChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o colaborador" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
-                    {colaboradores.length === 0 && (
-                      <SelectItem value="none" disabled>
-                        Nenhum colaborador alocado encontrado
-                      </SelectItem>
-                    )}
-                    {colaboradores.map((colaborador) => (
-                      <SelectItem key={colaborador.id} value={colaborador.id}>
-                        {colaborador.nome_completo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!isMotivoVagaEmAberto && (
+                <div className="space-y-2">
+                  <Label>Colaborador ausente</Label>
+                  <Input
+                    required
+                    value={formState.colaboradorNome}
+                    onChange={(event) => handleColaboradorNomeChange(event.target.value)}
+                    placeholder="Nome do colaborador ausente"
+                  />
+                </div>
+              )}
+
+              {isMotivoVagaEmAberto && (
+                <>
+                  <div className="space-y-2">
+                  <Label>E demissao?</Label>
+                  <Select
+                    required
+                      value={
+                        formState.demissao === null ? "" : formState.demissao ? "true" : "false"
+                      }
+                      onValueChange={(value) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          demissao: value === "" ? null : value === "true",
+                          colaboradorDemitidoNome: value === "true" ? prev.colaboradorDemitidoNome : "",
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma opcao" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">Sim</SelectItem>
+                        <SelectItem value="false">Nao</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formState.demissao === true && (
+                    <div className="space-y-2">
+                      <Label>Colaborador demitido</Label>
+                      <Input
+                        required
+                        value={formState.colaboradorDemitidoNome}
+                        onChange={(event) =>
+                          setFormState((prev) => ({
+                            ...prev,
+                            colaboradorDemitidoNome: event.target.value,
+                          }))
+                        }
+                        placeholder="Nome do colaborador demitido"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label>Posto de servico</Label>
-                <Select
-                  value={formState.postoServicoId}
-                  onValueChange={(value) => setFormState((prev) => ({ ...prev, postoServicoId: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o posto de servico" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
-                    {postoOptions.length === 0 ? (
-                      <SelectItem value="none" disabled>
-                        Nenhum posto encontrado
-                      </SelectItem>
-                    ) : (
-                      postoOptions.map((posto) => (
-                        <SelectItem key={posto.id} value={posto.id}>
-                          {posto.descricao}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <Input
+                  required
+                  value={formState.postoServico}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, postoServico: event.target.value }))}
+                  placeholder="Nome do posto"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Input
+                  required
+                  value={formState.clienteNome}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, clienteNome: event.target.value }))}
+                  placeholder="Nome do cliente"
+                />
               </div>
 
               <div className="space-y-2">
@@ -306,6 +409,7 @@ const Diarias2 = () => {
                   type="number"
                   min="0"
                   step="0.01"
+                  required
                   value={formState.valorDiaria}
                   onChange={(event) => setFormState((prev) => ({ ...prev, valorDiaria: event.target.value }))}
                   placeholder="0,00"
@@ -315,6 +419,7 @@ const Diarias2 = () => {
               <div className="space-y-2">
                 <Label>Diarista responsavel</Label>
                 <Select
+                  required
                   value={formState.diaristaId}
                   onValueChange={(value) => setFormState((prev) => ({ ...prev, diaristaId: value }))}
                 >
@@ -334,6 +439,15 @@ const Diarias2 = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>Observacao</Label>
+                <Textarea
+                  value={formState.observacao}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, observacao: event.target.value }))}
+                  placeholder="Opcional"
+                />
               </div>
 
               <div className="md:col-span-2 flex justify-end">

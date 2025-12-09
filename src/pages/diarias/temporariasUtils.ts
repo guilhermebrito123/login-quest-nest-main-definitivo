@@ -19,6 +19,7 @@ export type PostoServicoResumo = {
       clientes?: {
         id: string;
         razao_social: string | null;
+        nome_fantasia: string | null;
       } | null;
     } | null;
   } | null;
@@ -36,7 +37,18 @@ export type DiariaTemporaria = {
   id: number;
   diarista_id: string;
   colaborador_ausente: string | null;
+  colaborador_ausente_nome?: string | null;
   posto_servico_id: string | null;
+  posto_servico?: string | null;
+  cliente_nome?: string | null;
+  criado_por?: string | null;
+  confirmada_por?: string | null;
+  aprovada_por?: string | null;
+  lancada_por?: string | null;
+  aprovado_para_pgto_por?: string | null;
+  paga_por?: string | null;
+  cancelada_por?: string | null;
+  reprovada_por?: string | null;
   intervalo?: number | null;
   horario_inicio?: string | null;
   horario_fim?: string | null;
@@ -49,6 +61,10 @@ export type DiariaTemporaria = {
   motivo_cancelamento: string | null;
   motivo_reprovacao: string | null;
   motivo_vago: string;
+  demissao?: boolean | null;
+  colaborador_demitido?: string | null;
+  colaborador_demitido_nome?: string | null;
+  observacao?: string | null;
   diarista?: Diarista | null;
   colaborador?: ColaboradorAlocado | null;
   posto?: PostoServicoResumo | null;
@@ -66,6 +82,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
       return (data as any[]).map((item) => ({
         id: item.id,
         nome_completo: item.nome_completo,
+        cpf: item.cpf ?? null,
         cargo: item.cargo ?? null,
         status: item.status ?? null,
         banco: item.banco ?? null,
@@ -102,7 +119,8 @@ export function useDiariasTemporariasData(selectedMonth: string) {
                 cliente_id,
                 clientes (
                   id,
-                  razao_social
+                  razao_social,
+                  nome_fantasia
                 )
               )
             )
@@ -129,6 +147,15 @@ export function useDiariasTemporariasData(selectedMonth: string) {
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as DiariaTemporaria[];
+    },
+  });
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["profiles-temporarias"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, full_name");
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -172,6 +199,16 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     return map;
   }, [colaboradores]);
 
+  const profileMap = useMemo(() => {
+    const map = new Map<string, string>();
+    profiles.forEach((profile: any) => {
+      if (profile.id) {
+        map.set(profile.id, profile.full_name || "");
+      }
+    });
+    return map;
+  }, [profiles]);
+
   return {
     colaboradores,
     colaboradoresMap,
@@ -180,6 +217,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     diarias,
     filteredDiarias,
     postoMap,
+    profileMap,
     refetchDiarias,
     loadingDiarias,
   };

@@ -64,6 +64,7 @@ type SpecificAttachmentKey = (typeof SPECIFIC_ATTACHMENT_FIELDS)[number]["key"];
 
 interface DiaristaFormState {
   nome_completo: string;
+  cpf: string;
   cep: string;
   endereco: string;
   cidade: string;
@@ -80,6 +81,7 @@ interface DiaristaFormState {
 
 const createInitialFormState = (): DiaristaFormState => ({
   nome_completo: "",
+  cpf: "",
   cep: "",
   endereco: "",
   cidade: "",
@@ -178,6 +180,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     if (diarista) {
       setFormData({
         nome_completo: diarista.nome_completo || "",
+        cpf: diarista.cpf || "",
         cep: diarista.cep || "",
         endereco: diarista.endereco || "",
         cidade: diarista.cidade || "",
@@ -417,13 +420,18 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (formData.possui_antecedente) {
-      toast.error("Nao e permitido cadastrar diaristas com antecedentes criminais");
+    if (!formData.cpf.trim()) {
+      toast.error("Informe o CPF.");
       return;
     }
 
     if (!formData.banco) {
       toast.error("Selecione o banco do diarista");
+      return;
+    }
+
+    if (formData.possui_antecedente) {
+      toast.error("Nao e permitido cadastrar diaristas com antecedentes criminais");
       return;
     }
 
@@ -481,6 +489,19 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 id="nome_completo"
                 value={formData.nome_completo}
                 onChange={(e) => setFormData({ ...formData, nome_completo: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cpf">CPF *</Label>
+              <Input
+                id="cpf"
+                value={formData.cpf}
+                onChange={(e) =>
+                  setFormData({ ...formData, cpf: e.target.value.replace(/\\D/g, "").slice(0, 14) })
+                }
+                placeholder="Somente números"
                 required
               />
             </div>
@@ -639,7 +660,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
             </div>
           </div>
 
-  …          <div className="space-y-4">
+          <div className="space-y-4">
             <p className="text-sm font-medium">Documentos obrigatorios</p>
             <div className="grid grid-cols-1 gap-4">
               {SPECIFIC_ATTACHMENT_FIELDS.map(({ key, label }) => {

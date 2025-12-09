@@ -631,53 +631,152 @@ export type Database = {
       }
       diarias_temporarias: {
         Row: {
+          aprovada_por: string | null
+          aprovado_para_pgto_por: string | null
+          cancelada_por: string | null
+          cliente_nome: string | null
           colaborador_ausente: string | null
+          colaborador_ausente_nome: string | null
+          colaborador_demitido: string | null
+          colaborador_demitido_nome: string | null
+          confirmada_por: string | null
           created_at: string
+          criado_por: string | null
           data_diaria: string
+          demissao: boolean | null
           diarista_id: string
+          horario_fim: string | null
+          horario_inicio: string | null
           id: number
+          intervalo: number | null
+          jornada_diaria: number | null
+          lancada_por: string | null
           motivo_cancelamento: string | null
           motivo_reprovacao: string | null
           motivo_vago: Database["public"]["Enums"]["motivo_vago_type"]
-          posto_servico_id: string
+          observacao: string | null
+          paga_por: string | null
+          posto_servico: string | null
+          posto_servico_id: string | null
+          reprovada_por: string | null
           status: Database["public"]["Enums"]["status_diaria"]
           updated_at: string
           valor_diaria: number
         }
         Insert: {
+          aprovada_por?: string | null
+          aprovado_para_pgto_por?: string | null
+          cancelada_por?: string | null
+          cliente_nome?: string | null
           colaborador_ausente?: string | null
+          colaborador_ausente_nome?: string | null
+          colaborador_demitido?: string | null
+          colaborador_demitido_nome?: string | null
+          confirmada_por?: string | null
           created_at?: string
+          criado_por?: string | null
           data_diaria: string
+          demissao?: boolean | null
           diarista_id: string
+          horario_fim?: string | null
+          horario_inicio?: string | null
           id?: number
+          intervalo?: number | null
+          jornada_diaria?: number | null
+          lancada_por?: string | null
           motivo_cancelamento?: string | null
           motivo_reprovacao?: string | null
           motivo_vago?: Database["public"]["Enums"]["motivo_vago_type"]
-          posto_servico_id: string
+          observacao?: string | null
+          paga_por?: string | null
+          posto_servico?: string | null
+          posto_servico_id?: string | null
+          reprovada_por?: string | null
           status?: Database["public"]["Enums"]["status_diaria"]
           updated_at?: string
           valor_diaria: number
         }
         Update: {
+          aprovada_por?: string | null
+          aprovado_para_pgto_por?: string | null
+          cancelada_por?: string | null
+          cliente_nome?: string | null
           colaborador_ausente?: string | null
+          colaborador_ausente_nome?: string | null
+          colaborador_demitido?: string | null
+          colaborador_demitido_nome?: string | null
+          confirmada_por?: string | null
           created_at?: string
+          criado_por?: string | null
           data_diaria?: string
+          demissao?: boolean | null
           diarista_id?: string
+          horario_fim?: string | null
+          horario_inicio?: string | null
           id?: number
+          intervalo?: number | null
+          jornada_diaria?: number | null
+          lancada_por?: string | null
           motivo_cancelamento?: string | null
           motivo_reprovacao?: string | null
           motivo_vago?: Database["public"]["Enums"]["motivo_vago_type"]
-          posto_servico_id?: string
+          observacao?: string | null
+          paga_por?: string | null
+          posto_servico?: string | null
+          posto_servico_id?: string | null
+          reprovada_por?: string | null
           status?: Database["public"]["Enums"]["status_diaria"]
           updated_at?: string
           valor_diaria?: number
         }
         Relationships: [
           {
+            foreignKeyName: "diarias_temporarias_aprovada_por_fkey"
+            columns: ["aprovada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diarias_temporarias_aprovado_para_pgto_por_fkey"
+            columns: ["aprovado_para_pgto_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diarias_temporarias_cancelada_por_fkey"
+            columns: ["cancelada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "diarias_temporarias_colaborador_ausente_fkey"
             columns: ["colaborador_ausente"]
             isOneToOne: false
             referencedRelation: "colaboradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diarias_temporarias_colaborador_demitido_fkey"
+            columns: ["colaborador_demitido"]
+            isOneToOne: false
+            referencedRelation: "colaboradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diarias_temporarias_confirmada_por_fkey"
+            columns: ["confirmada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diarias_temporarias_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -688,79 +787,103 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "diarias_temporarias_lancada_por_fkey"
+            columns: ["lancada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diarias_temporarias_paga_por_fkey"
+            columns: ["paga_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "diarias_temporarias_posto_servico_id_fkey"
             columns: ["posto_servico_id"]
             isOneToOne: false
             referencedRelation: "postos_servico"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "diarias_temporarias_reprovada_por_fkey"
+            columns: ["reprovada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       diaristas: {
         Row: {
-          agencia: string
-          anexo_comprovante_endereco: string
-          anexo_cpf: string
-          anexo_dados_bancarios: string
-          anexo_possui_antecedente: string
-          banco: string
-          cep: string
-          cidade: string
+          agencia: string | null
+          anexo_comprovante_endereco: string | null
+          anexo_cpf: string | null
+          anexo_dados_bancarios: string | null
+          anexo_possui_antecedente: string | null
+          banco: string | null
+          cep: string | null
+          cidade: string | null
+          cpf: string
           created_at: string
-          email: string
-          endereco: string
+          email: string | null
+          endereco: string | null
           id: string
           nome_completo: string
-          numero_conta: string
+          numero_conta: string | null
           pix: string
-          possui_antecedente: boolean
-          status: Database["public"]["Enums"]["status_diarista"]
+          possui_antecedente: boolean | null
+          status: Database["public"]["Enums"]["status_diarista"] | null
           telefone: string
-          tipo_conta: Database["public"]["Enums"]["tipo_conta_bancaria"]
+          tipo_conta: Database["public"]["Enums"]["tipo_conta_bancaria"] | null
           updated_at: string
         }
         Insert: {
-          agencia?: string
-          anexo_comprovante_endereco: string
-          anexo_cpf: string
-          anexo_dados_bancarios: string
-          anexo_possui_antecedente: string
-          banco?: string
-          cep: string
-          cidade: string
+          agencia?: string | null
+          anexo_comprovante_endereco?: string | null
+          anexo_cpf?: string | null
+          anexo_dados_bancarios?: string | null
+          anexo_possui_antecedente?: string | null
+          banco?: string | null
+          cep?: string | null
+          cidade?: string | null
+          cpf?: string
           created_at?: string
-          email: string
-          endereco: string
+          email?: string | null
+          endereco?: string | null
           id?: string
           nome_completo: string
-          numero_conta?: string
+          numero_conta?: string | null
           pix?: string
-          possui_antecedente?: boolean
-          status?: Database["public"]["Enums"]["status_diarista"]
+          possui_antecedente?: boolean | null
+          status?: Database["public"]["Enums"]["status_diarista"] | null
           telefone: string
-          tipo_conta?: Database["public"]["Enums"]["tipo_conta_bancaria"]
+          tipo_conta?: Database["public"]["Enums"]["tipo_conta_bancaria"] | null
           updated_at?: string
         }
         Update: {
-          agencia?: string
-          anexo_comprovante_endereco?: string
-          anexo_cpf?: string
-          anexo_dados_bancarios?: string
-          anexo_possui_antecedente?: string
-          banco?: string
-          cep?: string
-          cidade?: string
+          agencia?: string | null
+          anexo_comprovante_endereco?: string | null
+          anexo_cpf?: string | null
+          anexo_dados_bancarios?: string | null
+          anexo_possui_antecedente?: string | null
+          banco?: string | null
+          cep?: string | null
+          cidade?: string | null
+          cpf?: string
           created_at?: string
-          email?: string
-          endereco?: string
+          email?: string | null
+          endereco?: string | null
           id?: string
           nome_completo?: string
-          numero_conta?: string
+          numero_conta?: string | null
           pix?: string
-          possui_antecedente?: boolean
-          status?: Database["public"]["Enums"]["status_diarista"]
+          possui_antecedente?: boolean | null
+          status?: Database["public"]["Enums"]["status_diarista"] | null
           telefone?: string
-          tipo_conta?: Database["public"]["Enums"]["tipo_conta_bancaria"]
+          tipo_conta?: Database["public"]["Enums"]["tipo_conta_bancaria"] | null
           updated_at?: string
         }
         Relationships: []
@@ -1957,6 +2080,8 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      limpar_diarias_antigas: { Args: never; Returns: undefined }
+      limpar_diarias_temporarias_antigas: { Args: never; Returns: undefined }
       limpar_posto_dias_vagos_antigos: { Args: never; Returns: undefined }
       limpar_presencas_antigas: { Args: never; Returns: undefined }
       processar_movimentacoes_agendadas: { Args: never; Returns: undefined }
@@ -1970,12 +2095,16 @@ export type Database = {
         | "tecnico"
         | "cliente_view"
       motivo_vago_type:
-        | "falta justificada"
-        | "falta injustificada"
-        | "afastamento INSS"
-        | "férias"
-        | "suspensão"
-        | "Posto vago"
+        | "FALTA JUSTIFICADA"
+        | "FALTA INJUSTIFICADA"
+        | "AFASTAMENTO INSS"
+        | "FÉRIAS"
+        | "SUSPENSÃO"
+        | "VAGA EM ABERTO (COBERTURA SALÁRIO)"
+        | "LICENÇA MATERNIDADE"
+        | "LICENÇA PATERNIDADE"
+        | "LICENÇA CASAMENTO"
+        | "LICENÇA NOJO (FALECIMENTO)"
       periodicidade_type:
         | "diaria"
         | "semanal"
@@ -2141,12 +2270,16 @@ export const Constants = {
         "cliente_view",
       ],
       motivo_vago_type: [
-        "falta justificada",
-        "falta injustificada",
-        "afastamento INSS",
-        "férias",
-        "suspensão",
-        "Posto vago",
+        "FALTA JUSTIFICADA",
+        "FALTA INJUSTIFICADA",
+        "AFASTAMENTO INSS",
+        "FÉRIAS",
+        "SUSPENSÃO",
+        "VAGA EM ABERTO (COBERTURA SALÁRIO)",
+        "LICENÇA MATERNIDADE",
+        "LICENÇA PATERNIDADE",
+        "LICENÇA CASAMENTO",
+        "LICENÇA NOJO (FALECIMENTO)",
       ],
       periodicidade_type: [
         "diaria",

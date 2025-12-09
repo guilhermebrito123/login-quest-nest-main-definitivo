@@ -79,7 +79,10 @@ export default function Diarias() {
         postoDiaVagoMap.get(diaria.posto_dia_vago_id) ?? diaria.posto_dia_vago ?? null;
       const contrato = diaInfo?.posto?.unidade?.contrato;
       const clienteId = contrato?.cliente_id ?? "";
-      const clienteNome = contrato?.clientes?.razao_social || "Cliente não informado";
+      const clienteNome =
+        contrato?.clientes?.nome_fantasia ||
+        contrato?.clientes?.razao_social ||
+        "Cliente não informado";
       const key = clienteId || clienteNome;
       const valor =
         typeof diaria.valor === "number" ? diaria.valor : Number(diaria.valor) || 0;
@@ -280,12 +283,22 @@ export default function Diarias() {
                         Nenhum dia vago disponível no período
                       </SelectItem>
                     ) : (
-                      availableDiasVagos.map((dia) => (
-                        <SelectItem key={dia.id} value={dia.id}>
-                          {formatDate(dia.data)} - {dia.posto?.unidade?.nome || "Sem unidade"} {dia.posto?.nome}
-                          {dia.motivo ? ` • Motivo: ${dia.motivo}` : ""}
-                        </SelectItem>
-                      ))
+                      availableDiasVagos.map((dia) => {
+                        const clienteNome =
+                          dia.posto?.unidade?.contrato?.clientes?.nome_fantasia ||
+                          dia.posto?.unidade?.contrato?.clientes?.razao_social ||
+                          "Cliente não informado";
+                        const contratoDescricao =
+                          dia.posto?.unidade?.contrato?.negocio || "Sem contrato";
+
+                        return (
+                          <SelectItem key={dia.id} value={dia.id}>
+                            {formatDate(dia.data)} - {dia.posto?.nome || "Sem posto"} |{" "}
+                            {dia.posto?.unidade?.nome || "Sem unidade"} | {contratoDescricao} | {clienteNome}
+                            {dia.motivo ? ` - Motivo: ${dia.motivo}` : ""}
+                          </SelectItem>
+                        );
+                      })
                     )}
                   </SelectContent>
                 </Select>

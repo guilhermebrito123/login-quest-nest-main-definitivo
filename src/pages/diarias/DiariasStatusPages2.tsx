@@ -121,6 +121,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       diaristaMap,
       colaboradoresMap,
       postoMap,
+      profileMap,
     } = useDiariasTemporariasData(selectedMonth);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [customStatusSelection, setCustomStatusSelection] = useState<Record<string, string>>({});
@@ -139,6 +140,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       clienteId: "",
       startDate: "",
       endDate: "",
+      criadoPorId: "",
     });
     const [totalRangeDiarista, setTotalRangeDiarista] = useState({
       diaristaId: "",
@@ -189,6 +191,40 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return `${parsed.toFixed(2)} h`;
     };
 
+    const getStatusResponsavel = (diaria: DiariaTemporaria) => {
+      const normalizedStatus = normalizeStatus(diaria.status);
+      switch (normalizedStatus) {
+        case normalizeStatus(STATUS.confirmada):
+          return { id: diaria.confirmada_por || null, label: "Confirmacao" };
+        case normalizeStatus(STATUS.aprovada):
+          return { id: diaria.aprovada_por || null, label: "Aprovacao" };
+        case normalizeStatus(STATUS.lancada):
+          return { id: diaria.lancada_por || null, label: "Lancamento" };
+        case normalizeStatus(STATUS.aprovadaPagamento):
+          return { id: diaria.aprovado_para_pgto_por || null, label: "Aprovacao pagamento" };
+        case normalizeStatus(STATUS.paga):
+          return { id: diaria.paga_por || null, label: "Pagamento" };
+        case normalizeStatus(STATUS.cancelada):
+          return { id: diaria.cancelada_por || null, label: "Cancelamento" };
+        case normalizeStatus(STATUS.reprovada):
+          return { id: diaria.reprovada_por || null, label: "Reprovacao" };
+        default:
+          return { id: null, label: "" };
+      }
+    };
+
+    const uppercaseRows = (rows: Record<string, any>[]) =>
+      rows.map((row) => {
+        const normalized: Record<string, any> = {};
+        Object.entries(row).forEach(([key, value]) => {
+          normalized[key] = typeof value === "string" ? value.toUpperCase() : value;
+        });
+        return normalized;
+      });
+
+    const isVagaEmAberto = (motivo?: string | null) =>
+      (motivo || "").toUpperCase().includes("VAGA EM ABERTO");
+
     const diariasDoStatus = useMemo(
       () => filteredDiarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
       [filteredDiarias, normalizedKey],
@@ -220,6 +256,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return null;
     };
 
+    const getClienteNomeFromDiaria = (diaria: DiariaTemporaria, postoInfo: any) => {
+      const nome = diaria.cliente_nome?.trim() || getClienteInfoFromPosto(postoInfo)?.nome || "";
+      return nome || "";
+    };
+
+    const getClienteKeyFromDiaria = (diaria: DiariaTemporaria, postoInfo: any) => {
+      const key =
+        getClienteInfoFromPosto(postoInfo)?.id ||
+        diaria.cliente_nome?.trim() ||
+        "";
+      return key;
+    };
+
     const clienteOptions = useMemo(() => {
       if (!totalRangeCliente.diaristaId) return [];
       const map = new Map<string, string>();
@@ -230,9 +279,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const postoInfo =
           diaria.posto ||
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
-        const clienteInfo = getClienteInfoFromPosto(postoInfo);
-        if (clienteInfo?.id && clienteInfo.nome) {
-          map.set(clienteInfo.id, clienteInfo.nome);
+        const clienteKey = getClienteKeyFromDiaria(diaria, postoInfo);
+        const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo);
+        if (clienteKey && clienteNome) {
+          map.set(clienteKey, clienteNome);
         }
       });
       return Array.from(map.entries())
@@ -241,11 +291,15 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     }, [diariasDoStatusFull, postoMap, totalRangeCliente.diaristaId]);
 
     useEffect(() => {
+      const clienteValido = clienteOptions.some((c) => c.id === totalRangeCliente.clienteId)
+        ? totalRangeCliente.clienteId
+        : "";
+      if (clienteValido === totalRangeCliente.clienteId) return;
       setTotalRangeCliente((prev) => ({
         ...prev,
-        clienteId: clienteOptions.some((c) => c.id === prev.clienteId) ? prev.clienteId : "",
+        clienteId: clienteValido,
       }));
-    }, [clienteOptions]);
+    }, [clienteOptions, totalRangeCliente.clienteId]);
 
     const diaristaOptions = useMemo(() => {
       const map = new Map<string, string>();
@@ -270,6 +324,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return Array.from(set).sort((a, b) => a.localeCompare(b));
     }, [diariasDoStatus]);
 
+    const criadoPorOptions = useMemo(() => {
+      const map = new Map<string, string>();
+      diariasDoStatusFull.forEach((diaria) => {
+        if (diaria.criado_por) {
+          const nome = profileMap.get(diaria.criado_por) || "";
+          map.set(diaria.criado_por, nome);
+        }
+      });
+      return Array.from(map.entries())
+        .map(([id, nome]) => ({ id, nome: nome || "(sem nome)" }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+    }, [diariasDoStatusFull, profileMap]);
+
     const clienteFilterOptions = useMemo(() => {
       const map = new Map<string, string>();
       const source = [...diariasDoStatus, ...diariasDoStatusFull];
@@ -277,9 +344,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const postoInfo =
           diaria.posto ||
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
-        const cliente = getClienteInfoFromPosto(postoInfo);
-        if (cliente?.id && cliente.nome) {
-          map.set(cliente.id, cliente.nome);
+        const clienteKey = getClienteKeyFromDiaria(diaria, postoInfo);
+        const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo);
+        if (clienteKey && clienteNome) {
+          map.set(clienteKey, clienteNome);
         }
       });
       return Array.from(map.entries())
@@ -299,7 +367,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const postoInfo =
           diaria.posto ||
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
-        const clienteInfoFiltro = getClienteInfoFromPosto(postoInfo);
+        const clienteKey = getClienteKeyFromDiaria(diaria, postoInfo);
         const data = diaria.data_diaria || "";
 
         if (filters.startDate) {
@@ -320,7 +388,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         if (filters.motivo && filters.motivo !== motivo) {
           return false;
         }
-        if (filters.clienteId && filters.clienteId !== (clienteInfoFiltro?.id || "")) {
+        if (filters.criadoPorId && filters.criadoPorId !== (diaria.criado_por || "")) {
+          return false;
+        }
+        if (filters.clienteId && filters.clienteId !== clienteKey) {
           return false;
         }
         return true;
@@ -334,9 +405,15 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const colaboradorInfo =
         diaria.colaborador ||
         (diaria.colaborador_ausente ? colaboradoresMap.get(diaria.colaborador_ausente) : null);
-      const clienteInfo = getClienteInfoFromPosto(postoInfo);
-      const contratoInfo = getContratoInfoFromPosto(postoInfo);
-      return {
+      const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
+      const criadoPorNome =
+        (diaria.criado_por && profileMap.get(diaria.criado_por || "")) || "-";
+      const { id: responsavelStatusId } = getStatusResponsavel(diaria);
+      const responsavelStatusNome = responsavelStatusId ? profileMap.get(responsavelStatusId) || "" : "";
+      const colaboradorNome = diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
+      const colaboradorDemitidoNome = diaria.colaborador_demitido_nome || "";
+      const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
+      const baseRow: Record<string, any> = {
         Data: formatDate(diaria.data_diaria),
         Status: STATUS_LABELS[diaria.status] || diaria.status,
         "Horario inicio": formatTimeValue(diaria.horario_inicio),
@@ -344,24 +421,36 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         "Jornada diaria (h)": formatJornadaValue(diaria.jornada_diaria),
         "Intervalo (min)": formatIntervalValue(diaria.intervalo),
         "Motivo (dia vago)": diaria.motivo_vago || "-",
-        Posto: postoInfo?.nome || "-",
-        Unidade: postoInfo?.unidade?.nome || "-",
-        Cliente: clienteInfo?.nome || "-",
-        Contrato: contratoInfo?.negocio || "-",
-        "Colaborador ausente": colaboradorInfo?.nome_completo || "-",
-        "Cargo colaborador": colaboradorInfo?.cargo || "-",
+        "CPF diarista": diaristaInfo?.cpf || "-",
+        Posto: postoNome,
+        Cliente: clienteNome,
         Diarista: diaristaInfo?.nome_completo || "-",
         "Status diarista": diaristaInfo?.status || "-",
         "Valor (R$)": diaria.valor_diaria || 0,
         "Atualizado em": formatDateTime(diaria.updated_at),
-        "Motivo reprovação": diaria.motivo_reprovacao || "",
+        "Motivo reprovacao": diaria.motivo_reprovacao || "",
         "Motivo cancelamento": diaria.motivo_cancelamento || "",
         Banco: diaristaInfo?.banco || "-",
-        Agência: diaristaInfo?.agencia || "-",
-        "Número da conta": diaristaInfo?.numero_conta || "-",
+        Agencia: diaristaInfo?.agencia || "-",
+        "Numero da conta": diaristaInfo?.numero_conta || "-",
         "Tipo de conta": diaristaInfo?.tipo_conta || "-",
         Pix: diaristaInfo?.pix || "-",
+        Observacao: diaria.observacao?.trim() || "",
+        "Criado por": criadoPorNome,
+        "Responsavel status": responsavelStatusNome || "",
       };
+
+      if (isVagaEmAberto(diaria.motivo_vago)) {
+        if (colaboradorDemitidoNome) {
+          baseRow["Colaborador demitido"] = colaboradorDemitidoNome;
+        } else {
+          baseRow["Novo posto?"] = "Sim";
+        }
+      } else {
+        baseRow["Colaborador ausente"] = colaboradorNome;
+      }
+
+      return baseRow;
     };
 
     const handleExportXlsx = () => {
@@ -369,7 +458,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         toast.info("Nenhuma diaria para exportar.");
         return;
       }
-      const rows = diariasFiltradas.map(buildExportRow);
+      const rows = uppercaseRows(diariasFiltradas.map(buildExportRow));
       const sheet = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, sheet, "Diarias");
@@ -444,8 +533,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const postoInfo =
           diaria.posto ||
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
-        const clienteInfo = getClienteInfoFromPosto(postoInfo);
-        if (!clienteInfo || clienteInfo.id !== totalRangeCliente.clienteId) return acc;
+        const clienteKey = getClienteKeyFromDiaria(diaria, postoInfo);
+        if (!clienteKey || clienteKey !== totalRangeCliente.clienteId) return acc;
 
         const valorDiaria =
           typeof diaria.valor_diaria === "number"
@@ -469,8 +558,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const postoInfo =
           diaria.posto ||
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
-        const clienteInfo = getClienteInfoFromPosto(postoInfo);
-        if (!clienteInfo || clienteInfo.id !== totalRangeClienteOnly.clienteId) return acc;
+        const clienteKey = getClienteKeyFromDiaria(diaria, postoInfo);
+        if (!clienteKey || clienteKey !== totalRangeClienteOnly.clienteId) return acc;
 
         const dataStr = diaria.data_diaria;
         if (!dataStr) return acc;
@@ -495,8 +584,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const postoInfo =
           diaria.posto ||
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
-        const clienteInfo = getClienteInfoFromPosto(postoInfo);
-        if (!clienteInfo || clienteInfo.id !== clienteId) return false;
+        const clienteKey = getClienteKeyFromDiaria(diaria, postoInfo);
+        if (!clienteKey || clienteKey !== clienteId) return false;
 
         const dataStr = diaria.data_diaria;
         if (!dataStr) return false;
@@ -527,8 +616,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           const postoInfo =
             diaria.posto ||
             (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
-          const clienteInfo = getClienteInfoFromPosto(postoInfo);
-          if (clienteInfo?.id !== clienteId) return false;
+          const clienteKey = getClienteKeyFromDiaria(diaria, postoInfo);
+          if (clienteKey !== clienteId) return false;
         }
         return true;
       });
@@ -555,8 +644,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
 
       const postos = new Set<string>();
-      const unidades = new Set<string>();
-      const contratos = new Set<string>();
       const clientes = new Set<string>();
       const statuses = new Set<string>();
 
@@ -564,10 +651,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const postoInfo =
           diaria.posto ||
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+        if (diaria.posto_servico) postos.add(diaria.posto_servico);
         if (postoInfo?.nome) postos.add(postoInfo.nome);
-        if (postoInfo?.unidade?.nome) unidades.add(postoInfo.unidade.nome);
         const contratoInfo = getContratoInfoFromPosto(postoInfo);
-        if (contratoInfo?.negocio) contratos.add(contratoInfo.negocio);
+        const clienteNomeDiaria = diaria.cliente_nome?.trim();
+        if (clienteNomeDiaria) clientes.add(clienteNomeDiaria);
         if (contratoInfo?.clienteNome) clientes.add(contratoInfo.clienteNome);
         statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
       });
@@ -578,10 +666,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
       const diaristaInfo = diaristaMap.get(diaristaId || "");
 
-      const rows = [
+      const rows = uppercaseRows([
         {
           Titulo: tituloBase,
           Diarista: diaristaNome || "-",
+          "CPF diarista": diaristaInfo?.cpf || "-",
           Banco: diaristaInfo?.banco || "-",
           Agencia: diaristaInfo?.agencia || "-",
           "Numero da conta": diaristaInfo?.numero_conta || "-",
@@ -591,12 +680,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           "Data final": end,
           Status: Array.from(statuses).join(", ") || "-",
           Cliente: clienteNome || Array.from(clientes).join(", ") || "-",
-          Contrato: Array.from(contratos).join(", ") || "-",
-          Unidade: Array.from(unidades).join(", ") || "-",
           Posto: Array.from(postos).join(", ") || "-",
           "Valor total (R$)": total ?? 0,
         },
-      ];
+      ]);
 
       const sheet = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -619,17 +706,23 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         toast.info("Nenhuma diaria no intervalo para exportar.");
         return;
       }
+      const cpfs = new Set<string>();
+      selecionadas.forEach((diaria) => {
+        const diaristaInfo = diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
+        if (diaristaInfo?.cpf) cpfs.add(diaristaInfo.cpf);
+      });
       const clienteNome = clienteFilterOptions.find((c) => c.id === clienteId)?.nome || "";
       const titulo = `Valor a receber do cliente ${clienteNome || "(sem nome)"} entre ${startDate} e ${endDate}`;
-      const rows = [
+      const rows = uppercaseRows([
         {
           Titulo: titulo,
           Cliente: clienteNome || "-",
+          "CPFs diaristas": Array.from(cpfs).join(", ") || "-",
           "Data inicial": startDate,
           "Data final": endDate,
           "Valor total (R$)": clienteTotal ?? 0,
         },
-      ];
+      ]);
       const sheet = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, sheet, "Total Cliente");
@@ -645,6 +738,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         clienteId: "",
         startDate: "",
         endDate: "",
+        criadoPorId: "",
       });
 
     const fallbackMonth = useMemo(() => {
@@ -824,6 +918,18 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const selectedDiaristaInfo =
       selectedDiaria?.diarista || diaristaMap.get(selectedDiaria?.diarista_id || "");
     const selectedContratoInfo = getContratoInfoFromPosto(selectedPostoInfo);
+    const selectedClienteNome =
+      selectedDiaria?.cliente_nome?.trim() || selectedContratoInfo?.clienteNome || "-";
+    const selectedColaboradorNome =
+      selectedDiaria?.colaborador_ausente_nome || selectedColaboradorInfo?.nome_completo || "-";
+    const selectedColaboradorDemitidoNome = selectedDiaria?.colaborador_demitido_nome?.trim() || "";
+    const selectedPostoNome = selectedDiaria?.posto_servico?.trim() || selectedPostoInfo?.nome || "-";
+    const motivoVagaEmAbertoSelecionado = isVagaEmAberto(selectedDiaria?.motivo_vago);
+    const criadoPorNome =
+      selectedDiaria?.criado_por ? profileMap.get(selectedDiaria.criado_por) || "" : "";
+    const statusResponsavelInfo = selectedDiaria ? getStatusResponsavel(selectedDiaria) : { id: null, label: "" };
+    const statusResponsavelNome =
+      statusResponsavelInfo.id ? profileMap.get(statusResponsavelInfo.id) || "" : "";
 
     const showReasonColumn =
       normalizedKey === normalizedCancelStatus || normalizedKey === normalizedReprovadaStatus;
@@ -949,6 +1055,30 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </Select>
                   </div>
                   <div className="space-y-1">
+                    <Label htmlFor={`filtro-temp-criado-por-${statusKey}`}>Criado por</Label>
+                    <Select
+                      value={filters.criadoPorId || selectAllValue}
+                      onValueChange={(value) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          criadoPorId: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`filtro-temp-criado-por-${statusKey}`}>
+                        <SelectValue placeholder="Todos os criadores" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Todos os criadores</SelectItem>
+                        {criadoPorOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
                     <Label htmlFor={`filtro-temp-data-inicio-${statusKey}`}>Data inicial</Label>
                     <Input
                       id={`filtro-temp-data-inicio-${statusKey}`}
@@ -999,14 +1129,15 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     <TableHeader>
                       <TableRow>
                         <TableHead>Data</TableHead>
-                      <TableHead className="hidden md:table-cell">Colaborador ausente</TableHead>
-                      <TableHead className="hidden md:table-cell">Posto</TableHead>
-                      <TableHead className="hidden md:table-cell">Unidade</TableHead>
-                      <TableHead>Diarista</TableHead>
-                      <TableHead className="hidden md:table-cell">Motivo</TableHead>
-                      <TableHead className="hidden md:table-cell">Valor</TableHead>
-                      <TableHead className="hidden md:table-cell">Pix do diarista</TableHead>
-                      <TableHead className="hidden md:table-cell text-right">Acoes</TableHead>
+                        <TableHead className="hidden md:table-cell">Colaborador ausente</TableHead>
+                        <TableHead className="hidden md:table-cell">Posto</TableHead>
+                        <TableHead className="hidden md:table-cell">Cliente</TableHead>
+                        <TableHead className="hidden md:table-cell">CPF diarista</TableHead>
+                        <TableHead>Diarista</TableHead>
+                        <TableHead className="hidden md:table-cell">Motivo</TableHead>
+                        <TableHead className="hidden md:table-cell">Valor</TableHead>
+                        <TableHead className="hidden md:table-cell">Pix do diarista</TableHead>
+                        <TableHead className="hidden md:table-cell text-right">Acoes</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1021,6 +1152,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
                         const diaristaInfo =
                           diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
+                        const colaboradorNome =
+                          diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
+                        const isVagaAbertoMotivo = isVagaEmAberto(diaria.motivo_vago);
+                        const colaboradorDisplay = isVagaAbertoMotivo
+                          ? diaria.colaborador_demitido_nome?.trim() || ""
+                          : colaboradorNome;
+                        const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
+                        const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
                         const actionElement = renderAction(diaria.id.toString(), diaria.status);
                         return (
                           <TableRow
@@ -1029,16 +1168,16 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             onClick={() => handleRowClick(diaria)}
                           >
                             <TableCell>{formatDate(diaria.data_diaria)}</TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            {colaboradorInfo?.nome_completo || "-"}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">{postoInfo?.nome || "-"}</TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            {postoInfo?.unidade?.nome || "-"}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-2">
-                              <span>{diaristaInfo?.nome_completo || "-"}</span>
+                            <TableCell className="hidden md:table-cell">{colaboradorDisplay}</TableCell>
+                            <TableCell className="hidden md:table-cell">{postoNome}</TableCell>
+                            <TableCell className="hidden md:table-cell">{clienteNome}</TableCell>
+                            <TableCell className="hidden md:table-cell">{diaristaInfo?.cpf || "-"}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-2">
+                                <span>{diaristaInfo?.nome_completo || "-"}</span>
+                              <span className="text-xs text-muted-foreground md:hidden">
+                                CPF: {diaristaInfo?.cpf || "-"}
+                              </span>
                               <div
                                 className="md:hidden flex flex-col gap-2 pt-2"
                                 onClick={(event) => event.stopPropagation()}
@@ -1528,19 +1667,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Posto</p>
-                      <p className="font-medium">{selectedPostoInfo?.nome || "-"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Unidade</p>
-                      <p className="font-medium">{selectedPostoInfo?.unidade?.nome || "-"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Contrato</p>
-                      <p className="font-medium">{selectedContratoInfo?.negocio || "-"}</p>
+                      <p className="font-medium">{selectedPostoNome}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Cliente</p>
-                      <p className="font-medium">{selectedContratoInfo?.clienteNome || "-"}</p>
+                      <p className="font-medium">{selectedClienteNome}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Valor</p>
@@ -1550,6 +1681,31 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="text-muted-foreground text-xs">Atualizado em</p>
                       <p className="font-medium">{formatDateTime(selectedDiaria.updated_at)}</p>
                     </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Criado por</p>
+                      <p className="font-medium">{criadoPorNome || "-"}</p>
+                    </div>
+                    {statusResponsavelInfo.id && (
+                      <div>
+                        <p className="text-muted-foreground text-xs">
+                          Responsavel ({statusResponsavelInfo.label.toLowerCase()})
+                        </p>
+                        <p className="font-medium">{statusResponsavelNome || "-"}</p>
+                      </div>
+                    )}
+                    {selectedColaboradorDemitidoNome.trim() &&
+                      selectedColaboradorDemitidoNome !== "-" && (
+                        <div className="sm:col-span-2">
+                          <p className="text-muted-foreground text-xs">Colaborador demitido</p>
+                          <p className="font-medium">{selectedColaboradorDemitidoNome}</p>
+                        </div>
+                      )}
+                    {motivoVagaEmAbertoSelecionado && !selectedColaboradorDemitidoNome.trim() && (
+                      <div className="sm:col-span-2">
+                        <p className="text-muted-foreground text-xs">Novo posto?</p>
+                        <p className="font-medium">Sim</p>
+                      </div>
+                    )}
                     {selectedDiaria.motivo_reprovacao && (
                       <div className="sm:col-span-2">
                         <p className="text-muted-foreground text-xs">Motivo reprovacao</p>
@@ -1560,6 +1716,12 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <div className="sm:col-span-2">
                         <p className="text-muted-foreground text-xs">Motivo cancelamento</p>
                         <p className="font-medium whitespace-pre-line">{selectedDiaria.motivo_cancelamento}</p>
+                      </div>
+                    )}
+                    {selectedDiaria.observacao?.trim() && (
+                      <div className="sm:col-span-2">
+                        <p className="text-muted-foreground text-xs">Observacao</p>
+                        <p className="font-medium whitespace-pre-line">{selectedDiaria.observacao.trim()}</p>
                       </div>
                     )}
                   </div>
@@ -1587,19 +1749,17 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Colaborador ausente</p>
-                  <div className="mt-2 grid gap-3 md:grid-cols-2">
-                    <div>
-                      <p className="text-muted-foreground text-xs">Nome</p>
-                      <p className="font-medium">{selectedColaboradorInfo?.nome_completo || "-"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Cargo</p>
-                      <p className="font-medium">{selectedColaboradorInfo?.cargo || "-"}</p>
+                {!motivoVagaEmAbertoSelecionado && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">Colaborador ausente</p>
+                    <div className="mt-2 grid gap-3 md:grid-cols-2">
+                      <div>
+                        <p className="text-muted-foreground text-xs">Nome</p>
+                        <p className="font-medium">{selectedColaboradorNome}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Diarista</p>
@@ -1607,6 +1767,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     <div>
                       <p className="text-muted-foreground text-xs">Nome</p>
                       <p className="font-medium">{selectedDiaristaInfo?.nome_completo || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">CPF</p>
+                      <p className="font-medium">{selectedDiaristaInfo?.cpf || "-"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Status</p>
@@ -1652,6 +1816,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       </DashboardLayout>
     );
   };
+
 };
 
 export const Diarias2AguardandoPage = createStatusPage(STATUS_CONFIGS[0]);

@@ -41,10 +41,18 @@ type MenuItem = {
 };
 
 const diariasChildren = [
-  { title: "Aguardando confirmação", url: "/diarias/aguardando", status: "Aguardando confirmacao" },
+  {
+    title: "Aguardando confirmação",
+    url: "/diarias/aguardando",
+    status: "Aguardando confirmacao",
+  },
   { title: "Confirmadas", url: "/diarias/confirmadas", status: "Confirmada" },
-  { title: "Aprovadas", url: "/diarias/aprovadas", status: "Aprovada" },
-  { title: "Lançadas", url: "/diarias/lancadas", status: "Lançada para pagamento" },
+  { title: "Financeiro", url: "/diarias/aprovadas", status: "Aprovada" },
+  {
+    title: "Lançadas",
+    url: "/diarias/lancadas",
+    status: "Lançada para pagamento",
+  },
   { title: "Aprovadas p/ pagamento", url: "/diarias/aprovadas-pagamento" },
   { title: "Reprovadas", url: "/diarias/reprovadas" },
   { title: "Canceladas", url: "/diarias/canceladas" },
@@ -52,10 +60,18 @@ const diariasChildren = [
 ];
 
 const diariasTemporariasChildren = [
-  { title: "Aguardando confirmação", url: "/diarias2/aguardando", status: "Aguardando confirmacao" },
+  {
+    title: "Aguardando confirmação",
+    url: "/diarias2/aguardando",
+    status: "Aguardando confirmacao",
+  },
   { title: "Confirmadas", url: "/diarias2/confirmadas", status: "Confirmada" },
-  { title: "Aprovadas", url: "/diarias2/aprovadas", status: "Aprovada" },
-  { title: "Lançadas", url: "/diarias2/lancadas", status: "Lançada para pagamento" },
+  { title: "Financeiro", url: "/diarias2/aprovadas", status: "Aprovada" },
+  {
+    title: "Lançadas",
+    url: "/diarias2/lancadas",
+    status: "Lançada para pagamento",
+  },
   { title: "Aprovadas p/ pagamento", url: "/diarias2/aprovadas-pagamento" },
   { title: "Pagas", url: "/diarias2/pagas" },
   { title: "Reprovadas", url: "/diarias2/reprovadas" },
@@ -82,9 +98,21 @@ const menuItems: MenuItem[] = [
   { title: "Ativos", url: "/ativos", icon: Package },
   { title: "Estoque", url: "/estoque", icon: Package },
   { title: "Checklists", url: "/checklists", icon: ClipboardCheck },
-  { title: "Execuções de Checklist", url: "/checklist-execucoes", icon: ListOrdered },
-  { title: "Responder Checklist", url: "/checklist-respostas", icon: ListOrdered },
-  { title: "Respostas registradas", url: "/checklist-respostas-lista", icon: ListChecks },
+  {
+    title: "Execuções de Checklist",
+    url: "/checklist-execucoes",
+    icon: ListOrdered,
+  },
+  {
+    title: "Responder Checklist",
+    url: "/checklist-respostas",
+    icon: ListOrdered,
+  },
+  {
+    title: "Respostas registradas",
+    url: "/checklist-respostas-lista",
+    icon: ListChecks,
+  },
 ];
 
 export function AppSidebar() {
@@ -92,15 +120,19 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
-  const [diariasCounts, setDiariasCounts] = useState<Record<string, number>>({});
-  const [diariasTemporariasCounts, setDiariasTemporariasCounts] = useState<Record<string, number>>({});
+  const [diariasCounts, setDiariasCounts] = useState<Record<string, number>>(
+    {}
+  );
+  const [diariasTemporariasCounts, setDiariasTemporariasCounts] = useState<
+    Record<string, number>
+  >({});
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchCounts = async (
       children: { title: string; url: string; status?: string }[],
-      tableName: string,
+      tableName: string
     ) => {
       const statuses = children.filter((child) => child.status);
       if (statuses.length === 0) return {};
@@ -112,7 +144,7 @@ export function AppSidebar() {
             .eq("status", child.status);
           if (error) throw error;
           return { status: child.status!, count: count || 0 };
-        }),
+        })
       );
       const next: Record<string, number> = {};
       results.forEach(({ status, count }) => {
@@ -142,7 +174,9 @@ export function AppSidebar() {
   }, []);
 
   const isActive = (path: string, exact = true) =>
-    exact ? currentPath === path : currentPath === path || currentPath.startsWith(`${path}/`);
+    exact
+      ? currentPath === path
+      : currentPath === path || currentPath.startsWith(`${path}/`);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -160,10 +194,15 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {
-                const hasChildren = Array.isArray(item.children) && item.children.length > 0;
-                const itemActive = hasChildren ? isActive(item.url, false) : isActive(item.url);
+                const hasChildren =
+                  Array.isArray(item.children) && item.children.length > 0;
+                const itemActive = hasChildren
+                  ? isActive(item.url, false)
+                  : isActive(item.url);
                 const countsMap =
-                  item.statusCountsKey === "diariasTemporarias" ? diariasTemporariasCounts : diariasCounts;
+                  item.statusCountsKey === "diariasTemporarias"
+                    ? diariasTemporariasCounts
+                    : diariasCounts;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={itemActive}>
@@ -181,7 +220,10 @@ export function AppSidebar() {
                       <ul className="ml-6 mt-1 space-y-1 border-l pl-3">
                         {item.children.map((child) => (
                           <SidebarMenuItem key={child.title}>
-                            <SidebarMenuButton asChild isActive={isActive(child.url)}>
+                            <SidebarMenuButton
+                              asChild
+                              isActive={isActive(child.url)}
+                            >
                               <NavLink
                                 to={child.url}
                                 end
@@ -189,11 +231,12 @@ export function AppSidebar() {
                                 activeClassName="bg-accent text-accent-foreground font-medium"
                               >
                                 <span className="truncate">{child.title}</span>
-                                {child.status && (countsMap[child.status] ?? 0) > 0 && (
-                                  <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
-                                    {countsMap[child.status]}
-                                  </span>
-                                )}
+                                {child.status &&
+                                  (countsMap[child.status] ?? 0) > 0 && (
+                                    <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+                                      {countsMap[child.status]}
+                                    </span>
+                                  )}
                               </NavLink>
                             </SidebarMenuButton>
                           </SidebarMenuItem>
@@ -217,4 +260,3 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
-

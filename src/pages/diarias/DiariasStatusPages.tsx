@@ -300,6 +300,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         "Motivo cancelamento": diaria.motivo_cancelamento || "",
         Diarista: diaristaInfo?.nome_completo || "-",
         "Status diarista": diaristaInfo?.status || "-",
+        "CPF diarista": diaristaInfo?.cpf || "-",
         Banco: diaristaInfo?.banco || "-",
         Agência: diaristaInfo?.agencia || "-",
         "Número da conta": diaristaInfo?.numero_conta || "-",
@@ -540,6 +541,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         {
           Titulo: tituloBase,
           Diarista: diaristaNome || "-",
+          "CPF diarista": diaristaInfo?.cpf || "-",
           Banco: diaristaInfo?.banco || "-",
           "Agencia": diaristaInfo?.agencia || "-",
           "Numero da conta": diaristaInfo?.numero_conta || "-",
@@ -578,11 +580,17 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         return;
       }
       const clienteNome = clienteFilterOptions.find((c) => c.id === clienteId)?.nome || "";
+      const cpfs = new Set<string>();
+      selecionadas.forEach((diaria) => {
+        const diaristaInfo = diaristaMap.get(diaria.diarista_id) ?? diaria.diarista ?? null;
+        if (diaristaInfo?.cpf) cpfs.add(diaristaInfo.cpf);
+      });
       const titulo = `Valor a receber do cliente ${clienteNome || "(sem nome)"} entre ${startDate} e ${endDate}`;
       const rows = [
         {
           Titulo: titulo,
           Cliente: clienteNome || "-",
+          "CPFs diaristas": Array.from(cpfs).join(", ") || "-",
           "Data inicial": startDate,
           "Data final": endDate,
           "Valor total (R$)": clienteTotal ?? 0,
@@ -965,7 +973,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     <TableHeader>
                       <TableRow>
                         <TableHead>Data</TableHead>
-                      <TableHead className="hidden md:table-cell">Posto</TableHead>
+                      <TableHead className="hidden md:table-cell">CPF diarista</TableHead>
                       <TableHead className="hidden md:table-cell">Unidade</TableHead>
                       <TableHead className="hidden md:table-cell">Motivo (dia vago)</TableHead>
                       <TableHead>Diarista</TableHead>
@@ -997,7 +1005,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             onClick={() => handleRowClick(diaria)}
                           >
                             <TableCell>{formatDate(diaInfo?.data)}</TableCell>
-                          <TableCell className="hidden md:table-cell">{postoInfo?.nome || "-"}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {diaristaInfo?.cpf || "-"}
+                          </TableCell>
                           <TableCell className="hidden md:table-cell">
                             {postoInfo?.unidade?.nome || "-"}
                           </TableCell>
@@ -1014,6 +1024,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                           <TableCell>
                             <div className="flex flex-col gap-2">
                               <span>{diaristaInfo?.nome_completo || "-"}</span>
+                              <span className="text-xs text-muted-foreground md:hidden">
+                                CPF: {diaristaInfo?.cpf || "-"}
+                              </span>
                               <div
                                 className="md:hidden flex flex-col gap-2 pt-2"
                                 onClick={(event) => event.stopPropagation()}
@@ -1555,6 +1568,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     <div>
                       <p className="text-muted-foreground text-xs">Nome</p>
                       <p className="font-medium">{selectedDiaristaInfo?.nome_completo || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">CPF</p>
+                      <p className="font-medium">{selectedDiaristaInfo?.cpf || "-"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Status</p>

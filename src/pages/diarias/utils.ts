@@ -148,6 +148,7 @@ export type PostoDiaVago = {
         clientes?: {
           id: string;
           razao_social: string | null;
+          nome_fantasia: string | null;
         } | null;
       } | null;
     } | null;
@@ -159,6 +160,7 @@ export type Diarista = {
   nome_completo: string;
   cargo: string | null;
   status: string | null;
+  cpf?: string | null;
   banco?: string | null;
   agencia?: string | null;
   numero_conta?: string | null;
@@ -208,7 +210,8 @@ export function useDiariasData(selectedMonth: string) {
                 cliente_id,
                 clientes (
                   id,
-                  razao_social
+                  razao_social,
+                  nome_fantasia
                 )
               )
             )
@@ -236,6 +239,7 @@ export function useDiariasData(selectedMonth: string) {
       return (data as any[]).map((d) => ({
         id: d.id,
         nome_completo: d.nome_completo,
+        cpf: d.cpf ?? null,
         cargo: d.cargo ?? null,
         status: d.status ?? null,
         banco: d.banco ?? null,
