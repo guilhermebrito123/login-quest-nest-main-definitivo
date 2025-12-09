@@ -37,14 +37,14 @@ export const ForgotPasswordDialog = () => {
       // Validate email
       const validatedData = emailSchema.parse({ email });
 
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        validatedData.email,
-        {
-          redirectTo: `${window.location.origin}/reset-password`,
-        }
-      );
+      const { error, data } = await supabase.functions.invoke("request-password-reset", {
+        body: { email: validatedData.email },
+      });
 
       if (error) throw error;
+      if (data && data.success === false) {
+        throw new Error(data.message || "Nao foi possivel enviar o email");
+      }
 
       toast({
         title: "Email enviado!",
