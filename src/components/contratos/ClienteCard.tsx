@@ -34,10 +34,11 @@ const ClienteCard = ({ cliente, onSelect, onEdit, onDelete }: ClienteCardProps) 
   const handleDelete = async () => {
     try {
       // Check for related contracts
+      const clienteId = Number(cliente.id) || cliente.id;
       const { data: contratos } = await supabase
         .from("contratos")
         .select("id")
-        .eq("cliente_id", cliente.id)
+        .eq("cliente_id", clienteId)
         .limit(1);
 
       if (contratos && contratos.length > 0) {
@@ -52,7 +53,7 @@ const ClienteCard = ({ cliente, onSelect, onEdit, onDelete }: ClienteCardProps) 
       const { error } = await supabase
         .from("clientes")
         .delete()
-        .eq("id", cliente.id);
+        .eq("id", clienteId);
 
       if (error) throw error;
 

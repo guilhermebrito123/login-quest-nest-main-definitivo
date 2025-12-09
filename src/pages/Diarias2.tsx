@@ -17,33 +17,39 @@ import {
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 
 const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
+const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
 
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
   "LICENÇA MATERNIDADE",
   "LICENÇA PATERNIDADE",
   "LICENÇA CASAMENTO",
-  "LICENÇA NOJO (FALECIMENTO)",
+  MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO,
   "AFASTAMENTO INSS",
   "FÉRIAS",
   "SUSPENSÃO",
 ];
-
-const initialFormState = {
-  dataDiaria: "",
-  horarioInicio: "",
-  horarioFim: "",
-  intervalo: "",
-  colaboradorNome: "",
-  postoServico: "",
-  clienteNome: "",
-  valorDiaria: "",
-  diaristaId: "",
-  motivoVago: MOTIVO_VAGO_OPTIONS[0],
-  demissao: null as boolean | null,
-  colaboradorDemitidoNome: "",
-  observacao: "",
+const toUpperOrNull = (value: string | null | undefined) => {
+  const trimmed = (value ?? "").trim();
+  return trimmed ? trimmed.toUpperCase() : null;
 };
+
+
+  const initialFormState = {
+    dataDiaria: "",
+    horarioInicio: "",
+    horarioFim: "",
+    intervalo: "",
+    colaboradorNome: "",
+    postoServico: "",
+    clienteId: "",
+    valorDiaria: "",
+    diaristaId: "",
+    motivoVago: MOTIVO_VAGO_OPTIONS[0],
+    demissao: null as boolean | null,
+    colaboradorDemitidoNome: "",
+    observacao: "",
+  };
 
 const Diarias2 = () => {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
@@ -52,6 +58,8 @@ const Diarias2 = () => {
 
   const {
     diaristas,
+    clientes,
+    clienteMap,
     filteredDiarias,
     refetchDiarias,
     loadingDiarias,
@@ -74,6 +82,8 @@ const Diarias2 = () => {
 
   const isMotivoVagaEmAberto =
     formState.motivoVago.toUpperCase() === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+  const isMotivoLicencaNojo =
+    formState.motivoVago.toUpperCase() === MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO.toUpperCase();
   const normalizedCancelada = normalizeStatus(STATUS.cancelada);
   const normalizedReprovada = normalizeStatus(STATUS.reprovada);
   const normalizedPaga = normalizeStatus(STATUS.paga);
@@ -87,7 +97,10 @@ const Diarias2 = () => {
       const postoInfo =
         diaria.posto || (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
       const clienteInfo = getClienteInfoFromPosto(postoInfo);
-      const clienteNome = (diaria.cliente_nome || clienteInfo?.nome || "").trim();
+      const clienteNome =
+        (typeof diaria.cliente_id === "number" && clienteMap.get(diaria.cliente_id)) ||
+        clienteInfo?.nome ||
+        "";
       if (!clienteNome) return;
 
       const valor =
@@ -95,7 +108,10 @@ const Diarias2 = () => {
           ? diaria.valor_diaria
           : Number(diaria.valor_diaria) || 0;
 
-      const key = clienteInfo?.id || clienteNome;
+      const key =
+        (typeof diaria.cliente_id === "number" && diaria.cliente_id.toString()) ||
+        clienteInfo?.id?.toString() ||
+        clienteNome;
 
       if (statusNorm === normalizedPaga) {
         const current = recebidos.get(key);
@@ -112,7 +128,7 @@ const Diarias2 = () => {
       clienteReceberTotals: Array.from(receber.values()).sort((a, b) => a.nome.localeCompare(b.nome)),
       clienteRecebidosTotals: Array.from(recebidos.values()).sort((a, b) => a.nome.localeCompare(b.nome)),
     };
-  }, [filteredDiarias, normalizedCancelada, normalizedPaga, normalizedReprovada, postoMap]);
+  }, [filteredDiarias, normalizedCancelada, normalizedPaga, normalizedReprovada, postoMap, clienteMap]);
 
   const handleColaboradorNomeChange = (value: string) => {
     setFormState((prev) => ({
@@ -133,13 +149,23 @@ const Diarias2 = () => {
       return;
     }
 
-    if (!formState.clienteNome) {
-      toast.error("Informe o cliente.");
+    if (!formState.clienteId) {
+      toast.error("Selecione o cliente.");
       return;
     }
 
-    if (!isMotivoVagaEmAberto && !formState.colaboradorNome) {
+    const clienteIdNumber = Number(formState.clienteId);
+    if (!Number.isFinite(clienteIdNumber)) {
+      toast.error("Cliente invalido.");
+      return;
+    }
+
+    if (!isMotivoVagaEmAberto && !isMotivoLicencaNojo && !formState.colaboradorNome) {
       toast.error("Informe o colaborador ausente.");
+      return;
+    }
+    if (isMotivoLicencaNojo && !formState.colaboradorNome) {
+      toast.error("Informe o colaborador falecido.");
       return;
     }
 
@@ -167,14 +193,20 @@ const Diarias2 = () => {
     }
 
     const colaboradorAusente = null;
-    const colaboradorAusenteNome = isMotivoVagaEmAberto ? null : formState.colaboradorNome || null;
-    const postoServicoValue = formState.postoServico.trim() || null;
-    const clienteNomeValue = formState.clienteNome.trim() || null;
+    const colaboradorNomeUpper = toUpperOrNull(formState.colaboradorNome);
+    const colaboradorFalecido = isMotivoLicencaNojo ? colaboradorNomeUpper : null;
+    const colaboradorAusenteNome =
+      isMotivoVagaEmAberto || isMotivoLicencaNojo ? null : colaboradorNomeUpper;
+    const postoServicoValue = toUpperOrNull(formState.postoServico);
+    const clienteIdValue = clienteIdNumber;
     const demissaoValue = isMotivoVagaEmAberto ? formState.demissao : null;
     const colaboradorDemitidoValue = null;
     const colaboradorDemitidoNomeValue =
-      isMotivoVagaEmAberto && demissaoValue === true ? formState.colaboradorDemitidoNome || null : null;
-    const observacaoValue = formState.observacao.trim() || null;
+      isMotivoVagaEmAberto && demissaoValue === true
+        ? toUpperOrNull(formState.colaboradorDemitidoNome)
+        : null;
+    const observacaoValue = toUpperOrNull(formState.observacao);
+    const motivoVagoValue = (formState.motivoVago || "").toUpperCase();
 
     const diaristaOcupado = diarias.some(
       (diaria) =>
@@ -201,12 +233,13 @@ const Diarias2 = () => {
         intervalo: intervaloNumber,
         colaborador_ausente: colaboradorAusente,
         colaborador_ausente_nome: colaboradorAusenteNome,
+        colaborador_falecido: colaboradorFalecido,
         posto_servico_id: null,
         posto_servico: postoServicoValue,
-        cliente_nome: clienteNomeValue,
+        cliente_id: clienteIdValue,
         valor_diaria: valorNumber,
         diarista_id: formState.diaristaId,
-        motivo_vago: formState.motivoVago,
+        motivo_vago: motivoVagoValue,
         demissao: demissaoValue,
         colaborador_demitido: colaboradorDemitidoValue,
         colaborador_demitido_nome: colaboradorDemitidoNomeValue,
@@ -242,6 +275,10 @@ const Diarias2 = () => {
             onChange={(event) => setSelectedMonth(event.target.value)}
             className="w-auto"
           />
+        </div>
+
+        <div className="rounded-md bg-red-800 text-white px-4 py-3 text-sm font-semibold">
+          Todas as informações devem ser registradas em CAIXA ALTA.
         </div>
 
         <Card className="shadow-lg">
@@ -289,7 +326,6 @@ const Diarias2 = () => {
                   type="number"
                   min="0"
                   step="1"
-                  required
                   value={formState.intervalo}
                   onChange={(event) => setFormState((prev) => ({ ...prev, intervalo: event.target.value }))}
                   placeholder="Em minutos"
@@ -303,10 +339,12 @@ const Diarias2 = () => {
                   value={formState.motivoVago}
                   onValueChange={(value) => {
                     const isVagaAberto = value.toUpperCase() === MOTIVO_VAGO_VAGA_EM_ABERTO;
+                    const isLicencaNojo =
+                      value.toUpperCase() === MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO.toUpperCase();
                     setFormState((prev) => ({
                       ...prev,
                       motivoVago: value,
-                      colaboradorNome: isVagaAberto ? "" : prev.colaboradorNome,
+                      colaboradorNome: isVagaAberto || isLicencaNojo ? "" : prev.colaboradorNome,
                       demissao: null,
                       colaboradorDemitidoNome: "",
                     }));
@@ -325,7 +363,7 @@ const Diarias2 = () => {
                 </Select>
               </div>
 
-              {!isMotivoVagaEmAberto && (
+              {!isMotivoVagaEmAberto && !isMotivoLicencaNojo && (
                 <div className="space-y-2">
                   <Label>Colaborador ausente</Label>
                   <Input
@@ -333,6 +371,18 @@ const Diarias2 = () => {
                     value={formState.colaboradorNome}
                     onChange={(event) => handleColaboradorNomeChange(event.target.value)}
                     placeholder="Nome do colaborador ausente"
+                  />
+                </div>
+              )}
+
+              {isMotivoLicencaNojo && (
+                <div className="space-y-2">
+                  <Label>Colaborador falecido</Label>
+                  <Input
+                    required
+                    value={formState.colaboradorNome}
+                    onChange={(event) => handleColaboradorNomeChange(event.target.value)}
+                    placeholder="Nome do colaborador falecido"
                   />
                 </div>
               )}
@@ -395,12 +445,22 @@ const Diarias2 = () => {
 
               <div className="space-y-2">
                 <Label>Cliente</Label>
-                <Input
+                <Select
                   required
-                  value={formState.clienteNome}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, clienteNome: event.target.value }))}
-                  placeholder="Nome do cliente"
-                />
+                  value={formState.clienteId}
+                  onValueChange={(value) => setFormState((prev) => ({ ...prev, clienteId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cliente" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    {clientes.map((cliente) => (
+                      <SelectItem key={cliente.id} value={cliente.id.toString()}>
+                        {cliente.nome_fantasia || cliente.razao_social || cliente.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

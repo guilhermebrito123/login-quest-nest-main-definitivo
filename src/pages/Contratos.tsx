@@ -37,7 +37,7 @@ import PostoCard from "@/components/contratos/PostoCard";
 import { getEfetivoPlanejadoAjustado } from "@/lib/postos";
 
 interface Cliente {
-  id: string;
+  id: string; // armazenamos como string no frontend; no DB é numérico
   razao_social: string;
   nome_fantasia: string | null;
   cnpj: string;
@@ -47,7 +47,7 @@ interface Cliente {
 }
 
 interface Contrato {
-  id: string;
+  id: string; // armazenamos como string no frontend; no DB é numérico/UUID
   cliente_id: string;
   negocio: string;
   data_inicio: string;
@@ -167,7 +167,11 @@ const Contratos = () => {
       .order("razao_social");
     
     if (error) throw error;
-    setClientes(data || []);
+    const mapped = (data || []).map((c: any) => ({
+      ...c,
+      id: c.id?.toString?.() ?? "",
+    }));
+    setClientes(mapped);
   };
 
   const loadContratos = async () => {
@@ -177,7 +181,12 @@ const Contratos = () => {
       .order("negocio");
     
     if (error) throw error;
-    setContratos(data || []);
+    const mapped = (data || []).map((c: any) => ({
+      ...c,
+      id: c.id?.toString?.() ?? "",
+      cliente_id: c.cliente_id?.toString?.() ?? "",
+    }));
+    setContratos(mapped);
   };
 
   const loadUnidades = async () => {

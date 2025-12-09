@@ -347,7 +347,7 @@ export type Database = {
           contato_nome: string | null
           contato_telefone: string | null
           created_at: string
-          id: string
+          id: number
           nome_fantasia: string
           razao_social: string
           updated_at: string
@@ -358,7 +358,7 @@ export type Database = {
           contato_nome?: string | null
           contato_telefone?: string | null
           created_at?: string
-          id: string
+          id?: number
           nome_fantasia?: string
           razao_social: string
           updated_at?: string
@@ -369,7 +369,7 @@ export type Database = {
           contato_nome?: string | null
           contato_telefone?: string | null
           created_at?: string
-          id?: string
+          id?: number
           nome_fantasia?: string
           razao_social?: string
           updated_at?: string
@@ -539,7 +539,7 @@ export type Database = {
       }
       contratos: {
         Row: {
-          cliente_id: string
+          cliente_id: number
           conq_perd: number
           created_at: string | null
           data_fim: string | null
@@ -549,7 +549,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          cliente_id: string
+          cliente_id: number
           conq_perd: number
           created_at?: string | null
           data_fim?: string | null
@@ -559,7 +559,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          cliente_id?: string
+          cliente_id?: number
           conq_perd?: number
           created_at?: string | null
           data_fim?: string | null
@@ -634,11 +634,12 @@ export type Database = {
           aprovada_por: string | null
           aprovado_para_pgto_por: string | null
           cancelada_por: string | null
-          cliente_nome: string | null
+          cliente_id: number
           colaborador_ausente: string | null
           colaborador_ausente_nome: string | null
           colaborador_demitido: string | null
           colaborador_demitido_nome: string | null
+          colaborador_falecido: string | null
           confirmada_por: string | null
           created_at: string
           criado_por: string | null
@@ -667,11 +668,12 @@ export type Database = {
           aprovada_por?: string | null
           aprovado_para_pgto_por?: string | null
           cancelada_por?: string | null
-          cliente_nome?: string | null
+          cliente_id: number
           colaborador_ausente?: string | null
           colaborador_ausente_nome?: string | null
           colaborador_demitido?: string | null
           colaborador_demitido_nome?: string | null
+          colaborador_falecido?: string | null
           confirmada_por?: string | null
           created_at?: string
           criado_por?: string | null
@@ -700,11 +702,12 @@ export type Database = {
           aprovada_por?: string | null
           aprovado_para_pgto_por?: string | null
           cancelada_por?: string | null
-          cliente_nome?: string | null
+          cliente_id?: number
           colaborador_ausente?: string | null
           colaborador_ausente_nome?: string | null
           colaborador_demitido?: string | null
           colaborador_demitido_nome?: string | null
+          colaborador_falecido?: string | null
           confirmada_por?: string | null
           created_at?: string
           criado_por?: string | null
@@ -749,6 +752,13 @@ export type Database = {
             columns: ["cancelada_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diarias_temporarias_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
             referencedColumns: ["id"]
           },
           {
@@ -826,7 +836,7 @@ export type Database = {
           banco: string | null
           cep: string | null
           cidade: string | null
-          cpf: string
+          cpf: string | null
           created_at: string
           email: string | null
           endereco: string | null
@@ -849,7 +859,7 @@ export type Database = {
           banco?: string | null
           cep?: string | null
           cidade?: string | null
-          cpf?: string
+          cpf?: string | null
           created_at?: string
           email?: string | null
           endereco?: string | null
@@ -872,7 +882,7 @@ export type Database = {
           banco?: string | null
           cep?: string | null
           cidade?: string | null
-          cpf?: string
+          cpf?: string | null
           created_at?: string
           email?: string | null
           endereco?: string | null
@@ -1572,6 +1582,41 @@ export type Database = {
           },
         ]
       }
+      password_reset_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          profile_id: string
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          profile_id: string
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          profile_id?: string
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "password_reset_tokens_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posto_dias_vagos: {
         Row: {
           colaborador_id: string | null
@@ -2084,6 +2129,7 @@ export type Database = {
       limpar_diarias_temporarias_antigas: { Args: never; Returns: undefined }
       limpar_posto_dias_vagos_antigos: { Args: never; Returns: undefined }
       limpar_presencas_antigas: { Args: never; Returns: undefined }
+      limpar_tokens_expirados: { Args: never; Returns: undefined }
       processar_movimentacoes_agendadas: { Args: never; Returns: undefined }
     }
     Enums: {

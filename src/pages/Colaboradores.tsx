@@ -159,33 +159,51 @@ const STATUS_COLABORADOR_BADGE: Record<string, "default" | "secondary"> = {
 
 const parseDbDate = (date: string) => new Date(`${date}T00:00:00`);
 const MOTIVOS_VAGO = [
-  "falta justificada",
-  "falta injustificada",
-  "afastamento INSS",
-  "f\u00e9rias",
-  "suspens\u00e3o",
-  "Posto vago",
+  "FALTA JUSTIFICADA",
+  "FALTA INJUSTIFICADA",
+  "AFASTAMENTO INSS",
+  "F\u00c9RIAS",
+  "SUSPENS\u00c3O",
+  "VAGA EM ABERTO (COBERTURA SAL\u00c1RIO)",
+  "LICEN\u00c7A MATERNIDADE",
+  "LICEN\u00c7A PATERNIDADE",
+  "LICEN\u00c7A CASAMENTO",
+  "LICEN\u00c7A NOJO (FALECIMENTO)",
 ];
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const normalizeMotivoVago = (motivo: string) => {
-  const cleaned = motivo?.replace(/_/g, " ").trim().toLowerCase();
+  const cleaned = motivo?.replace(/_/g, " ").trim().toUpperCase();
   switch (cleaned) {
-    case "falta justificada":
-      return "falta justificada";
-    case "falta injustificada":
-      return "falta injustificada";
-    case "afastamento inss":
-      return "afastamento INSS";
-    case "f?rias":
-    case "ferias":
-      return "f?rias";
-    case "suspens?o":
-    case "suspensao":
-      return "suspens?o";
-    case "posto vago":
-      return "Posto vago";
+    case "FALTA JUSTIFICADA":
+      return "FALTA JUSTIFICADA";
+    case "FALTA INJUSTIFICADA":
+      return "FALTA INJUSTIFICADA";
+    case "AFASTAMENTO INSS":
+      return "AFASTAMENTO INSS";
+    case "FERIAS":
+    case "F\u00c9RIAS":
+      return "F\u00c9RIAS";
+    case "SUSPENSAO":
+    case "SUSPENS\u00c3O":
+      return "SUSPENS\u00c3O";
+    case "VAGA EM ABERTO (COBERTURA SALARIO)":
+    case "VAGA EM ABERTO (COBERTURA SAL\u00c1RIO)":
+    case "POSTO VAGO":
+      return "VAGA EM ABERTO (COBERTURA SAL\u00c1RIO)";
+    case "LICENCA MATERNIDADE":
+    case "LICEN\u00c7A MATERNIDADE":
+      return "LICEN\u00c7A MATERNIDADE";
+    case "LICENCA PATERNIDADE":
+    case "LICEN\u00c7A PATERNIDADE":
+      return "LICEN\u00c7A PATERNIDADE";
+    case "LICENCA CASAMENTO":
+    case "LICEN\u00c7A CASAMENTO":
+      return "LICEN\u00c7A CASAMENTO";
+    case "LICENCA NOJO (FALECIMENTO)":
+    case "LICEN\u00c7A NOJO (FALECIMENTO)":
+      return "LICEN\u00c7A NOJO (FALECIMENTO)";
     default:
-      return motivo?.replace(/_/g, " ").trim();
+      return cleaned;
   }
 };
 

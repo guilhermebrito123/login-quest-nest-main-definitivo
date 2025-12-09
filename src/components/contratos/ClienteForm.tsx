@@ -99,7 +99,7 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
           description: "Cliente atualizado com sucesso",
         });
       } else {
-        const payload = { ...payloadBase, id: payloadBase.cnpj };
+        const payload = { ...payloadBase };
         const { error } = await supabase.from("clientes").insert([payload]);
 
         if (error) throw error;
@@ -161,17 +161,11 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
               <Input
                 id="cnpj"
                 value={formData.cnpj}
-                disabled={isEditing}
                 onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
                 placeholder="00.000.000/0000-00"
                 required
               />
-              {isEditing && (
-                <p className="text-xs text-muted-foreground">
-                  O CNPJ passa a ser o identificador do cliente e nǜo pode ser alterado.
-                </p>
-              )}
-            </div>
+</div>
 
             <div className="space-y-2">
               <Label htmlFor="contato_nome">Nome do Contato</Label>

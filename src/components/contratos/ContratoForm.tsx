@@ -65,7 +65,7 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
         });
       } else if (data) {
         setFormData({
-          cliente_id: data.cliente_id ?? "",
+          cliente_id: data.cliente_id?.toString?.() ?? "",
           negocio: data.negocio ?? "",
           data_inicio: data.data_inicio ?? "",
           data_fim: data.data_fim ?? "",
@@ -83,7 +83,11 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
       .from("clientes")
       .select("id, razao_social, nome_fantasia")
       .order("razao_social");
-    setClientes(data || []);
+    const mapped = (data || []).map((c) => ({
+      ...c,
+      id: c.id?.toString?.() ?? "",
+    }));
+    setClientes(mapped);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -117,8 +121,18 @@ const ContratoForm = ({ contratoId, clienteId, onClose, onSuccess }: ContratoFor
         return;
       }
 
+      const clienteIdNumber = Number(formData.cliente_id);
+      if (!Number.isFinite(clienteIdNumber)) {
+        toast({
+          title: "Cliente inválido",
+          description: "Não foi possível identificar o cliente selecionado.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const dataToSave = {
-        cliente_id: formData.cliente_id,
+        cliente_id: clienteIdNumber,
         negocio: formData.negocio.trim(),
         data_inicio: formData.data_inicio,
         data_fim: formData.data_fim || null,

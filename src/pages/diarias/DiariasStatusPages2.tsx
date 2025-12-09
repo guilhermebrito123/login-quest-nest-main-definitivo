@@ -110,6 +110,8 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
   },
 ];
 
+const MOTIVO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
+
 const createStatusPage = ({ statusKey, title, description, emptyMessage }: StatusPageConfig) => {
   return function DiariasTemporariasStatusPage() {
     const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
@@ -121,6 +123,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       diaristaMap,
       colaboradoresMap,
       postoMap,
+      clienteMap,
       profileMap,
     } = useDiariasTemporariasData(selectedMonth);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -166,6 +169,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     );
 
     const normalizedKey = normalizeStatus(statusKey);
+    const isAguardandoPage = normalizedKey === normalizeStatus(STATUS.aguardando);
     const normalizedCancelStatus = normalizeStatus(STATUS.cancelada);
     const normalizedReprovadaStatus = normalizeStatus(STATUS.reprovada);
     const isCancelPage = normalizedKey === normalizedCancelStatus;
@@ -213,17 +217,24 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
     };
 
+    const getProfileName = (id?: string | null) => {
+      if (!id) return "-";
+      return profileMap.get(id) || "-";
+    };
+
     const uppercaseRows = (rows: Record<string, any>[]) =>
       rows.map((row) => {
-        const normalized: Record<string, any> = {};
-        Object.entries(row).forEach(([key, value]) => {
-          normalized[key] = typeof value === "string" ? value.toUpperCase() : value;
-        });
-        return normalized;
-      });
+    const normalized: Record<string, any> = {};
+    Object.entries(row).forEach(([key, value]) => {
+      normalized[key] = typeof value === "string" ? value.toUpperCase() : value;
+    });
+    return normalized;
+  });
 
-    const isVagaEmAberto = (motivo?: string | null) =>
-      (motivo || "").toUpperCase().includes("VAGA EM ABERTO");
+  const isVagaEmAberto = (motivo?: string | null) =>
+    (motivo || "").toUpperCase().includes("VAGA EM ABERTO");
+  const isLicencaNojo = (motivo?: string | null) =>
+    (motivo || "").toUpperCase() === MOTIVO_LICENCA_NOJO_FALECIMENTO.toUpperCase();
 
     const diariasDoStatus = useMemo(
       () => filteredDiarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
@@ -257,15 +268,16 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     };
 
     const getClienteNomeFromDiaria = (diaria: DiariaTemporaria, postoInfo: any) => {
-      const nome = diaria.cliente_nome?.trim() || getClienteInfoFromPosto(postoInfo)?.nome || "";
+      const nomePorId =
+        typeof diaria.cliente_id === "number" ? clienteMap.get(diaria.cliente_id) || "" : "";
+      const nome = nomePorId || getClienteInfoFromPosto(postoInfo)?.nome || "";
       return nome || "";
     };
 
     const getClienteKeyFromDiaria = (diaria: DiariaTemporaria, postoInfo: any) => {
       const key =
-        getClienteInfoFromPosto(postoInfo)?.id ||
-        diaria.cliente_nome?.trim() ||
-        "";
+        (typeof diaria.cliente_id === "number" && diaria.cliente_id.toString()) ||
+        (getClienteInfoFromPosto(postoInfo)?.id ? String(getClienteInfoFromPosto(postoInfo)?.id) : "");
       return key;
     };
 
@@ -406,12 +418,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         diaria.colaborador ||
         (diaria.colaborador_ausente ? colaboradoresMap.get(diaria.colaborador_ausente) : null);
       const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
-      const criadoPorNome =
-        (diaria.criado_por && profileMap.get(diaria.criado_por || "")) || "-";
+      const criadoPorNome = getProfileName(diaria.criado_por);
       const { id: responsavelStatusId } = getStatusResponsavel(diaria);
-      const responsavelStatusNome = responsavelStatusId ? profileMap.get(responsavelStatusId) || "" : "";
+      const responsavelStatusNome = responsavelStatusId ? getProfileName(responsavelStatusId) : "";
       const colaboradorNome = diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
+      const colaboradorFalecido = diaria.colaborador_falecido?.trim() || "";
       const colaboradorDemitidoNome = diaria.colaborador_demitido_nome || "";
+      const isMotivoLicencaNojo = isLicencaNojo(diaria.motivo_vago);
       const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
       const baseRow: Record<string, any> = {
         Data: formatDate(diaria.data_diaria),
@@ -437,15 +450,21 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         Pix: diaristaInfo?.pix || "-",
         Observacao: diaria.observacao?.trim() || "",
         "Criado por": criadoPorNome,
-        "Responsavel status": responsavelStatusNome || "",
       };
+      baseRow["Novo posto?"] = "Não";
+      if (!isAguardandoPage) {
+        baseRow["Responsavel status"] = responsavelStatusNome || "";
+      }
 
       if (isVagaEmAberto(diaria.motivo_vago)) {
         if (colaboradorDemitidoNome) {
           baseRow["Colaborador demitido"] = colaboradorDemitidoNome;
+          baseRow["Novo posto?"] = "Não";
         } else {
           baseRow["Novo posto?"] = "Sim";
         }
+      } else if (isMotivoLicencaNojo) {
+        baseRow["Colaborador falecido"] = colaboradorFalecido || "-";
       } else {
         baseRow["Colaborador ausente"] = colaboradorNome;
       }
@@ -654,7 +673,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         if (diaria.posto_servico) postos.add(diaria.posto_servico);
         if (postoInfo?.nome) postos.add(postoInfo.nome);
         const contratoInfo = getContratoInfoFromPosto(postoInfo);
-        const clienteNomeDiaria = diaria.cliente_nome?.trim();
+        const clienteNomeDiaria =
+          (typeof diaria.cliente_id === "number" && clienteMap.get(diaria.cliente_id)) ||
+          contratoInfo?.clienteNome ||
+          "";
         if (clienteNomeDiaria) clientes.add(clienteNomeDiaria);
         if (contratoInfo?.clienteNome) clientes.add(contratoInfo.clienteNome);
         statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
@@ -707,9 +729,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         return;
       }
       const cpfs = new Set<string>();
+      const statuses = new Set<string>();
       selecionadas.forEach((diaria) => {
         const diaristaInfo = diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
         if (diaristaInfo?.cpf) cpfs.add(diaristaInfo.cpf);
+        statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
       });
       const clienteNome = clienteFilterOptions.find((c) => c.id === clienteId)?.nome || "";
       const titulo = `Valor a receber do cliente ${clienteNome || "(sem nome)"} entre ${startDate} e ${endDate}`;
@@ -718,6 +742,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           Titulo: titulo,
           Cliente: clienteNome || "-",
           "CPFs diaristas": Array.from(cpfs).join(", ") || "-",
+          "Status das diarias": Array.from(statuses).join(", ") || "-",
           "Data inicial": startDate,
           "Data final": endDate,
           "Valor total (R$)": clienteTotal ?? 0,
@@ -919,17 +944,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       selectedDiaria?.diarista || diaristaMap.get(selectedDiaria?.diarista_id || "");
     const selectedContratoInfo = getContratoInfoFromPosto(selectedPostoInfo);
     const selectedClienteNome =
-      selectedDiaria?.cliente_nome?.trim() || selectedContratoInfo?.clienteNome || "-";
+      (typeof selectedDiaria?.cliente_id === "number" && clienteMap.get(selectedDiaria.cliente_id)) ||
+      selectedContratoInfo?.clienteNome ||
+      "-";
     const selectedColaboradorNome =
       selectedDiaria?.colaborador_ausente_nome || selectedColaboradorInfo?.nome_completo || "-";
+    const selectedColaboradorFalecido = selectedDiaria?.colaborador_falecido?.trim() || "-";
     const selectedColaboradorDemitidoNome = selectedDiaria?.colaborador_demitido_nome?.trim() || "";
     const selectedPostoNome = selectedDiaria?.posto_servico?.trim() || selectedPostoInfo?.nome || "-";
     const motivoVagaEmAbertoSelecionado = isVagaEmAberto(selectedDiaria?.motivo_vago);
-    const criadoPorNome =
-      selectedDiaria?.criado_por ? profileMap.get(selectedDiaria.criado_por) || "" : "";
+    const motivoLicencaNojoSelecionado = isLicencaNojo(selectedDiaria?.motivo_vago);
+    const criadoPorNome = getProfileName(selectedDiaria?.criado_por);
     const statusResponsavelInfo = selectedDiaria ? getStatusResponsavel(selectedDiaria) : { id: null, label: "" };
-    const statusResponsavelNome =
-      statusResponsavelInfo.id ? profileMap.get(statusResponsavelInfo.id) || "" : "";
+    const statusResponsavelNome = statusResponsavelInfo.id ? getProfileName(statusResponsavelInfo.id) : "";
 
     const showReasonColumn =
       normalizedKey === normalizedCancelStatus || normalizedKey === normalizedReprovadaStatus;
@@ -1129,7 +1156,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     <TableHeader>
                       <TableRow>
                         <TableHead>Data</TableHead>
-                        <TableHead className="hidden md:table-cell">Colaborador ausente</TableHead>
+                        <TableHead className="hidden md:table-cell">Colaborador</TableHead>
                         <TableHead className="hidden md:table-cell">Posto</TableHead>
                         <TableHead className="hidden md:table-cell">Cliente</TableHead>
                         <TableHead className="hidden md:table-cell">CPF diarista</TableHead>
@@ -1154,10 +1181,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                           diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
                         const colaboradorNome =
                           diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
+                        const colaboradorFalecido = diaria.colaborador_falecido?.trim() || "";
                         const isVagaAbertoMotivo = isVagaEmAberto(diaria.motivo_vago);
+                        const isLicencaNojoMotivo = isLicencaNojo(diaria.motivo_vago);
                         const colaboradorDisplay = isVagaAbertoMotivo
                           ? diaria.colaborador_demitido_nome?.trim() || ""
-                          : colaboradorNome;
+                          : isLicencaNojoMotivo
+                            ? colaboradorFalecido || "-"
+                            : colaboradorNome;
                         const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
                         const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
                         const actionElement = renderAction(diaria.id.toString(), diaria.status);
@@ -1685,7 +1716,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="text-muted-foreground text-xs">Criado por</p>
                       <p className="font-medium">{criadoPorNome || "-"}</p>
                     </div>
-                    {statusResponsavelInfo.id && (
+                    {!isAguardandoPage && statusResponsavelInfo.id && (
                       <div>
                         <p className="text-muted-foreground text-xs">
                           Responsavel ({statusResponsavelInfo.label.toLowerCase()})
@@ -1749,13 +1780,24 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   </div>
                 </div>
 
-                {!motivoVagaEmAbertoSelecionado && (
+                {!motivoVagaEmAbertoSelecionado && !motivoLicencaNojoSelecionado && (
                   <div>
                     <p className="text-xs font-semibold uppercase text-muted-foreground">Colaborador ausente</p>
                     <div className="mt-2 grid gap-3 md:grid-cols-2">
                       <div>
                         <p className="text-muted-foreground text-xs">Nome</p>
                         <p className="font-medium">{selectedColaboradorNome}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {motivoLicencaNojoSelecionado && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">Colaborador falecido</p>
+                    <div className="mt-2 grid gap-3 md:grid-cols-2">
+                      <div>
+                        <p className="text-muted-foreground text-xs">Nome</p>
+                        <p className="font-medium">{selectedColaboradorFalecido}</p>
                       </div>
                     </div>
                   </div>

@@ -33,14 +33,21 @@ export type ColaboradorAlocado = {
   posto?: PostoServicoResumo | null;
 };
 
+export type ClienteResumo = {
+  id: number;
+  razao_social: string;
+  nome_fantasia: string | null;
+};
+
 export type DiariaTemporaria = {
   id: number;
   diarista_id: string;
   colaborador_ausente: string | null;
   colaborador_ausente_nome?: string | null;
+  colaborador_falecido?: string | null;
   posto_servico_id: string | null;
   posto_servico?: string | null;
-  cliente_nome?: string | null;
+  cliente_id?: number | null;
   criado_por?: string | null;
   confirmada_por?: string | null;
   aprovada_por?: string | null;
@@ -72,6 +79,18 @@ export type DiariaTemporaria = {
 
 export function useDiariasTemporariasData(selectedMonth: string) {
   const monthRangeStrings = useMemo(() => getMonthRange(selectedMonth), [selectedMonth]);
+
+  const { data: clientes = [] } = useQuery({
+    queryKey: ["clientes-temporarias"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, razao_social, nome_fantasia")
+        .order("razao_social");
+      if (error) throw error;
+      return (data || []) as ClienteResumo[];
+    },
+  });
 
   const { data: diaristas = [] } = useQuery({
     queryKey: ["diaristas-temporarias"],
@@ -150,13 +169,45 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     },
   });
 
+  const profileIdsFromDiarias = useMemo(() => {
+    const set = new Set<string>();
+    diarias.forEach((diaria) => {
+      [
+        diaria.criado_por,
+        diaria.confirmada_por,
+        diaria.aprovada_por,
+        diaria.lancada_por,
+        diaria.aprovado_para_pgto_por,
+        diaria.paga_por,
+        diaria.cancelada_por,
+        diaria.reprovada_por,
+      ].forEach((id) => {
+        if (id) set.add(id);
+      });
+    });
+    return Array.from(set).sort();
+  }, [diarias]);
+
   const { data: profiles = [] } = useQuery({
-    queryKey: ["profiles-temporarias"],
+    queryKey: ["profiles-temporarias", profileIdsFromDiarias],
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, full_name");
+      if (profileIdsFromDiarias.length === 0) return [];
+      // Try RPC first (security definer bypasses restrictive RLS). Fallback to direct select.
+      const rpcResult = await supabase.rpc("get_profiles_names", {
+        p_ids: profileIdsFromDiarias,
+      });
+      if (!rpcResult.error && rpcResult.data) {
+        return rpcResult.data;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", profileIdsFromDiarias);
       if (error) throw error;
       return data || [];
     },
+    enabled: profileIdsFromDiarias.length > 0,
   });
 
   const monthRange = useMemo(() => {
@@ -199,6 +250,14 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     return map;
   }, [colaboradores]);
 
+  const clienteMap = useMemo(() => {
+    const map = new Map<number, string>();
+    clientes.forEach((cliente) => {
+      map.set(cliente.id, cliente.nome_fantasia || cliente.razao_social);
+    });
+    return map;
+  }, [clientes]);
+
   const profileMap = useMemo(() => {
     const map = new Map<string, string>();
     profiles.forEach((profile: any) => {
@@ -210,6 +269,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
   }, [profiles]);
 
   return {
+    clientes,
     colaboradores,
     colaboradoresMap,
     diaristas,
@@ -217,6 +277,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     diarias,
     filteredDiarias,
     postoMap,
+    clienteMap,
     profileMap,
     refetchDiarias,
     loadingDiarias,
