@@ -5,7 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { sendWelcomeEmail } from "@/lib/emailService";
@@ -64,7 +70,9 @@ const Auth = () => {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         navigate("/dashboard");
       }
@@ -124,7 +132,8 @@ const Auth = () => {
 
         toast({
           title: "Cadastro realizado!",
-          description: "Sua conta foi criada com sucesso. Email de boas-vindas enviado!",
+          description:
+            "Sua conta foi criada com sucesso. Email de boas-vindas enviado!",
         });
         navigate("/dashboard");
       }
@@ -157,7 +166,7 @@ const Auth = () => {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Facilities Hub
+            Facilities Center
           </CardTitle>
           <CardDescription>
             {isLogin ? "Entre na sua conta" : "Crie sua conta"}
@@ -170,26 +179,26 @@ const Auth = () => {
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Nome Completo</Label>
                   <Input
-                id="fullName"
-                type="text"
-                placeholder="João Silva"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required={!isLogin}
-                disabled={loading}
-                maxLength={100}
+                    id="fullName"
+                    type="text"
+                    placeholder="João Silva"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required={!isLogin}
+                    disabled={loading}
+                    maxLength={100}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Telefone</Label>
                   <Input
-                id="phone"
-                type="tel"
-                placeholder="(11) 99999-9999"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                disabled={loading}
-                maxLength={20}
+                    id="phone"
+                    type="tel"
+                    placeholder="(11) 99999-9999"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    disabled={loading}
+                    maxLength={20}
                   />
                 </div>
               </>
@@ -229,15 +238,15 @@ const Auth = () => {
                   aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                   disabled={loading}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
-            >
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
