@@ -299,10 +299,6 @@ const Diarias2 = () => {
           />
         </div>
 
-        <div className="rounded-md bg-red-800 text-white px-4 py-3 text-sm font-semibold">
-          Todas as informações devem ser registradas em CAIXA ALTA.
-        </div>
-
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Registrar diaria</CardTitle>
