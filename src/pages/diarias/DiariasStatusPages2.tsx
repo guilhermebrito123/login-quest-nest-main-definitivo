@@ -50,7 +50,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Trash2 } from "lucide-react";
+import { Trash2, Bell } from "lucide-react";
 import {
   useDiariasTemporariasData,
   DiariaTemporaria,
@@ -144,6 +144,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       startDate: "",
       endDate: "",
       criadoPorId: "",
+      statusResponsavelId: "",
     });
     const [totalRangeDiarista, setTotalRangeDiarista] = useState({
       diaristaId: "",
@@ -173,6 +174,32 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const normalizedCancelStatus = normalizeStatus(STATUS.cancelada);
     const normalizedReprovadaStatus = normalizeStatus(STATUS.reprovada);
     const isCancelPage = normalizedKey === normalizedCancelStatus;
+    const isPagaPage = normalizedKey === normalizeStatus(STATUS.paga);
+    const statusResponsavelField = useMemo(() => {
+      const map = new Map<string, keyof DiariaTemporaria>([
+        [normalizeStatus(STATUS.confirmada), "confirmada_por"],
+        [normalizeStatus(STATUS.aprovada), "aprovada_por"],
+        [normalizeStatus(STATUS.lancada), "lancada_por"],
+        [normalizeStatus(STATUS.aprovadaPagamento), "aprovado_para_pgto_por"],
+        [normalizeStatus(STATUS.paga), "paga_por"],
+        [normalizeStatus(STATUS.cancelada), "cancelada_por"],
+        [normalizeStatus(STATUS.reprovada), "reprovada_por"],
+      ]);
+      return map.get(normalizedKey) || null;
+    }, [normalizedKey]);
+
+    const statusResponsavelLabel = useMemo(() => {
+      const map = new Map<string, string>([
+        [STATUS.confirmada, "Confirmadas por"],
+        [STATUS.aprovada, "Aprovadas por"],
+        [STATUS.lancada, "Lancadas por"],
+        [STATUS.aprovadaPagamento, "Aprovadas para pagamento por"],
+        [STATUS.paga, "Pagas por"],
+        [STATUS.reprovada, "Reprovadas por"],
+        [STATUS.cancelada, "Canceladas por"],
+      ]);
+      return map.get(statusKey) || "Responsavel";
+    }, [statusKey]);
 
     const formatIntervalValue = (value?: number | null) => {
       if (value === null || value === undefined) return "-";
@@ -236,15 +263,18 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
   const isLicencaNojo = (motivo?: string | null) =>
     (motivo || "").toUpperCase() === MOTIVO_LICENCA_NOJO_FALECIMENTO.toUpperCase();
 
-    const diariasDoStatus = useMemo(
-      () => filteredDiarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
-      [filteredDiarias, normalizedKey],
-    );
-
     const diariasDoStatusFull = useMemo(
       () => diarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
       [diarias, normalizedKey],
     );
+
+    const diariasDoStatus = useMemo(
+      () => filteredDiarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
+      [filteredDiarias, normalizedKey],
+    );
+    const statusNoticeCount = diariasDoStatusFull.length;
+    const showStatusNotice = statusNoticeCount > 0;
+    const statusNoticeLabel = (STATUS_LABELS[statusKey] || statusKey).toLowerCase();
 
     const getContratoInfoFromPosto = (postoInfo: any) => {
       const contrato = postoInfo?.unidade?.contrato;
@@ -349,6 +379,21 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         .sort((a, b) => a.nome.localeCompare(b.nome));
     }, [diariasDoStatusFull, profileMap]);
 
+    const responsavelStatusOptions = useMemo(() => {
+      if (!statusResponsavelField) return [];
+      const map = new Map<string, string>();
+      diariasDoStatusFull.forEach((diaria) => {
+        const responsavelId = (diaria as any)[statusResponsavelField] as string | null | undefined;
+        if (responsavelId) {
+          const nome = profileMap.get(responsavelId) || "";
+          map.set(responsavelId, nome);
+        }
+      });
+      return Array.from(map.entries())
+        .map(([id, nome]) => ({ id, nome: nome || "(sem nome)" }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+    }, [diariasDoStatusFull, profileMap, statusResponsavelField]);
+
     const clienteFilterOptions = useMemo(() => {
       const map = new Map<string, string>();
       const source = [...diariasDoStatus, ...diariasDoStatusFull];
@@ -406,9 +451,15 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         if (filters.clienteId && filters.clienteId !== clienteKey) {
           return false;
         }
+        if (filters.statusResponsavelId && statusResponsavelField) {
+          const responsavelId = (diaria as any)[statusResponsavelField] || "";
+          if (filters.statusResponsavelId !== responsavelId) {
+            return false;
+          }
+        }
         return true;
       });
-    }, [diariasBase, filters]);
+    }, [diariasBase, filters, statusResponsavelField]);
 
     const buildExportRow = (diaria: DiariaTemporaria) => {
       const postoInfo =
@@ -421,6 +472,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const criadoPorNome = getProfileName(diaria.criado_por);
       const { id: responsavelStatusId } = getStatusResponsavel(diaria);
       const responsavelStatusNome = responsavelStatusId ? getProfileName(responsavelStatusId) : "";
+      const confirmadaPorNome = getProfileName(diaria.confirmada_por);
+      const aprovadaPorNome = getProfileName(diaria.aprovada_por);
+      const lancadaPorNome = getProfileName(diaria.lancada_por);
+      const aprovadaParaPgtoPorNome = getProfileName(diaria.aprovado_para_pgto_por);
+      const pagaPorNome = getProfileName(diaria.paga_por);
       const colaboradorNome = diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
       const colaboradorFalecido = diaria.colaborador_falecido?.trim() || "";
       const colaboradorDemitidoNome = diaria.colaborador_demitido_nome || "";
@@ -456,6 +512,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       baseRow["Novo posto?"] = novoPostoFlag ? "Sim" : "N?o";
       if (!isAguardandoPage) {
         baseRow["Responsavel status"] = responsavelStatusNome || "";
+      }
+      if (isPagaPage) {
+        baseRow["Confirmada por"] = confirmadaPorNome;
+        baseRow["Aprovada por"] = aprovadaPorNome;
+        baseRow["Lancada por"] = lancadaPorNome;
+        baseRow["Aprovada para pagamento por"] = aprovadaParaPgtoPorNome;
+        baseRow["Paga por"] = pagaPorNome;
       }
 
       if (isVagaEmAberto(diaria.motivo_vago)) {
@@ -771,6 +834,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         startDate: "",
         endDate: "",
         criadoPorId: "",
+        statusResponsavelId: "",
       });
 
     const fallbackMonth = useMemo(() => {
@@ -964,6 +1028,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const selectedLicencaNojoFlag = selectedDiaria?.licenca_nojo === true;
     const selectedNovoPostoFlag = selectedDiaria?.novo_posto === true;
     const criadoPorNome = getProfileName(selectedDiaria?.criado_por);
+    const confirmadaPorNome = getProfileName(selectedDiaria?.confirmada_por);
+    const aprovadaPorNome = getProfileName(selectedDiaria?.aprovada_por);
+    const lancadaPorNome = getProfileName(selectedDiaria?.lancada_por);
+    const aprovadaParaPgtoPorNome = getProfileName(selectedDiaria?.aprovado_para_pgto_por);
+    const pagaPorNome = getProfileName(selectedDiaria?.paga_por);
     const statusResponsavelInfo = selectedDiaria ? getStatusResponsavel(selectedDiaria) : { id: null, label: "" };
     const statusResponsavelNome = statusResponsavelInfo.id ? getProfileName(statusResponsavelInfo.id) : "";
 
@@ -1011,9 +1080,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 <CardTitle className="text-lg">{STATUS_LABELS[statusKey]}</CardTitle>
                 <CardDescription>Periodo selecionado: {selectedMonth}</CardDescription>
               </div>
-              <Badge variant={STATUS_BADGE[statusKey] || "outline"}>
-                {diariasDoStatus.length} diaria(s)
-              </Badge>
+              <div className="flex items-center gap-3">
+                {showStatusNotice && (
+                  <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800">
+                    <Bell className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      {statusNoticeCount} {statusNoticeCount === 1 ? "diaria" : "diarias"} {statusNoticeLabel}
+                    </span>
+                  </div>
+                )}
+                <Badge variant={STATUS_BADGE[statusKey] || "outline"}>
+                  {diariasDoStatusFull.length} diaria(s)
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col gap-3">
@@ -1114,6 +1193,34 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       </SelectContent>
                     </Select>
                   </div>
+                  {statusResponsavelField && (
+                    <div className="space-y-1">
+                      <Label htmlFor={`filtro-temp-responsavel-${statusKey}`}>{statusResponsavelLabel}</Label>
+                      <Select
+                        value={filters.statusResponsavelId || selectAllValue}
+                        onValueChange={(value) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            statusResponsavelId: value === selectAllValue ? "" : value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger id={`filtro-temp-responsavel-${statusKey}`}>
+                          <SelectValue placeholder={`Todos os ${statusResponsavelLabel.toLowerCase()}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={selectAllValue}>
+                            {`Todos os ${statusResponsavelLabel.toLowerCase()}`}
+                          </SelectItem>
+                          {responsavelStatusOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label htmlFor={`filtro-temp-data-inicio-${statusKey}`}>Data inicial</Label>
                     <Input
@@ -1734,6 +1841,30 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="text-muted-foreground text-xs">Criado por</p>
                       <p className="font-medium">{criadoPorNome || "-"}</p>
                     </div>
+                    {isPagaPage && (
+                      <>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Confirmada por</p>
+                          <p className="font-medium">{confirmadaPorNome || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Aprovada por</p>
+                          <p className="font-medium">{aprovadaPorNome || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Lancada por</p>
+                          <p className="font-medium">{lancadaPorNome || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Aprovada para pagamento por</p>
+                          <p className="font-medium">{aprovadaParaPgtoPorNome || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Paga por</p>
+                          <p className="font-medium">{pagaPorNome || "-"}</p>
+                        </div>
+                      </>
+                    )}
                     {!isAguardandoPage && statusResponsavelInfo.id && (
                       <div>
                         <p className="text-muted-foreground text-xs">
