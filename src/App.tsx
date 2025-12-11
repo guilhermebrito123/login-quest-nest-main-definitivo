@@ -48,6 +48,7 @@ import ChecklistExecucoes from "./pages/ChecklistExecucoes";
 import ChecklistRespostas from "./pages/ChecklistRespostas";
 import ChecklistRespostasLista from "./pages/ChecklistRespostasLista";
 import NotFound from "./pages/NotFound";
+import MinhaConta from "./pages/MinhaConta";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ const App = () => (
           <Route path="/redefinir-senha" element={<ResetPassword />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/dashboard-24h" element={<ProtectedRoute><Dashboard24h /></ProtectedRoute>} />
+          <Route path="/minha-conta" element={<ProtectedRoute><MinhaConta /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
           <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
           <Route path="/mesa-operacoes" element={<ProtectedRoute><MesaOperacoes /></ProtectedRoute>} />
