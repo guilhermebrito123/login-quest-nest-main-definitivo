@@ -19,8 +19,8 @@ const emailSchema = z.object({
   email: z
     .string()
     .trim()
-    .email({ message: "Email inválido" })
-    .max(255, { message: "Email deve ter no máximo 255 caracteres" }),
+    .email({ message: "Email invalido" })
+    .max(255, { message: "Email deve ter no maximo 255 caracteres" }),
 });
 
 export const ForgotPasswordDialog = () => {
@@ -34,7 +34,6 @@ export const ForgotPasswordDialog = () => {
     setLoading(true);
 
     try {
-      // Validate email
       const validatedData = emailSchema.parse({ email });
 
       const { error, data } = await supabase.functions.invoke("request-password-reset", {
@@ -48,22 +47,21 @@ export const ForgotPasswordDialog = () => {
 
       toast({
         title: "Email enviado!",
-        description:
-          "Se o email estiver cadastrado, você receberá as instruções para redefinir sua senha.",
+        description: "Se o email estiver cadastrado, voce recebera as instrucoes para redefinir sua senha.",
       });
       setEmail("");
       setOpen(false);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
-          title: "Erro de validação",
+          title: "Erro de validacao",
           description: error.errors[0].message,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Erro",
-          description: error.message || "Não foi possível enviar o email",
+          description: error.message || "Nao foi possivel enviar o email",
           variant: "destructive",
         });
       }
@@ -91,7 +89,7 @@ export const ForgotPasswordDialog = () => {
           </div>
           <DialogTitle>Recuperar Senha</DialogTitle>
           <DialogDescription>
-            Digite seu email para receber as instruções de redefinição de senha.
+            Digite seu email para receber as instrucoes de redefinicao de senha.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleResetPassword} className="space-y-4">
