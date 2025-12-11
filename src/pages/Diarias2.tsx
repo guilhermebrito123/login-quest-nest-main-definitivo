@@ -145,8 +145,8 @@ const Diarias2 = () => {
       return;
     }
 
-    if (!formState.postoServico || !formState.valorDiaria || !formState.diaristaId || !formState.motivoVago) {
-      toast.error("Preencha posto, diarista, valor e motivo.");
+    if (!formState.valorDiaria || !formState.diaristaId || !formState.motivoVago) {
+      toast.error("Preencha diarista, valor e motivo.");
       return;
     }
 
