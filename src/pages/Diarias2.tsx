@@ -501,7 +501,6 @@ const Diarias2 = () => {
               <div className="space-y-2">
                 <Label>Posto de servico</Label>
                 <Input
-                  required
                   value={formState.postoServico}
                   onChange={(event) => setFormState((prev) => ({ ...prev, postoServico: event.target.value }))}
                   placeholder="Nome do posto"
