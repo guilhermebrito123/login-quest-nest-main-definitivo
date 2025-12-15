@@ -21,6 +21,7 @@ const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
 
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
+  "FALTA INJUSTIFICADA",
   "LICENÇA MATERNIDADE",
   "LICENÇA PATERNIDADE",
   "LICENÇA CASAMENTO",
@@ -28,7 +29,6 @@ const MOTIVO_VAGO_OPTIONS = [
   "AFASTAMENTO INSS",
   "FÉRIAS",
   "SUSPENSÃO",
-  "FALTA INJUSTIFICADA",
 ];
 const toUpperOrNull = (value: string | null | undefined) => {
   const trimmed = (value ?? "").trim();
