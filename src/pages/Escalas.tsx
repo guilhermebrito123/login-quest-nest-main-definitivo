@@ -27,6 +27,7 @@ export default function Escalas() {
           jornada,
           horario_inicio,
           horario_fim,
+          observacoes_especificas,
           de,
           ate,
           dias_semana,

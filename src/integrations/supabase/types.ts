@@ -1623,6 +1623,63 @@ export type Database = {
           },
         ]
       }
+      perfil_candidato: {
+        Row: {
+          altura: number | null
+          created_at: string
+          curso_adicional: string[] | null
+          estado_civil: Database["public"]["Enums"]["estado_civil"] | null
+          experiencia: string[] | null
+          formacao: string[] | null
+          habilidade: string[] | null
+          id: string
+          idade_maxima: number | null
+          idade_minima: number | null
+          peso: number | null
+          requisito_descricao: string | null
+          sexo: Database["public"]["Enums"]["sexualidade"] | null
+          tempo_minimo_experiencia: number | null
+          tipo_requisito: Database["public"]["Enums"]["tipos_requisito"]
+          updated_at: string
+        }
+        Insert: {
+          altura?: number | null
+          created_at?: string
+          curso_adicional?: string[] | null
+          estado_civil?: Database["public"]["Enums"]["estado_civil"] | null
+          experiencia?: string[] | null
+          formacao?: string[] | null
+          habilidade?: string[] | null
+          id?: string
+          idade_maxima?: number | null
+          idade_minima?: number | null
+          peso?: number | null
+          requisito_descricao?: string | null
+          sexo?: Database["public"]["Enums"]["sexualidade"] | null
+          tempo_minimo_experiencia?: number | null
+          tipo_requisito: Database["public"]["Enums"]["tipos_requisito"]
+          updated_at?: string
+        }
+        Update: {
+          altura?: number | null
+          created_at?: string
+          curso_adicional?: string[] | null
+          estado_civil?: Database["public"]["Enums"]["estado_civil"] | null
+          experiencia?: string[] | null
+          formacao?: string[] | null
+          habilidade?: string[] | null
+          id?: string
+          idade_maxima?: number | null
+          idade_minima?: number | null
+          peso?: number | null
+          requisito_descricao?: string | null
+          sexo?: Database["public"]["Enums"]["sexualidade"] | null
+          tempo_minimo_experiencia?: number | null
+          tipo_requisito?: Database["public"]["Enums"]["tipos_requisito"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       posto_dias_vagos: {
         Row: {
           colaborador_id: string | null
@@ -1708,64 +1765,106 @@ export type Database = {
       }
       postos_servico: {
         Row: {
-          beneficios: string[] | null
+          acumulo_funcao: boolean | null
+          adicional_noturno: boolean | null
+          assistencia_medica: boolean | null
+          cesta: boolean | null
           created_at: string | null
           dias_semana: number[] | null
           escala: string | null
           funcao: string
+          gratificacao: boolean | null
           horario_fim: string | null
           horario_inicio: string | null
           id: string
+          insalubridade: boolean | null
           intervalo_refeicao: number | null
+          intrajornada: boolean | null
           jornada: number | null
           nome: string
-          observacoes: string | null
+          observacoes_especificas: string | null
+          outros_beneficios: string[] | null
+          periculosidade: boolean | null
+          premio_assiduidade: boolean | null
           primeiro_dia_atividade: string | null
+          salario: number | null
           status: Database["public"]["Enums"]["status_posto"] | null
+          turno: Database["public"]["Enums"]["turno_opcoes"] | null
           ultimo_dia_atividade: string | null
           unidade_id: string | null
           updated_at: string | null
           valor_diaria: number
+          valor_unitario: number | null
+          vr_dia: number | null
+          vt_dia: number | null
         }
         Insert: {
-          beneficios?: string[] | null
+          acumulo_funcao?: boolean | null
+          adicional_noturno?: boolean | null
+          assistencia_medica?: boolean | null
+          cesta?: boolean | null
           created_at?: string | null
           dias_semana?: number[] | null
           escala?: string | null
           funcao: string
+          gratificacao?: boolean | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          insalubridade?: boolean | null
           intervalo_refeicao?: number | null
+          intrajornada?: boolean | null
           jornada?: number | null
           nome: string
-          observacoes?: string | null
+          observacoes_especificas?: string | null
+          outros_beneficios?: string[] | null
+          periculosidade?: boolean | null
+          premio_assiduidade?: boolean | null
           primeiro_dia_atividade?: string | null
+          salario?: number | null
           status?: Database["public"]["Enums"]["status_posto"] | null
+          turno?: Database["public"]["Enums"]["turno_opcoes"] | null
           ultimo_dia_atividade?: string | null
           unidade_id?: string | null
           updated_at?: string | null
           valor_diaria?: number
+          valor_unitario?: number | null
+          vr_dia?: number | null
+          vt_dia?: number | null
         }
         Update: {
-          beneficios?: string[] | null
+          acumulo_funcao?: boolean | null
+          adicional_noturno?: boolean | null
+          assistencia_medica?: boolean | null
+          cesta?: boolean | null
           created_at?: string | null
           dias_semana?: number[] | null
           escala?: string | null
           funcao?: string
+          gratificacao?: boolean | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          insalubridade?: boolean | null
           intervalo_refeicao?: number | null
+          intrajornada?: boolean | null
           jornada?: number | null
           nome?: string
-          observacoes?: string | null
+          observacoes_especificas?: string | null
+          outros_beneficios?: string[] | null
+          periculosidade?: boolean | null
+          premio_assiduidade?: boolean | null
           primeiro_dia_atividade?: string | null
+          salario?: number | null
           status?: Database["public"]["Enums"]["status_posto"] | null
+          turno?: Database["public"]["Enums"]["turno_opcoes"] | null
           ultimo_dia_atividade?: string | null
           unidade_id?: string | null
           updated_at?: string | null
           valor_diaria?: number
+          valor_unitario?: number | null
+          vr_dia?: number | null
+          vt_dia?: number | null
         }
         Relationships: [
           {
@@ -1841,6 +1940,7 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
+          superior: string | null
           updated_at: string
         }
         Insert: {
@@ -1849,6 +1949,7 @@ export type Database = {
           full_name?: string | null
           id: string
           phone?: string | null
+          superior?: string | null
           updated_at?: string
         }
         Update: {
@@ -1857,9 +1958,18 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          superior?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_superior_fkey"
+            columns: ["superior"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       recursos_materiais: {
         Row: {
@@ -2146,6 +2256,12 @@ export type Database = {
         | "analista_centro_controle"
         | "tecnico"
         | "cliente_view"
+      estado_civil:
+        | "Solteiro"
+        | "Casado"
+        | "Divorciado"
+        | "Viúvo"
+        | "Indiferente"
       motivo_vago_type:
         | "FALTA JUSTIFICADA"
         | "FALTA INJUSTIFICADA"
@@ -2165,6 +2281,7 @@ export type Database = {
         | "trimestral"
         | "semestral"
         | "anual"
+      sexualidade: "Masculino" | "Feminino" | "Indiferente"
       status_colaborador: "ativo" | "inativo"
       status_diaria:
         | "Aguardando confirmacao"
@@ -2186,6 +2303,16 @@ export type Database = {
         | "ocupacao_agendada"
         | "inativo"
       tipo_conta_bancaria: "conta corrente" | "conta poupança" | "conta salário"
+      tipos_requisito:
+        | "TQC (D.A. 06-01)"
+        | "TQC (D.A. 06-01) + exigências do cliente"
+        | "Solicitação do cliente"
+      turno_opcoes:
+        | "Diurno"
+        | "Noturno"
+        | "Vespertino"
+        | "Revezamento"
+        | "Ininterrupto"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2321,6 +2448,13 @@ export const Constants = {
         "tecnico",
         "cliente_view",
       ],
+      estado_civil: [
+        "Solteiro",
+        "Casado",
+        "Divorciado",
+        "Viúvo",
+        "Indiferente",
+      ],
       motivo_vago_type: [
         "FALTA JUSTIFICADA",
         "FALTA INJUSTIFICADA",
@@ -2342,6 +2476,7 @@ export const Constants = {
         "semestral",
         "anual",
       ],
+      sexualidade: ["Masculino", "Feminino", "Indiferente"],
       status_colaborador: ["ativo", "inativo"],
       status_diaria: [
         "Aguardando confirmacao",
@@ -2368,6 +2503,18 @@ export const Constants = {
         "conta corrente",
         "conta poupança",
         "conta salário",
+      ],
+      tipos_requisito: [
+        "TQC (D.A. 06-01)",
+        "TQC (D.A. 06-01) + exigências do cliente",
+        "Solicitação do cliente",
+      ],
+      turno_opcoes: [
+        "Diurno",
+        "Noturno",
+        "Vespertino",
+        "Revezamento",
+        "Ininterrupto",
       ],
     },
   },

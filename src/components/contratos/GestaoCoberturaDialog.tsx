@@ -68,6 +68,7 @@ interface PostoVago {
   funcao: string;
   efetivo_planejado: number;
   efetivo_atual: number;
+  observacoes_especificas?: string | null;
   unidadeId?: string | null;
   unidade: {
     id?: string | null;
@@ -89,6 +90,7 @@ interface DiaVago {
     id?: string;
     nome: string;
     valor_diaria?: number | null;
+    observacoes_especificas?: string | null;
     unidade: {
       nome: string;
       contrato: {
@@ -210,6 +212,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
         nome,
         funcao,
         escala,
+        observacoes_especificas,
         unidade_id,
         unidades (
           id,
@@ -244,6 +247,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
           funcao: posto.funcao,
           efetivo_planejado: efetivoNecessario,
           efetivo_atual: efetivoAtual,
+          observacoes_especificas: posto.observacoes_especificas ?? null,
           unidadeId: posto.unidade_id,
           unidade: {
             id: posto.unidades?.id ?? null,
@@ -274,6 +278,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
           id,
           nome,
           valor_diaria,
+          observacoes_especificas,
           unidades (
             nome,
             contratos (
@@ -311,6 +316,7 @@ export function GestaoCoberturaDialog({ open, onClose }: GestaoCoberturaDialogPr
         id: item.postos_servico?.id,
         nome: item.postos_servico?.nome || "Desconhecido",
         valor_diaria: item.postos_servico?.valor_diaria ?? null,
+        observacoes_especificas: item.postos_servico?.observacoes_especificas ?? null,
         unidade: {
           nome: item.postos_servico?.unidades?.nome || "Sem unidade",
           contrato: item.postos_servico?.unidades?.contratos
