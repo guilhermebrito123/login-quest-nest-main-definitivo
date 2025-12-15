@@ -83,6 +83,7 @@ const menuItems: MenuItem[] = [
   { title: "Minha conta", url: "/minha-conta", icon: UserCog },
   { title: "Dashboard 24/7", url: "/dashboard-24h", icon: LayoutDashboard },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Gestão de Usuários", url: "/users", icon: Users },
   { title: "Contratos", url: "/contratos", icon: FileText },
   { title: "Mesa de Operações", url: "/mesa-operacoes", icon: Headphones },
   { title: "Chamados", url: "/chamados", icon: MessageSquare },
