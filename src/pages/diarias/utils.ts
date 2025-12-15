@@ -137,6 +137,7 @@ export type PostoDiaVago = {
     id: string;
     nome: string;
     valor_diaria: number | null;
+    observacoes_especificas?: string | null;
     unidade?: {
       id: string;
       nome: string;
@@ -200,6 +201,7 @@ export function useDiariasData(selectedMonth: string) {
             id,
             nome,
             valor_diaria,
+            observacoes_especificas,
             unidade:unidades (
               id,
               nome,
@@ -271,6 +273,7 @@ export function useDiariasData(selectedMonth: string) {
               id,
               nome,
               valor_diaria,
+              observacoes_especificas,
               unidade:unidades (
                 id,
                 nome

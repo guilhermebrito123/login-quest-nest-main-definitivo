@@ -38,6 +38,7 @@ const DIAS_SEMANA = [
   { value: 5, label: "Sexta-feira" },
   { value: 6, label: "Sábado" },
 ];
+const TURNO_OPTIONS = ["Diurno", "Noturno", "Vespertino", "Revezamento", "Ininterrupto"] as const;
 const POSTO_STATUS_OPTIONS = [
   { value: "vago", label: "Vago" },
   { value: "ocupado", label: "Ocupado" },
@@ -49,12 +50,27 @@ const POSTO_STATUS_OPTIONS = [
 const ESCALAS_COM_DIAS_OBRIGATORIOS = new Set(["5x2", "6x1"]);
 
 type PostoStatus = (typeof POSTO_STATUS_OPTIONS)[number]["value"];
+type TurnoOption = (typeof TURNO_OPTIONS)[number];
 
 interface PostoFormState {
   unidade_id: string;
   nome: string;
   funcao: string;
   valor_diaria: string;
+  valor_unitario: string;
+  adicional_noturno: boolean | null;
+  salario: string;
+  intrajornada: boolean | null;
+  insalubridade: boolean | null;
+  periculosidade: boolean | null;
+  acumulo_funcao: boolean | null;
+  gratificacao: boolean | null;
+  vt_dia: string;
+  vr_dia: string;
+  assistencia_medica: boolean | null;
+  cesta: boolean | null;
+  premio_assiduidade: boolean | null;
+  turno: TurnoOption | "";
   escala: string;
   dias_semana: number[];
   jornada: string;
@@ -62,8 +78,8 @@ interface PostoFormState {
   horario_fim: string;
   intervalo_refeicao: string;
   status: PostoStatus;
-  observacoes: string;
-  beneficios: string[];
+  observacoes_especificas: string;
+  outros_beneficios: string[];
   primeiro_dia_atividade: string;
   ultimo_dia_atividade: string;
 }
@@ -73,6 +89,17 @@ const resolvePostoStatus = (value?: string | null): PostoStatus =>
   POSTO_STATUS_OPTIONS[0].value;
 
 const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) => {
+  type BooleanFieldKey =
+    | "adicional_noturno"
+    | "intrajornada"
+    | "insalubridade"
+    | "periculosidade"
+    | "acumulo_funcao"
+    | "gratificacao"
+    | "assistencia_medica"
+    | "cesta"
+    | "premio_assiduidade";
+
   const [loading, setLoading] = useState(false);
   const [unidades, setUnidades] = useState<any[]>([]);
   const initialState: PostoFormState = {
@@ -80,6 +107,20 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
     nome: "",
     funcao: "",
     valor_diaria: "",
+    valor_unitario: "",
+    adicional_noturno: null,
+    salario: "",
+    intrajornada: null,
+    insalubridade: null,
+    periculosidade: null,
+    acumulo_funcao: null,
+    gratificacao: null,
+    vt_dia: "",
+    vr_dia: "",
+    assistencia_medica: null,
+    cesta: null,
+    premio_assiduidade: null,
+    turno: "",
     escala: "",
     dias_semana: [] as number[],
     jornada: "",
@@ -87,8 +128,8 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
     horario_fim: "",
     intervalo_refeicao: "",
     status: POSTO_STATUS_OPTIONS[0].value,
-    observacoes: "",
-    beneficios: [],
+    observacoes_especificas: "",
+    outros_beneficios: [],
     primeiro_dia_atividade: "",
     ultimo_dia_atividade: "",
   };
@@ -119,7 +160,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
       const { data, error } = await supabase
         .from("postos_servico")
         .select(
-          "unidade_id, nome, funcao, valor_diaria, escala, dias_semana, jornada, horario_inicio, horario_fim, intervalo_refeicao, status, observacoes, beneficios, primeiro_dia_atividade, ultimo_dia_atividade"
+          "unidade_id, nome, funcao, valor_diaria, valor_unitario, adicional_noturno, salario, intrajornada, insalubridade, periculosidade, acumulo_funcao, gratificacao, vt_dia, vr_dia, assistencia_medica, cesta, premio_assiduidade, turno, escala, dias_semana, jornada, horario_inicio, horario_fim, intervalo_refeicao, status, observacoes_especificas, outros_beneficios, primeiro_dia_atividade, ultimo_dia_atividade"
         )
         .eq("id", postoId)
         .single();
@@ -136,6 +177,20 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
           nome: data.nome ?? "",
           funcao: data.funcao ?? "",
           valor_diaria: data.valor_diaria?.toString() ?? "",
+          valor_unitario: data.valor_unitario?.toString() ?? "",
+          adicional_noturno: data.adicional_noturno ?? null,
+          salario: data.salario?.toString() ?? "",
+          intrajornada: data.intrajornada ?? null,
+          insalubridade: data.insalubridade ?? null,
+          periculosidade: data.periculosidade ?? null,
+          acumulo_funcao: data.acumulo_funcao ?? null,
+          gratificacao: data.gratificacao ?? null,
+          vt_dia: data.vt_dia?.toString() ?? "",
+          vr_dia: data.vr_dia?.toString() ?? "",
+          assistencia_medica: data.assistencia_medica ?? null,
+          cesta: data.cesta ?? null,
+          premio_assiduidade: data.premio_assiduidade ?? null,
+          turno: (data.turno as TurnoOption | null) ?? "",
           escala: data.escala ?? "",
           dias_semana: Array.isArray(data.dias_semana)
             ? data.dias_semana.map((dia: any) => Number(dia))
@@ -145,9 +200,9 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
           horario_fim: data.horario_fim ?? "",
           intervalo_refeicao: data.intervalo_refeicao?.toString() ?? "",
           status: resolvePostoStatus(data.status),
-          observacoes: data.observacoes ?? "",
-          beneficios: Array.isArray(data.beneficios)
-            ? data.beneficios.filter((beneficio: string) => typeof beneficio === "string")
+          observacoes_especificas: data.observacoes_especificas ?? "",
+          outros_beneficios: Array.isArray(data.outros_beneficios)
+            ? data.outros_beneficios.filter((beneficio: string) => typeof beneficio === "string")
             : [],
           primeiro_dia_atividade: data.primeiro_dia_atividade ?? "",
           ultimo_dia_atividade: data.ultimo_dia_atividade ?? "",
@@ -177,6 +232,20 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         nome,
         funcao,
         valor_diaria,
+        valor_unitario,
+        adicional_noturno,
+        salario,
+        intrajornada,
+        insalubridade,
+        periculosidade,
+        acumulo_funcao,
+        gratificacao,
+        vt_dia,
+        vr_dia,
+        assistencia_medica,
+        cesta,
+        premio_assiduidade,
+        turno,
         escala,
         dias_semana,
         jornada,
@@ -184,8 +253,8 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         horario_fim,
         intervalo_refeicao,
         status,
-        observacoes,
-        beneficios,
+        observacoes_especificas,
+        outros_beneficios,
         primeiro_dia_atividade,
         ultimo_dia_atividade,
       } = formData;
@@ -200,7 +269,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         return;
       }
 
-      const beneficiosArray = beneficios
+      const beneficiosArray = outros_beneficios
         .map((item) => item.trim())
         .filter((item) => item.length > 0);
 
@@ -209,6 +278,20 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         nome,
         funcao,
         valor_diaria: valor_diaria ? parseFloat(valor_diaria) : 0,
+        valor_unitario: valor_unitario ? parseFloat(valor_unitario) : null,
+        adicional_noturno: adicional_noturno ?? false,
+        salario: salario ? parseFloat(salario) : null,
+        intrajornada: intrajornada ?? false,
+        insalubridade: insalubridade ?? false,
+        periculosidade: periculosidade ?? false,
+        acumulo_funcao: acumulo_funcao ?? false,
+        gratificacao: gratificacao ?? false,
+        vt_dia: vt_dia ? parseFloat(vt_dia) : null,
+        vr_dia: vr_dia ? parseFloat(vr_dia) : null,
+        assistencia_medica: assistencia_medica ?? false,
+        cesta: cesta ?? false,
+        premio_assiduidade: premio_assiduidade ?? false,
+        turno: turno ? turno : null,
         escala,
         dias_semana: dias_semana.length ? dias_semana : null,
         jornada: jornada ? parseInt(jornada) : null,
@@ -216,8 +299,8 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         horario_fim,
         intervalo_refeicao: intervalo_refeicao ? parseInt(intervalo_refeicao) : null,
         status,
-        observacoes: observacoes || null,
-        beneficios: beneficiosArray.length ? beneficiosArray : null,
+        observacoes_especificas: observacoes_especificas || null,
+        outros_beneficios: beneficiosArray.length ? beneficiosArray : null,
         primeiro_dia_atividade: primeiro_dia_atividade || null,
         ultimo_dia_atividade: ultimo_dia_atividade || null,
       };
@@ -268,6 +351,40 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
   };
 
   const escalaRequerDiasSemana = ESCALAS_COM_DIAS_OBRIGATORIOS.has(formData.escala);
+
+  const handleBooleanChange = (key: BooleanFieldKey, value: boolean) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const renderBooleanField = (key: BooleanFieldKey, label: string) => (
+    <div className="space-y-2">
+      <Label>{label} *</Label>
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            name={key}
+            value="true"
+            checked={formData[key] === true}
+            onChange={() => handleBooleanChange(key, true)}
+            required
+          />
+          <span>Sim</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            name={key}
+            value="false"
+            checked={formData[key] === false}
+            onChange={() => handleBooleanChange(key, false)}
+            required
+          />
+          <span>Nao</span>
+        </label>
+      </div>
+    </div>
+  );
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -337,6 +454,27 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
               </Select>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="turno">Turno</Label>
+              <Select
+                value={formData.turno || undefined}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, turno: value as TurnoOption })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o turno" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TURNO_OPTIONS.map((turno) => (
+                    <SelectItem key={turno} value={turno}>
+                      {turno}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {escalaRequerDiasSemana && (
               <div className="space-y-2 sm:col-span-2">
                 <Label>Dias da semana</Label>
@@ -382,6 +520,77 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
               <p className="text-xs text-muted-foreground">
                 Esse valor será aplicado automaticamente ao registrar novas diárias para este posto.
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="valor_unitario">Valor unitario (R$) *</Label>
+              <Input
+                id="valor_unitario"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={formData.valor_unitario}
+                onChange={(e) => setFormData({ ...formData, valor_unitario: e.target.value })}
+                placeholder="0,00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="salario">Salario (R$) *</Label>
+              <Input
+                id="salario"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={formData.salario}
+                onChange={(e) => setFormData({ ...formData, salario: e.target.value })}
+                placeholder="0,00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vt_dia">VT por dia (R$) *</Label>
+              <Input
+                id="vt_dia"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={formData.vt_dia}
+                onChange={(e) => setFormData({ ...formData, vt_dia: e.target.value })}
+                placeholder="0,00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vr_dia">VR por dia (R$) *</Label>
+              <Input
+                id="vr_dia"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={formData.vr_dia}
+                onChange={(e) => setFormData({ ...formData, vr_dia: e.target.value })}
+                placeholder="0,00"
+              />
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Adicionais e beneficios *</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {renderBooleanField("adicional_noturno", "Adicional noturno")}
+                {renderBooleanField("intrajornada", "Intrajornada")}
+                {renderBooleanField("insalubridade", "Insalubridade")}
+                {renderBooleanField("periculosidade", "Periculosidade")}
+                {renderBooleanField("acumulo_funcao", "Acumulo de funcao")}
+                {renderBooleanField("gratificacao", "Gratificacao")}
+                {renderBooleanField("assistencia_medica", "Assistencia medica")}
+                {renderBooleanField("cesta", "Cesta")}
+                {renderBooleanField("premio_assiduidade", "Premio assiduidade")}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -481,27 +690,30 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
             </div>
 
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="observacoes">Observações</Label>
+              <Label htmlFor="observacoes_especificas">Observacoes especificas do posto</Label>
               <Textarea
-                id="observacoes"
-                value={formData.observacoes}
-                onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                id="observacoes_especificas"
+                value={formData.observacoes_especificas}
+                onChange={(e) =>
+                  setFormData({ ...formData, observacoes_especificas: e.target.value })
+                }
                 rows={3}
+                placeholder="Instrucoes adicionais ou requisitos exclusivos deste posto"
               />
             </div>
 
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="beneficios">Beneficios</Label>
+              <Label htmlFor="outros_beneficios">Outros beneficios</Label>
               <div className="space-y-2">
-                {formData.beneficios.map((beneficio, index) => (
+                {formData.outros_beneficios.map((beneficio, index) => (
                   <div key={index} className="flex items-center gap-2">
                     <Input
                       value={beneficio}
                       onChange={(e) =>
                         setFormData((prev) => {
-                          const next = [...prev.beneficios];
+                          const next = [...prev.outros_beneficios];
                           next[index] = e.target.value;
-                          return { ...prev, beneficios: next };
+                          return { ...prev, outros_beneficios: next };
                         })
                       }
                       placeholder="Descreva o beneficio"
@@ -511,8 +723,8 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
                       variant="outline"
                       onClick={() =>
                         setFormData((prev) => {
-                          const next = prev.beneficios.filter((_, idx) => idx !== index);
-                          return { ...prev, beneficios: next };
+                          const next = prev.outros_beneficios.filter((_, idx) => idx !== index);
+                          return { ...prev, outros_beneficios: next };
                         })
                       }
                     >
@@ -526,7 +738,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
                   onClick={() =>
                     setFormData((prev) => ({
                       ...prev,
-                      beneficios: [...prev.beneficios, ""],
+                      outros_beneficios: [...prev.outros_beneficios, ""],
                     }))
                   }
                 >
@@ -552,6 +764,3 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
 };
 
 export default PostoForm;
-
-
-

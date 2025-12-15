@@ -78,6 +78,7 @@ interface Posto {
   jornada?: number | null;
   de?: string | null;
   ate?: string | null;
+  observacoes_especificas?: string | null;
 }
 
 const Contratos = () => {
@@ -754,5 +755,4 @@ const Contratos = () => {
 };
 
 export default Contratos;
-
 

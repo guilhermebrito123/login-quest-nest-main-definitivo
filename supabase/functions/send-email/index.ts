@@ -11,6 +11,7 @@ interface EmailRequest {
   subject: string;
   html: string;
   from?: string;
+  reply_to?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -20,7 +21,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, subject, html, from }: EmailRequest = await req.json();
+    const { to, subject, html, from, reply_to }: EmailRequest = await req.json();
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
     if (!RESEND_API_KEY) {
@@ -37,10 +38,11 @@ const handler = async (req: Request): Promise<Response> => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: from || "Facilities Hub <onboarding@resend.dev>",
+        from: from || "Facilities Hub <contato@deltafacilities.com.br>",
         to: [to],
         subject: subject,
         html: html,
+        reply_to: reply_to || "contato@deltafacilities.com.br",
       }),
     });
 

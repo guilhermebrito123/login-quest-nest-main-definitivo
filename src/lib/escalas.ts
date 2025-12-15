@@ -23,7 +23,7 @@ interface PostoEscalaInfo {
   jornada?: number | null;
   horario_inicio?: string | null;
   horario_fim?: string | null;
-  observacoes?: string | null;
+  observacoes_especificas?: string | null;
 }
 
 export const ensureEscalaModeloFromPosto = async (posto: PostoEscalaInfo) => {
@@ -70,7 +70,7 @@ export const ensureEscalaModeloFromPosto = async (posto: PostoEscalaInfo) => {
       horario_inicio: horarioInicio,
       horario_fim: horarioFim,
       descricao:
-        posto.observacoes?.slice(0, 250) ||
+        posto.observacoes_especificas?.slice(0, 250) ||
         `Gerada automaticamente a partir do posto ${posto.nome}`,
     });
   } catch (error) {
