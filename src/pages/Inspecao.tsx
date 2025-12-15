@@ -123,7 +123,7 @@ const Inspecao = () => {
         dia_inspecao,
         unidade:unidades ( nome ),
         posto:postos_servico ( nome ),
-        responsavel_profile:profiles ( full_name ),
+        responsavel_profile:usuarios ( full_name ),
         rel_checklists:inspecoes_checklists (
           checklist_id,
           checklist:checklist (
@@ -190,20 +190,20 @@ const Inspecao = () => {
       return;
     }
 
-    const { data: profilesData, error: profilesError } = await supabase
-      .from("profiles")
+    const { data: usuariosData, error: usuariosError } = await supabase
+      .from("usuarios")
       .select("id, full_name, email")
       .in("id", userIds);
 
-    if (profilesError) {
-      toast.error("Nao foi possivel carregar os perfis");
+    if (usuariosError) {
+      toast.error("Nao foi possivel carregar os usuarios");
       return;
     }
 
     setResponsaveis(
-      (profilesData ?? []).map((profile) => ({
-        id: profile.id,
-        nome: profile.full_name || profile.email || "Usuario sem nome",
+      (usuariosData ?? []).map((usuario) => ({
+        id: usuario.id,
+        nome: usuario.full_name || usuario.email || "Usuario sem nome",
       }))
     );
   }, []);

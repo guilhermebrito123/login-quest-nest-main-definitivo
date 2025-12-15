@@ -43,7 +43,7 @@ export default function Chamados() {
           *,
           unidade:unidades(nome),
           contrato:contratos(negocio, conq_perd),
-          responsavel:profiles(full_name)
+          responsavel:usuarios(full_name)
         `)
         .order("data_abertura", { ascending: false });
 
@@ -330,3 +330,4 @@ export default function Chamados() {
     </DashboardLayout>
   );
 }
+

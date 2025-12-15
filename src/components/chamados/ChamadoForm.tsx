@@ -181,7 +181,7 @@ export function ChamadoForm({ open, onOpenChange, chamado, onSuccess }: ChamadoF
         .from("chamados_anexos")
         .select(`
           *,
-          usuario:profiles(full_name)
+          usuario:usuarios(full_name)
         `)
         .eq("chamado_id", chamadoId)
         .order("created_at", { ascending: false });
@@ -893,3 +893,4 @@ const onSubmit = async (data: ChamadoFormValues) => {
     </Dialog>
   );
 }
+

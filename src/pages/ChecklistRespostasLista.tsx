@@ -18,7 +18,7 @@ type ExecucaoStatus = Database["public"]["Enums"]["status_execucao"];
 type RespostaExecucaoRow = Database["public"]["Tables"]["resposta_execucao_checklist"]["Row"];
 type ExecucaoRow = Database["public"]["Tables"]["execucao_checklist"]["Row"];
 type ChecklistSummary = Pick<Database["public"]["Tables"]["checklist"]["Row"], "id" | "nome">;
-type ProfileSummary = Pick<Database["public"]["Tables"]["profiles"]["Row"], "id" | "full_name">;
+type ProfileSummary = Pick<Database["public"]["Tables"]["usuarios"]["Row"], "id" | "full_name">;
 
 type RespostaWithRelations = RespostaExecucaoRow & {
   execucao?: (ExecucaoRow & {
@@ -79,7 +79,7 @@ const ChecklistRespostasLista = () => {
           data_prevista,
           finalizado_em,
           checklist:checklist ( id, nome ),
-          supervisor:profiles ( id, full_name )
+          supervisor:usuarios ( id, full_name )
         )
       `
       )
@@ -96,7 +96,7 @@ const ChecklistRespostasLista = () => {
   };
 
   const loadSupervisores = async () => {
-    const { data, error } = await supabase.from("profiles").select("id, full_name").order("full_name");
+    const { data, error } = await supabase.from("usuarios").select("id, full_name").order("full_name");
     if (error) throw error;
     setSupervisores((data as ProfileSummary[]) ?? []);
   };
@@ -256,3 +256,4 @@ const ChecklistRespostasLista = () => {
 };
 
 export default ChecklistRespostasLista;
+

@@ -49,6 +49,7 @@ import ChecklistRespostas from "./pages/ChecklistRespostas";
 import ChecklistRespostasLista from "./pages/ChecklistRespostasLista";
 import NotFound from "./pages/NotFound";
 import MinhaConta from "./pages/MinhaConta";
+import CandidatoCadastro from "./pages/CandidatoCadastro";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +68,7 @@ const App = () => (
           <Route path="/dashboard-24h" element={<ProtectedRoute><Dashboard24h /></ProtectedRoute>} />
           <Route path="/minha-conta" element={<ProtectedRoute><MinhaConta /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+          <Route path="/candidatos" element={<CandidatoCadastro />} />
           <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
           <Route path="/mesa-operacoes" element={<ProtectedRoute><MesaOperacoes /></ProtectedRoute>} />
           <Route path="/chamados" element={<ProtectedRoute><Chamados /></ProtectedRoute>} />

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -26,7 +26,7 @@ type ChecklistItemSummary = Pick<
   Database["public"]["Tables"]["checklist_item"]["Row"],
   "id" | "descricao" | "ordem"
 >;
-type ProfileSummary = Pick<Database["public"]["Tables"]["profiles"]["Row"], "id" | "full_name">;
+type ProfileSummary = Pick<Database["public"]["Tables"]["usuarios"]["Row"], "id" | "full_name">;
 
 type ExecucaoWithRelations = ExecucaoRow & {
   checklist?: ChecklistSummary | null;
@@ -54,7 +54,7 @@ interface ItemRespostaForm {
 
 const statusLabels: Record<ExecucaoStatus, string> = {
   ativo: "Ativo",
-  concluido: "ConcluÃ­do",
+  concluido: "Concluído",
   atrasado: "Atrasado",
   cancelado: "Cancelado",
 };
@@ -99,7 +99,7 @@ const ChecklistRespostas = () => {
           `
           *,
           checklist:checklist ( id, nome ),
-          supervisor:profiles ( id, full_name )
+          supervisor:usuarios ( id, full_name )
         `
         )
         .order("data_prevista", { ascending: false });
@@ -107,8 +107,8 @@ const ChecklistRespostas = () => {
       if (error) throw error;
       setExecucoes((data as ExecucaoWithRelations[]) ?? []);
     } catch (error) {
-      console.error("Erro ao carregar execuÃ§Ãµes:", error);
-      toast.error("NÃ£o foi possÃ­vel carregar as execuÃ§Ãµes.");
+      console.error("Erro ao carregar execuções:", error);
+      toast.error("Não foi possível carregar as execuções.");
     } finally {
       setLoading(false);
     }
@@ -175,8 +175,8 @@ const ChecklistRespostas = () => {
       if (respExecError) throw respExecError;
       setExecucaoResposta((respExec?.[0] as RespostaExecucaoRow) ?? null);
     } catch (error) {
-      console.error("Erro ao carregar detalhes da execuÃ§Ã£o:", error);
-      toast.error("NÃ£o foi possÃ­vel carregar os detalhes da execuÃ§Ã£o selecionada.");
+      console.error("Erro ao carregar detalhes da execução:", error);
+      toast.error("Não foi possível carregar os detalhes da execução selecionada.");
     } finally {
       setContextLoading(false);
     }
@@ -185,16 +185,16 @@ const ChecklistRespostas = () => {
   const handleExecucaoResponse = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedExecucaoId) {
-      toast.error("Selecione uma execução.");
+      toast.error("Selecione uma execu��o.");
       return;
     }
     if (!execucaoResponseForm.resposta) {
-      toast.error("Descreva a resposta da execução.");
+      toast.error("Descreva a resposta da execu��o.");
       return;
     }
 
     const execucaoSelecionada = execucoes.find((execucao) => execucao.id === selectedExecucaoId);
-    const execucaoNome = execucaoSelecionada?.checklist?.nome || execucaoSelecionada?.id || "execução selecionada";
+    const execucaoNome = execucaoSelecionada?.checklist?.nome || execucaoSelecionada?.id || "execu��o selecionada";
     if (!window.confirm(`Deseja registrar a resposta geral para "${execucaoNome}"?`)) {
       return;
     }
@@ -213,13 +213,13 @@ const ChecklistRespostas = () => {
       await loadExecucaoContext(selectedExecucaoId);
     } catch (error) {
       console.error("Erro ao registrar resposta:", error);
-      toast.error("Não foi possível registrar a resposta.");
+      toast.error("N�o foi poss�vel registrar a resposta.");
     }
   };
 
   const handleItemResponse = async (itemId: string) => {
     if (!selectedExecucaoId) {
-      toast.error("Selecione uma execução.");
+      toast.error("Selecione uma execu��o.");
       return;
     }
 
@@ -248,7 +248,7 @@ const ChecklistRespostas = () => {
       await loadExecucaoContext(selectedExecucaoId);
     } catch (error) {
       console.error("Erro ao responder item:", error);
-      toast.error("Não foi possível registrar a resposta do item.");
+      toast.error("N�o foi poss�vel registrar a resposta do item.");
     }
   };
 
@@ -290,7 +290,7 @@ const ChecklistRespostas = () => {
           <div>
             <h1 className="text-3xl font-bold">Respostas de checklist</h1>
             <p className="text-muted-foreground">
-              Registre respostas das execuções e acompanhe o progresso item a item.
+              Registre respostas das execu��es e acompanhe o progresso item a item.
             </p>
           </div>
           <div className="flex gap-2">
@@ -319,13 +319,13 @@ const ChecklistRespostas = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Selecione a execução</CardTitle>
-            <CardDescription>Escolha uma execução para responder e ver o progresso.</CardDescription>
+            <CardTitle>Selecione a execu��o</CardTitle>
+            <CardDescription>Escolha uma execu��o para responder e ver o progresso.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Select value={selectedExecucaoId} onValueChange={(value) => setSelectedExecucaoId(value)}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione a execução" />
+                <SelectValue placeholder="Selecione a execu��o" />
               </SelectTrigger>
               <SelectContent className="bg-popover">
                 {filteredExecucoes.map((execucao) => (
@@ -347,7 +347,7 @@ const ChecklistRespostas = () => {
                       <ClipboardList className="h-5 w-5" />
                       {selectedExecucao.checklist?.nome || "Checklist"}
                     </CardTitle>
-                    <CardDescription>Dados básicos da execução</CardDescription>
+                    <CardDescription>Dados b�sicos da execu��o</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -380,7 +380,7 @@ const ChecklistRespostas = () => {
                       <div className="rounded-md border bg-muted/30 p-3 space-y-1">
                         <div className="flex items-center gap-2">
                           <Badge variant={execucaoResposta.conforme ? "default" : "destructive"}>
-                            {execucaoResposta.conforme ? "Conforme" : "NÃ£o conforme"}
+                            {execucaoResposta.conforme ? "Conforme" : "Não conforme"}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
                             {execucaoResposta.registrado_em
@@ -399,8 +399,8 @@ const ChecklistRespostas = () => {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Resposta da execução</CardTitle>
-                    <CardDescription>Registro geral (opcional) da execução.</CardDescription>
+                    <CardTitle>Resposta da execu��o</CardTitle>
+                    <CardDescription>Registro geral (opcional) da execu��o.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <form className="space-y-3" onSubmit={handleExecucaoResponse}>
@@ -411,7 +411,7 @@ const ChecklistRespostas = () => {
                           onChange={(e) =>
                             setExecucaoResponseForm((prev) => ({ ...prev, resposta: e.target.value }))
                           }
-                          placeholder="Resumo da execução, observações gerais..."
+                          placeholder="Resumo da execu��o, observa��es gerais..."
                         />
                       </div>
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -428,13 +428,13 @@ const ChecklistRespostas = () => {
                             </SelectTrigger>
                             <SelectContent className="bg-popover">
                               <SelectItem value="true">Conforme</SelectItem>
-                              <SelectItem value="false">Não conforme</SelectItem>
+                              <SelectItem value="false">N�o conforme</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label>Observações</Label>
+                        <Label>Observa��es</Label>
                         <Textarea
                           value={execucaoResponseForm.observacoes}
                           onChange={(e) =>

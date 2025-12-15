@@ -70,6 +70,89 @@ export type Database = {
           },
         ]
       }
+      candidatos: {
+        Row: {
+          celular: string
+          cidade: string
+          created_at: string
+          curriculo_path: string
+          email: string
+          estado: string
+          experiencia_relevante: string[]
+          id: string
+          nome_completo: string
+          telefone: string
+          updated_at: string
+        }
+        Insert: {
+          celular: string
+          cidade: string
+          created_at?: string
+          curriculo_path: string
+          email: string
+          estado: string
+          experiencia_relevante: string[]
+          id?: string
+          nome_completo: string
+          telefone: string
+          updated_at?: string
+        }
+        Update: {
+          celular?: string
+          cidade?: string
+          created_at?: string
+          curriculo_path?: string
+          email?: string
+          estado?: string
+          experiencia_relevante?: string[]
+          id?: string
+          nome_completo?: string
+          telefone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      candidatos_anexos: {
+        Row: {
+          caminho_storage: string
+          candidato_id: string
+          created_at: string
+          id: string
+          nome_arquivo: string
+          tamanho_bytes: number | null
+          tipo_arquivo: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          caminho_storage: string
+          candidato_id: string
+          created_at?: string
+          id?: string
+          nome_arquivo: string
+          tamanho_bytes?: number | null
+          tipo_arquivo?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          caminho_storage?: string
+          candidato_id?: string
+          created_at?: string
+          id?: string
+          nome_arquivo?: string
+          tamanho_bytes?: number | null
+          tipo_arquivo?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidatos_anexos_candidato_id_fkey"
+            columns: ["candidato_id"]
+            isOneToOne: false
+            referencedRelation: "candidatos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chamados: {
         Row: {
           atribuido_para_id: string | null
@@ -151,7 +234,7 @@ export type Database = {
             foreignKeyName: "chamados_atribuido_para_id_fkey"
             columns: ["atribuido_para_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
@@ -227,7 +310,7 @@ export type Database = {
             foreignKeyName: "chamados_anexos_usuario_id_fkey"
             columns: ["usuario_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -269,7 +352,7 @@ export type Database = {
             foreignKeyName: "chamados_comentarios_usuario_id_fkey"
             columns: ["usuario_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -743,21 +826,21 @@ export type Database = {
             foreignKeyName: "diarias_temporarias_aprovada_por_fkey"
             columns: ["aprovada_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "diarias_temporarias_aprovado_para_pgto_por_fkey"
             columns: ["aprovado_para_pgto_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "diarias_temporarias_cancelada_por_fkey"
             columns: ["cancelada_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
@@ -785,14 +868,14 @@ export type Database = {
             foreignKeyName: "diarias_temporarias_confirmada_por_fkey"
             columns: ["confirmada_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "diarias_temporarias_criado_por_fkey"
             columns: ["criado_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
@@ -806,14 +889,14 @@ export type Database = {
             foreignKeyName: "diarias_temporarias_lancada_por_fkey"
             columns: ["lancada_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "diarias_temporarias_paga_por_fkey"
             columns: ["paga_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
@@ -827,7 +910,7 @@ export type Database = {
             foreignKeyName: "diarias_temporarias_reprovada_por_fkey"
             columns: ["reprovada_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -1091,7 +1174,7 @@ export type Database = {
             foreignKeyName: "execucao_checklist_supervisor_id_fkey"
             columns: ["supervisor_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
@@ -1175,7 +1258,7 @@ export type Database = {
             foreignKeyName: "execucao_checklist_item_supervisor_id_fkey"
             columns: ["supervisor_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
@@ -1327,6 +1410,41 @@ export type Database = {
             columns: ["posto_servico_id"]
             isOneToOne: false
             referencedRelation: "postos_servico"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_profiles: {
+        Row: {
+          cargo: string | null
+          created_at: string
+          departamento: string | null
+          nivel_acesso: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cargo?: string | null
+          created_at?: string
+          departamento?: string | null
+          nivel_acesso?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cargo?: string | null
+          created_at?: string
+          departamento?: string | null
+          nivel_acesso?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -1484,14 +1602,14 @@ export type Database = {
             foreignKeyName: "ordens_servico_responsavel_id_fkey"
             columns: ["responsavel_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "ordens_servico_solicitante_id_fkey"
             columns: ["solicitante_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
@@ -1618,7 +1736,7 @@ export type Database = {
             foreignKeyName: "password_reset_tokens_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -1933,47 +2051,6 @@ export type Database = {
           },
         ]
       }
-      profiles: {
-        Row: {
-          created_at: string
-          email: string
-          full_name: string | null
-          id: string
-          phone: string | null
-          role: Database["public"]["Enums"]["app_role"]
-          superior: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          full_name?: string | null
-          id: string
-          phone?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
-          superior?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          full_name?: string | null
-          id?: string
-          phone?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
-          superior?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_superior_fkey"
-            columns: ["superior"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       recursos_materiais: {
         Row: {
           created_at: string | null
@@ -2170,6 +2247,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      usuarios: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          phone: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          superior: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          superior?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          superior?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_superior_fkey"
+            columns: ["superior"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

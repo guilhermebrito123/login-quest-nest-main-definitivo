@@ -1,0 +1,16 @@
+*** Begin Patch
+*** Update File: src/pages/Diarias2.tsx
+@@
+ const MOTIVO_VAGO_OPTIONS = [
+   MOTIVO_VAGO_VAGA_EM_ABERTO,
+   "LICENÇÎA MATERNIDADE",
+   "LICENÇÎA PATERNIDADE",
+   "LICENÇÎA CASAMENTO",
+   MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO,
+   "AFASTAMENTO INSS",
+   "FÇ%RIAS",
+-  "SUSPENSÇŸO",
++  "SUSPENSÇŸO",
++  "FALTA INJUSTIFICADA",
+ ];
+*** End Patch
