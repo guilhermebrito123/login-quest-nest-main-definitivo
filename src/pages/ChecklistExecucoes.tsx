@@ -20,7 +20,7 @@ type ExecucaoInsert = Database["public"]["Tables"]["execucao_checklist"]["Insert
 type ExecucaoStatus = Database["public"]["Enums"]["status_execucao"];
 type ChecklistSummary = Pick<Database["public"]["Tables"]["checklist"]["Row"], "id" | "nome" | "periodicidade">;
 type ChecklistItem = Pick<Database["public"]["Tables"]["checklist_item"]["Row"], "id" | "checklist_id">;
-type ProfileSummary = Pick<Database["public"]["Tables"]["profiles"]["Row"], "id" | "full_name">;
+type ProfileSummary = Pick<Database["public"]["Tables"]["usuarios"]["Row"], "id" | "full_name">;
 type ContratoSummary = Pick<Database["public"]["Tables"]["contratos"]["Row"], "id" | "negocio" | "conq_perd">;
 type UnidadeSummary = Pick<Database["public"]["Tables"]["unidades"]["Row"], "id" | "nome" | "contrato_id">;
 
@@ -116,7 +116,7 @@ const ChecklistExecucoes = () => {
   const loadSupervisores = async () => {
     const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "supervisor");
 
-    let supervisorQuery = supabase.from("profiles").select("id, full_name");
+    let supervisorQuery = supabase.from("usuarios").select("id, full_name");
     if (roles && roles.length > 0) {
       supervisorQuery = supervisorQuery.in(
         "id",
@@ -145,7 +145,7 @@ const ChecklistExecucoes = () => {
         created_at,
         updated_at,
           checklist:checklist ( id, nome, periodicidade ),
-          supervisor:profiles ( id, full_name ),
+          supervisor:usuarios ( id, full_name ),
           contrato:contratos ( id, negocio, conq_perd ),
           unidade:unidades ( id, nome, contrato_id )
         `

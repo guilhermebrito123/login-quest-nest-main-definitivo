@@ -72,17 +72,17 @@ const handleAbrirAnexo = async (anexo: ChamadoAnexo) => {
       throw error || new Error("Nenhum dado retornado do Storage");
     }
 
-    // data j√° √© um Blob no browser
+    // data j· È um Blob no browser
     const blob = data as Blob;
     const url = URL.createObjectURL(blob);
 
     // Se for imagem ou PDF, abre em nova aba
     if (anexo.tipo_arquivo?.startsWith("image/") || anexo.tipo_arquivo === "application/pdf") {
       window.open(url, "_blank");
-      // revoga depois de um tempo para n√£o vazar mem√≥ria
+      // revoga depois de um tempo para n„o vazar memÛria
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } else {
-      // Para outros tipos, for√ßa download
+      // Para outros tipos, forÁa download
       const link = document.createElement("a");
       link.href = url;
       link.download = anexo.nome_arquivo;
@@ -95,7 +95,7 @@ const handleAbrirAnexo = async (anexo: ChamadoAnexo) => {
     console.error("Erro ao abrir/baixar anexo:", err);
     toast({
       title: "Erro ao abrir anexo",
-      description: "N√£o foi poss√≠vel abrir o arquivo. Tente novamente.",
+      description: "N„o foi possÌvel abrir o arquivo. Tente novamente.",
       variant: "destructive",
     });
   }
@@ -111,7 +111,7 @@ const handleAbrirAnexo = async (anexo: ChamadoAnexo) => {
         .from("chamados_comentarios")
         .select(`
           *,
-          usuario:profiles(full_name)
+          usuario:usuarios(full_name)
         `)
         .eq("chamado_id", chamado.id)
         .order("created_at", { ascending: true });
@@ -124,7 +124,7 @@ const handleAbrirAnexo = async (anexo: ChamadoAnexo) => {
 const adicionarComentario = useMutation({
   mutationFn: async (comentario: string) => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Usu√°rio n√£o autenticado");
+    if (!user) throw new Error("Usu·rio n„o autenticado");
 
     const { data, error } = await supabase
       .from("chamados_comentarios")
@@ -135,7 +135,7 @@ const adicionarComentario = useMutation({
       }])
       .select(`
         *,
-        usuario:profiles(full_name)
+        usuario:usuarios(full_name)
       `)
       .single();
 
@@ -148,11 +148,11 @@ const adicionarComentario = useMutation({
       return [...lista, novoComentarioInserido];
     });
     setNovoComentario("");
-    toast({ title: "Coment√°rio adicionado com sucesso!" });
+    toast({ title: "Coment·rio adicionado com sucesso!" });
   },
     onError: (error: any) => {
       toast({
-        title: "Erro ao adicionar coment√°rio",
+        title: "Erro ao adicionar coment·rio",
         description: error.message,
         variant: "destructive",
       });
@@ -169,7 +169,7 @@ const adicionarComentario = useMutation({
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: "Avalia√ß√£o registrada com sucesso!" });
+      toast({ title: "AvaliaÁ„o registrada com sucesso!" });
     },
     onError: (error: any) => {
       toast({
@@ -182,7 +182,7 @@ const adicionarComentario = useMutation({
 
   const atribuirParaMim = useMutation({
     mutationFn: async () => {
-      if (!currentUserId) throw new Error("Usu√°rio n√£o autenticado");
+      if (!currentUserId) throw new Error("Usu·rio n„o autenticado");
       
       const { error } = await supabase
         .from("chamados")
@@ -193,7 +193,7 @@ const adicionarComentario = useMutation({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chamados"] });
-      toast({ title: "Voc√™ foi atribu√≠do ao chamado com sucesso!" });
+      toast({ title: "VocÍ foi atribuÌdo ao chamado com sucesso!" });
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -219,7 +219,7 @@ const adicionarComentario = useMutation({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chamados"] });
-      toast({ title: "Chamado conclu√≠do com sucesso!" });
+      toast({ title: "Chamado concluÌdo com sucesso!" });
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -246,7 +246,7 @@ const adicionarComentario = useMutation({
         .select(
           `
           *,
-          usuario:profiles(full_name)
+          usuario:usuarios(full_name)
         `,
         )
         .single();
@@ -261,11 +261,11 @@ const adicionarComentario = useMutation({
       });
       setEditingComentarioId(null);
       setEditingComentarioTexto("");
-      toast({ title: "Coment√°rio atualizado com sucesso!" });
+      toast({ title: "Coment·rio atualizado com sucesso!" });
     },
     onError: (error: any) => {
       toast({
-        title: "Erro ao atualizar coment√°rio",
+        title: "Erro ao atualizar coment·rio",
         description: error.message,
         variant: "destructive",
       });
@@ -283,11 +283,11 @@ const adicionarComentario = useMutation({
         const lista = oldComentarios || [];
         return lista.filter((item) => item.id !== deletedId);
       });
-      toast({ title: "Coment√°rio removido com sucesso!" });
+      toast({ title: "Coment·rio removido com sucesso!" });
     },
     onError: (error: any) => {
       toast({
-        title: "Erro ao remover coment√°rio",
+        title: "Erro ao remover coment·rio",
         description: error.message,
         variant: "destructive",
       });
@@ -298,13 +298,13 @@ const adicionarComentario = useMutation({
   const handleSalvarComentario = (comentarioId: string) => {
     if (!editingComentarioTexto.trim()) {
       toast({
-        title: "Coment√°rio vazio",
-        description: "Escreva algo antes de salvar a edi√ß√£o.",
+        title: "Coment·rio vazio",
+        description: "Escreva algo antes de salvar a ediÁ„o.",
         variant: "destructive",
       });
       return;
     }
-    if (!confirm("Tem certeza que deseja atualizar este coment√°rio?")) return;
+    if (!confirm("Tem certeza que deseja atualizar este coment·rio?")) return;
     editarComentario.mutate({ id: comentarioId, comentario: editingComentarioTexto.trim() });
   };
 
@@ -319,7 +319,7 @@ const adicionarComentario = useMutation({
   };
 
   const handleDeletarComentario = (comentarioId: string) => {
-    if (!confirm("Tem certeza que deseja excluir este coment√°rio?")) return;
+    if (!confirm("Tem certeza que deseja excluir este coment·rio?")) return;
     setDeletingComentarioId(comentarioId);
     deletarComentario.mutate(comentarioId);
   };
@@ -352,7 +352,7 @@ const adicionarComentario = useMutation({
               )}
               {chamado.comentario_avaliacao && (
                 <p className="text-sm text-muted-foreground mt-1">
-                  ComentÔøΩrio: {chamado.comentario_avaliacao}
+                  Coment?rio: {chamado.comentario_avaliacao}
                 </p>
               )}
               {chamado.atribuido_para_id === currentUserId && chamado.status !== "concluido" && (
@@ -397,7 +397,7 @@ const adicionarComentario = useMutation({
             </div>
           </div>
           <DialogDescription>
-            Consulte dados completos, anexos e coment√°rios antes de atualizar o chamado.
+            Consulte dados completos, anexos e coment·rios antes de atualizar o chamado.
           </DialogDescription>
         </DialogHeader>
 
@@ -453,7 +453,7 @@ const adicionarComentario = useMutation({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Card className="p-4 space-y-2">
-              <h3 className="font-semibold">Informa√ß√µes</h3>
+              <h3 className="font-semibold">InformaÁıes</h3>
               <div className="text-sm space-y-1">
                 <div><span className="font-medium">Tipo:</span> {chamado.tipo}</div>
                 {chamado.categoria && (
@@ -474,14 +474,14 @@ const adicionarComentario = useMutation({
                 )}
                 {chamado.comentario_avaliacao && (
                   <div>
-                    <span className="font-medium">Coment√°rio NPS:</span> {chamado.comentario_avaliacao}
+                    <span className="font-medium">Coment·rio NPS:</span> {chamado.comentario_avaliacao}
                   </div>
                 )}
               </div>
             </Card>
 
             <Card className="p-4 space-y-2">
-              <h3 className="font-semibold">Localiza√ß√£o</h3>
+              <h3 className="font-semibold">LocalizaÁ„o</h3>
               <div className="text-sm space-y-1">
                 {chamado.contrato && (
                   <div>
@@ -505,10 +505,10 @@ const adicionarComentario = useMutation({
                   <div><span className="font-medium">Solicitante:</span> {chamado.solicitante.nome_completo}</div>
                 )}
                 {chamado.atribuido && (
-                  <div><span className="font-medium">Atribu√≠do:</span> {chamado.atribuido.nome_completo}</div>
+                  <div><span className="font-medium">AtribuÌdo:</span> {chamado.atribuido.nome_completo}</div>
                 )}
                 {chamado.responsavel && (
-                  <div><span className="font-medium">Respons√°vel:</span> {chamado.responsavel.full_name || chamado.responsavel.nome_completo}</div>
+                  <div><span className="font-medium">Respons·vel:</span> {chamado.responsavel.full_name || chamado.responsavel.nome_completo}</div>
                 )}
               </div>
             </Card>
@@ -522,7 +522,7 @@ const adicionarComentario = useMutation({
                 </div>
                 {chamado.data_conclusao && (
                   <div>
-                    <span className="font-medium">Conclus√£o:</span>{" "}
+                    <span className="font-medium">Conclus„o:</span>{" "}
                     {format(new Date(chamado.data_conclusao), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                   </div>
                 )}
@@ -550,12 +550,12 @@ const adicionarComentario = useMutation({
               </div>
               {avaliacao && (
                 <p className="text-sm text-muted-foreground mt-2">
-                  Avalia√ß√£o: {avaliacao}/5
+                  AvaliaÁ„o: {avaliacao}/5
                 </p>
               )}
               {chamado.comentario_avaliacao && (
                 <p className="text-sm text-muted-foreground mt-1">
-                  ComentÔøΩrio: {chamado.comentario_avaliacao}
+                  Coment?rio: {chamado.comentario_avaliacao}
                 </p>
               )}
             </Card>
@@ -566,7 +566,7 @@ const adicionarComentario = useMutation({
           <div>
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
-              Coment√°rios ({comentarios?.length || 0})
+              Coment·rios ({comentarios?.length || 0})
             </h3>
 
             <div className="space-y-3 mb-4">
@@ -585,7 +585,7 @@ const adicionarComentario = useMutation({
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium">
-                                {comentario.usuario?.full_name || "Usu·rio"}
+                                {comentario.usuario?.full_name || "Usu?rio"}
                               </span>
                               <span className="text-xs text-muted-foreground">
                                 {format(new Date(comentario.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
@@ -600,7 +600,7 @@ const adicionarComentario = useMutation({
                                   disabled={deletingComentarioId === comentario.id}
                                 >
                                   <Edit2 className="h-4 w-4" />
-                                  <span className="sr-only">Editar coment·rio</span>
+                                  <span className="sr-only">Editar coment?rio</span>
                                 </Button>
                                 <Button
                                   size="icon"
@@ -610,7 +610,7 @@ const adicionarComentario = useMutation({
                                   disabled={deletingComentarioId === comentario.id || editarComentario.isPending}
                                 >
                                   <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Excluir coment·rio</span>
+                                  <span className="sr-only">Excluir coment?rio</span>
                                 </Button>
                               </div>
                             )}
@@ -649,14 +649,14 @@ const adicionarComentario = useMutation({
                   );
                 })
               ) : (
-                <p className="text-sm text-muted-foreground">Nenhum coment·rio ainda</p>
+                <p className="text-sm text-muted-foreground">Nenhum coment?rio ainda</p>
               )}
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
               <Textarea
                 className="w-full"
-                placeholder="Adicione um coment√°rio..."
+                placeholder="Adicione um coment·rio..."
                 value={novoComentario}
                 onChange={(e) => setNovoComentario(e.target.value)}
                 rows={2}
@@ -674,6 +674,8 @@ const adicionarComentario = useMutation({
     </Dialog>
   );
 }
+
+
 
 
 

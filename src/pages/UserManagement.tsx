@@ -29,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Building2, Search, Shield, UserCog, Trash2 } from "lucide-react";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
-type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+type ProfileRow = Database["public"]["Tables"]["usuarios"]["Row"];
 
 interface UserWithRole extends ProfileRow {
   role: AppRole;
@@ -98,7 +98,7 @@ const UserManagement = () => {
       }
 
       const { data: roleData, error: roleError } = await supabase
-        .from("profiles")
+        .from("usuarios")
         .select("role")
         .eq("id", user.id)
         .maybeSingle();
@@ -132,7 +132,7 @@ const UserManagement = () => {
   const loadUsers = async () => {
     try {
       const { data, error } = await supabase
-        .from("profiles")
+        .from("usuarios")
         .select(`
           id,
           email,
@@ -201,7 +201,7 @@ const UserManagement = () => {
     setUpdatingRoleId(userId);
     try {
       const { error } = await supabase
-        .from("profiles")
+        .from("usuarios")
         .update({ role: newRole })
         .eq("id", userId);
 
@@ -239,7 +239,7 @@ const UserManagement = () => {
     setUpdatingSuperiorId(userId);
     try {
       const { error } = await supabase
-        .from("profiles")
+        .from("usuarios")
         .update({ superior: superiorId || null })
         .eq("id", userId);
 
@@ -272,7 +272,7 @@ const UserManagement = () => {
   const handleDeleteUser = async (userId: string) => {
     setDeletingId(userId);
     try {
-      const { error } = await supabase.from("profiles").delete().eq("id", userId);
+      const { error } = await supabase.from("usuarios").delete().eq("id", userId);
       if (error) throw error;
 
       setUsers((prev) => prev.filter((user) => user.id !== userId));

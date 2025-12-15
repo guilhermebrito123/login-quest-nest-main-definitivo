@@ -28,6 +28,7 @@ const MOTIVO_VAGO_OPTIONS = [
   "AFASTAMENTO INSS",
   "FÉRIAS",
   "SUSPENSÃO",
+  "FALTA INJUSTIFICADA",
 ];
 const toUpperOrNull = (value: string | null | undefined) => {
   const trimmed = (value ?? "").trim();

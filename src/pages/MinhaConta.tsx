@@ -34,7 +34,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, ShieldOff, Trash2, UserCog } from "lucide-react";
 
-type Profile = Tables<"profiles">;
+type Profile = Tables<"usuarios">;
 
 export default function MinhaConta() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -73,7 +73,7 @@ export default function MinhaConta() {
       setAuthEmail(user.email || "");
 
       const { data, error: profileError } = await supabase
-        .from("profiles")
+        .from("usuarios")
         .select("*")
         .eq("id", user.id)
         .single();
@@ -121,7 +121,7 @@ export default function MinhaConta() {
       }
 
       const { error } = await supabase
-        .from("profiles")
+        .from("usuarios")
         .update(updates)
         .eq("id", userId);
 
@@ -213,7 +213,7 @@ export default function MinhaConta() {
           <CardHeader>
             <CardTitle>Dados do perfil</CardTitle>
             <CardDescription>
-              Informacoes carregadas da tabela de profiles do usuario logado.
+              Informacoes carregadas da tabela de usuarios do usuario logado.
             </CardDescription>
           </CardHeader>
           <CardContent>

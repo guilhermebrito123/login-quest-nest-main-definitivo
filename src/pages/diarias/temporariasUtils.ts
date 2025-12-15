@@ -174,7 +174,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     },
   });
 
-  const profileIdsFromDiarias = useMemo(() => {
+  const usuarioIdsFromDiarias = useMemo(() => {
     const set = new Set<string>();
     diarias.forEach((diaria) => {
       [
@@ -193,26 +193,26 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     return Array.from(set).sort();
   }, [diarias]);
 
-  const { data: profiles = [] } = useQuery({
-    queryKey: ["profiles-temporarias", profileIdsFromDiarias],
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ["usuarios-temporarias", usuarioIdsFromDiarias],
     queryFn: async () => {
-      if (profileIdsFromDiarias.length === 0) return [];
+      if (usuarioIdsFromDiarias.length === 0) return [];
       // Try RPC first (security definer bypasses restrictive RLS). Fallback to direct select.
       const rpcResult = await supabase.rpc("get_profiles_names", {
-        p_ids: profileIdsFromDiarias,
+        p_ids: usuarioIdsFromDiarias,
       });
       if (!rpcResult.error && rpcResult.data) {
         return rpcResult.data;
       }
 
       const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", profileIdsFromDiarias);
+        .from("usuarios")
+        .select("id, full_name, email")
+        .in("id", usuarioIdsFromDiarias);
       if (error) throw error;
       return data || [];
     },
-    enabled: profileIdsFromDiarias.length > 0,
+    enabled: usuarioIdsFromDiarias.length > 0,
   });
 
   const monthRange = useMemo(() => {
@@ -263,15 +263,15 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     return map;
   }, [clientes]);
 
-  const profileMap = useMemo(() => {
+  const usuarioMap = useMemo(() => {
     const map = new Map<string, string>();
-    profiles.forEach((profile: any) => {
-      if (profile.id) {
-        map.set(profile.id, profile.full_name || "");
+    usuarios.forEach((usuario: any) => {
+      if (usuario.id) {
+        map.set(usuario.id, usuario.full_name || usuario.email || usuario.nome || "");
       }
     });
     return map;
-  }, [profiles]);
+  }, [usuarios]);
 
   return {
     clientes,
@@ -283,7 +283,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     filteredDiarias,
     postoMap,
     clienteMap,
-    profileMap,
+    usuarioMap,
     refetchDiarias,
     loadingDiarias,
   };

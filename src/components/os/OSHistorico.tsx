@@ -23,7 +23,7 @@ export function OSHistorico({ osId }: OSHistoricoProps) {
       const historicoWithUsuario = await Promise.all(
         (data || []).map(async (item) => {
           const { data: profile } = await supabase
-            .from("profiles")
+            .from("usuarios")
             .select("full_name")
             .eq("id", item.usuario_id)
             .single();
@@ -139,3 +139,4 @@ export function OSHistorico({ osId }: OSHistoricoProps) {
     </div>
   );
 }
+

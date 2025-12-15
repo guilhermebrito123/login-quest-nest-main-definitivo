@@ -29,8 +29,8 @@ export default function OrdensServico() {
         .select(`
           *,
           unidade:unidades(nome),
-          solicitante:profiles!ordens_servico_solicitante_id_fkey(full_name),
-          responsavel:profiles!ordens_servico_responsavel_id_fkey(full_name)
+          solicitante:usuarios!ordens_servico_solicitante_id_fkey(full_name),
+          responsavel:usuarios!ordens_servico_responsavel_id_fkey(full_name)
         `)
         .order("created_at", { ascending: false });
 
@@ -286,3 +286,4 @@ export default function OrdensServico() {
     </DashboardLayout>
   );
 }
+

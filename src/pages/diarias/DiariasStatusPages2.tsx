@@ -124,7 +124,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       colaboradoresMap,
       postoMap,
       clienteMap,
-      profileMap,
+      usuarioMap,
     } = useDiariasTemporariasData(selectedMonth);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [customStatusSelection, setCustomStatusSelection] = useState<Record<string, string>>({});
@@ -244,9 +244,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
     };
 
-    const getProfileName = (id?: string | null) => {
+    const getUsuarioNome = (id?: string | null) => {
       if (!id) return "-";
-      return profileMap.get(id) || "-";
+      return usuarioMap.get(id) || "-";
     };
 
     const uppercaseRows = (rows: Record<string, any>[]) =>
@@ -370,14 +370,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const map = new Map<string, string>();
       diariasDoStatusFull.forEach((diaria) => {
         if (diaria.criado_por) {
-          const nome = profileMap.get(diaria.criado_por) || "";
+          const nome = usuarioMap.get(diaria.criado_por) || "";
           map.set(diaria.criado_por, nome);
         }
       });
       return Array.from(map.entries())
         .map(([id, nome]) => ({ id, nome: nome || "(sem nome)" }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
-    }, [diariasDoStatusFull, profileMap]);
+    }, [diariasDoStatusFull, usuarioMap]);
 
     const responsavelStatusOptions = useMemo(() => {
       if (!statusResponsavelField) return [];
@@ -385,14 +385,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       diariasDoStatusFull.forEach((diaria) => {
         const responsavelId = (diaria as any)[statusResponsavelField] as string | null | undefined;
         if (responsavelId) {
-          const nome = profileMap.get(responsavelId) || "";
+          const nome = usuarioMap.get(responsavelId) || "";
           map.set(responsavelId, nome);
         }
       });
       return Array.from(map.entries())
         .map(([id, nome]) => ({ id, nome: nome || "(sem nome)" }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
-    }, [diariasDoStatusFull, profileMap, statusResponsavelField]);
+    }, [diariasDoStatusFull, usuarioMap, statusResponsavelField]);
 
     const clienteFilterOptions = useMemo(() => {
       const map = new Map<string, string>();
@@ -469,14 +469,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         diaria.colaborador ||
         (diaria.colaborador_ausente ? colaboradoresMap.get(diaria.colaborador_ausente) : null);
       const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
-      const criadoPorNome = getProfileName(diaria.criado_por);
+      const criadoPorNome = getUsuarioNome(diaria.criado_por);
       const { id: responsavelStatusId } = getStatusResponsavel(diaria);
-      const responsavelStatusNome = responsavelStatusId ? getProfileName(responsavelStatusId) : "";
-      const confirmadaPorNome = getProfileName(diaria.confirmada_por);
-      const aprovadaPorNome = getProfileName(diaria.aprovada_por);
-      const lancadaPorNome = getProfileName(diaria.lancada_por);
-      const aprovadaParaPgtoPorNome = getProfileName(diaria.aprovado_para_pgto_por);
-      const pagaPorNome = getProfileName(diaria.paga_por);
+      const responsavelStatusNome = responsavelStatusId ? getUsuarioNome(responsavelStatusId) : "";
+      const confirmadaPorNome = getUsuarioNome(diaria.confirmada_por);
+      const aprovadaPorNome = getUsuarioNome(diaria.aprovada_por);
+      const lancadaPorNome = getUsuarioNome(diaria.lancada_por);
+      const aprovadaParaPgtoPorNome = getUsuarioNome(diaria.aprovado_para_pgto_por);
+      const pagaPorNome = getUsuarioNome(diaria.paga_por);
       const colaboradorNome = diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
       const colaboradorFalecido = diaria.colaborador_falecido?.trim() || "";
       const colaboradorDemitidoNome = diaria.colaborador_demitido_nome || "";
@@ -1027,14 +1027,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const motivoLicencaNojoSelecionado = isLicencaNojo(selectedDiaria?.motivo_vago);
     const selectedLicencaNojoFlag = selectedDiaria?.licenca_nojo === true;
     const selectedNovoPostoFlag = selectedDiaria?.novo_posto === true;
-    const criadoPorNome = getProfileName(selectedDiaria?.criado_por);
-    const confirmadaPorNome = getProfileName(selectedDiaria?.confirmada_por);
-    const aprovadaPorNome = getProfileName(selectedDiaria?.aprovada_por);
-    const lancadaPorNome = getProfileName(selectedDiaria?.lancada_por);
-    const aprovadaParaPgtoPorNome = getProfileName(selectedDiaria?.aprovado_para_pgto_por);
-    const pagaPorNome = getProfileName(selectedDiaria?.paga_por);
+    const criadoPorNome = getUsuarioNome(selectedDiaria?.criado_por);
+    const confirmadaPorNome = getUsuarioNome(selectedDiaria?.confirmada_por);
+    const aprovadaPorNome = getUsuarioNome(selectedDiaria?.aprovada_por);
+    const lancadaPorNome = getUsuarioNome(selectedDiaria?.lancada_por);
+    const aprovadaParaPgtoPorNome = getUsuarioNome(selectedDiaria?.aprovado_para_pgto_por);
+    const pagaPorNome = getUsuarioNome(selectedDiaria?.paga_por);
     const statusResponsavelInfo = selectedDiaria ? getStatusResponsavel(selectedDiaria) : { id: null, label: "" };
-    const statusResponsavelNome = statusResponsavelInfo.id ? getProfileName(statusResponsavelInfo.id) : "";
+    const statusResponsavelNome = statusResponsavelInfo.id ? getUsuarioNome(statusResponsavelInfo.id) : "";
 
     const showReasonColumn =
       normalizedKey === normalizedCancelStatus || normalizedKey === normalizedReprovadaStatus;

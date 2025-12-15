@@ -437,7 +437,7 @@ export default function Dashboard24h() {
           status,
           finalizado_em,
           checklist:checklist ( nome ),
-          supervisor:profiles ( full_name )
+          supervisor:usuarios ( full_name )
         `
         )
         .order("data_prevista", { ascending: false })

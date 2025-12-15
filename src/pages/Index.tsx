@@ -98,6 +98,14 @@ const Index = () => {
             >
               Criar Conta
             </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              onClick={() => navigate("/candidatos")}
+              className="text-lg px-8 shadow hover:shadow-md transition-shadow"
+            >
+              Deixe aqui seu curriculo
+            </Button>
           </div>
         </div>
 
