@@ -21,6 +21,7 @@ interface UserWithRole {
   email: string;
   full_name: string | null;
   phone: string | null;
+  superior?: string | null;
   role: string;
 }
 
@@ -85,6 +86,7 @@ const UserManagement = () => {
           email,
           full_name,
           phone,
+          superior,
           user_roles (role)
         `);
 
@@ -95,6 +97,7 @@ const UserManagement = () => {
         email: user.email,
         full_name: user.full_name,
         phone: user.phone,
+        superior: user.superior ?? null,
         role: user.user_roles?.[0]?.role || "tecnico",
       })) || [];
 

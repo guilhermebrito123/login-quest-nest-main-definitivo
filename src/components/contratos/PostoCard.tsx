@@ -41,6 +41,7 @@ interface PostoCardProps {
     dias_semana?: number[] | null;
     primeiro_dia_atividade?: string | null;
     ultimo_dia_atividade?: string | null;
+    observacoes_especificas?: string | null;
   };
   unidade?: {
     nome: string;
@@ -756,6 +757,11 @@ const calcularDiasJornada = async () => {
               <span>{posto.horario_inicio} - {posto.horario_fim}</span>
             </div>
           )}
+          {posto.observacoes_especificas && (
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+              Obs. especificas: {posto.observacoes_especificas}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 mt-4">
@@ -840,8 +846,6 @@ const calcularDiasJornada = async () => {
 };
 
 export default PostoCard;
-
-
 
 
 

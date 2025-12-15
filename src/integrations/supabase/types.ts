@@ -1708,64 +1708,106 @@ export type Database = {
       }
       postos_servico: {
         Row: {
-          beneficios: string[] | null
+          acumulo_funcao: boolean | null
+          adicional_noturno: boolean | null
+          assistencia_medica: boolean | null
+          cesta: boolean | null
           created_at: string | null
           dias_semana: number[] | null
           escala: string | null
           funcao: string
+          gratificacao: boolean | null
           horario_fim: string | null
           horario_inicio: string | null
           id: string
+          insalubridade: boolean | null
           intervalo_refeicao: number | null
+          intrajornada: boolean | null
           jornada: number | null
           nome: string
-          observacoes: string | null
+          observacoes_especificas: string | null
+          outros_beneficios: string[] | null
+          periculosidade: boolean | null
+          premio_assiduidade: boolean | null
           primeiro_dia_atividade: string | null
+          salario: number | null
           status: Database["public"]["Enums"]["status_posto"] | null
+          turno: Database["public"]["Enums"]["turno_opcoes"] | null
           ultimo_dia_atividade: string | null
           unidade_id: string | null
           updated_at: string | null
           valor_diaria: number
+          valor_unitario: number | null
+          vr_dia: number | null
+          vt_dia: number | null
         }
         Insert: {
-          beneficios?: string[] | null
+          acumulo_funcao?: boolean | null
+          adicional_noturno?: boolean | null
+          assistencia_medica?: boolean | null
+          cesta?: boolean | null
           created_at?: string | null
           dias_semana?: number[] | null
           escala?: string | null
           funcao: string
+          gratificacao?: boolean | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          insalubridade?: boolean | null
           intervalo_refeicao?: number | null
+          intrajornada?: boolean | null
           jornada?: number | null
           nome: string
-          observacoes?: string | null
+          observacoes_especificas?: string | null
+          outros_beneficios?: string[] | null
+          periculosidade?: boolean | null
+          premio_assiduidade?: boolean | null
           primeiro_dia_atividade?: string | null
+          salario?: number | null
           status?: Database["public"]["Enums"]["status_posto"] | null
+          turno?: Database["public"]["Enums"]["turno_opcoes"] | null
           ultimo_dia_atividade?: string | null
           unidade_id?: string | null
           updated_at?: string | null
           valor_diaria?: number
+          valor_unitario?: number | null
+          vr_dia?: number | null
+          vt_dia?: number | null
         }
         Update: {
-          beneficios?: string[] | null
+          acumulo_funcao?: boolean | null
+          adicional_noturno?: boolean | null
+          assistencia_medica?: boolean | null
+          cesta?: boolean | null
           created_at?: string | null
           dias_semana?: number[] | null
           escala?: string | null
           funcao?: string
+          gratificacao?: boolean | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          insalubridade?: boolean | null
           intervalo_refeicao?: number | null
+          intrajornada?: boolean | null
           jornada?: number | null
           nome?: string
-          observacoes?: string | null
+          observacoes_especificas?: string | null
+          outros_beneficios?: string[] | null
+          periculosidade?: boolean | null
+          premio_assiduidade?: boolean | null
           primeiro_dia_atividade?: string | null
+          salario?: number | null
           status?: Database["public"]["Enums"]["status_posto"] | null
+          turno?: Database["public"]["Enums"]["turno_opcoes"] | null
           ultimo_dia_atividade?: string | null
           unidade_id?: string | null
           updated_at?: string | null
           valor_diaria?: number
+          valor_unitario?: number | null
+          vr_dia?: number | null
+          vt_dia?: number | null
         }
         Relationships: [
           {
@@ -1841,6 +1883,7 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
+          superior: string | null
           updated_at: string
         }
         Insert: {
@@ -1849,6 +1892,7 @@ export type Database = {
           full_name?: string | null
           id: string
           phone?: string | null
+          superior?: string | null
           updated_at?: string
         }
         Update: {
@@ -1857,9 +1901,18 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          superior?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_superior_fkey"
+            columns: ["superior"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       recursos_materiais: {
         Row: {
@@ -2186,6 +2239,12 @@ export type Database = {
         | "ocupacao_agendada"
         | "inativo"
       tipo_conta_bancaria: "conta corrente" | "conta poupança" | "conta salário"
+      turno_opcoes:
+        | "Diurno"
+        | "Noturno"
+        | "Vespertino"
+        | "Revezamento"
+        | "Ininterrupto"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2368,6 +2427,13 @@ export const Constants = {
         "conta corrente",
         "conta poupança",
         "conta salário",
+      ],
+      turno_opcoes: [
+        "Diurno",
+        "Noturno",
+        "Vespertino",
+        "Revezamento",
+        "Ininterrupto",
       ],
     },
   },
