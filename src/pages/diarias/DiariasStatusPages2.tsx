@@ -50,6 +50,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Trash2, Bell } from "lucide-react";
 import {
   useDiariasTemporariasData,
@@ -111,6 +112,88 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
 ];
 
 const MOTIVO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
+const STATUS_DATE_LABELS: { field: keyof DiariaTemporaria; label: string }[] = [
+  { field: "confirmada_em", label: "Confirmada em" },
+  { field: "aprovada_em", label: "Aprovada em" },
+  { field: "lancada_em", label: "Lancada em" },
+  { field: "aprovada_para_pagamento_em", label: "Aprovada para pagamento em" },
+  { field: "paga_em", label: "Paga em" },
+  { field: "cancelada_em", label: "Cancelada em" },
+  { field: "reprovada_em", label: "Reprovada em" },
+];
+const STATUS_DATE_FILTERS = new Map<
+  string,
+  {
+    field: keyof DiariaTemporaria;
+    startLabel: string;
+    endLabel: string;
+    exportLabel: string;
+  }
+>([
+  [
+    normalizeStatus(STATUS.confirmada),
+    {
+      field: "confirmada_em",
+      startLabel: "Primeiro dia confirmacao",
+      endLabel: "Ultimo dia confirmacao",
+      exportLabel: "Confirmada em",
+    },
+  ],
+  [
+    normalizeStatus(STATUS.aprovada),
+    {
+      field: "aprovada_em",
+      startLabel: "Primeiro dia aprovacao",
+      endLabel: "Ultimo dia aprovacao",
+      exportLabel: "Aprovada em",
+    },
+  ],
+  [
+    normalizeStatus(STATUS.lancada),
+    {
+      field: "lancada_em",
+      startLabel: "Primeiro dia lancamento",
+      endLabel: "Ultimo dia lancamento",
+      exportLabel: "Lancada em",
+    },
+  ],
+  [
+    normalizeStatus(STATUS.aprovadaPagamento),
+    {
+      field: "aprovada_para_pagamento_em",
+      startLabel: "Primeiro dia aprovacao pagamento",
+      endLabel: "Ultimo dia aprovacao pagamento",
+      exportLabel: "Aprovada para pagamento em",
+    },
+  ],
+  [
+    normalizeStatus(STATUS.paga),
+    {
+      field: "paga_em",
+      startLabel: "Primeiro dia pagamento",
+      endLabel: "Ultimo dia pagamento",
+      exportLabel: "Paga em",
+    },
+  ],
+  [
+    normalizeStatus(STATUS.cancelada),
+    {
+      field: "cancelada_em",
+      startLabel: "Primeiro dia cancelamento",
+      endLabel: "Ultimo dia cancelamento",
+      exportLabel: "Cancelada em",
+    },
+  ],
+  [
+    normalizeStatus(STATUS.reprovada),
+    {
+      field: "reprovada_em",
+      startLabel: "Primeiro dia reprovacao",
+      endLabel: "Ultimo dia reprovacao",
+      exportLabel: "Reprovada em",
+    },
+  ],
+]);
 
 const createStatusPage = ({ statusKey, title, description, emptyMessage }: StatusPageConfig) => {
   return function DiariasTemporariasStatusPage() {
@@ -137,6 +220,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     }>({ open: false, diariaId: null, targetStatus: null });
     const [reasonText, setReasonText] = useState("");
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkStatusSelection, setBulkStatusSelection] = useState("");
     const [filters, setFilters] = useState({
       diaristaId: "",
       motivo: "",
@@ -145,6 +230,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       endDate: "",
       criadoPorId: "",
       statusResponsavelId: "",
+      statusDateStart: "",
+      statusDateEnd: "",
     });
     const [totalRangeDiarista, setTotalRangeDiarista] = useState({
       diaristaId: "",
@@ -200,6 +287,16 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       ]);
       return map.get(statusKey) || "Responsavel";
     }, [statusKey]);
+
+    const pageDefaultAction = useMemo(
+      () => NEXT_STATUS_ACTIONS[normalizedKey] || null,
+      [normalizedKey],
+    );
+
+    const statusDateConfig = useMemo(
+      () => STATUS_DATE_FILTERS.get(normalizedKey) || null,
+      [normalizedKey],
+    );
 
     const formatIntervalValue = (value?: number | null) => {
       if (value === null || value === undefined) return "-";
@@ -413,8 +510,18 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     }, [diariasDoStatus, diariasDoStatusFull, postoMap]);
 
     const diariasBase = useMemo(
-      () => (filters.startDate || filters.endDate ? diariasDoStatusFull : diariasDoStatus),
-      [diariasDoStatus, diariasDoStatusFull, filters.endDate, filters.startDate],
+      () =>
+        filters.startDate || filters.endDate || filters.statusDateStart || filters.statusDateEnd
+          ? diariasDoStatusFull
+          : diariasDoStatus,
+      [
+        diariasDoStatus,
+        diariasDoStatusFull,
+        filters.endDate,
+        filters.startDate,
+        filters.statusDateEnd,
+        filters.statusDateStart,
+      ],
     );
 
     const diariasFiltradas = useMemo(() => {
@@ -426,6 +533,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
         const clienteKey = getClienteKeyFromDiaria(diaria, postoInfo);
         const data = diaria.data_diaria || "";
+        const statusDateValue = statusDateConfig
+          ? ((diaria as any)[statusDateConfig.field] as string | null | undefined)
+          : null;
 
         if (filters.startDate) {
           const dataDate = new Date(data);
@@ -437,6 +547,22 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           const end = new Date(filters.endDate);
           end.setHours(23, 59, 59, 999);
           if (Number.isNaN(dataDate.getTime()) || dataDate > end) return false;
+        }
+
+        if (statusDateConfig && (filters.statusDateStart || filters.statusDateEnd)) {
+          if (!statusDateValue) return false;
+          const statusDate = new Date(statusDateValue);
+          if (Number.isNaN(statusDate.getTime())) return false;
+          if (filters.statusDateStart) {
+            const statusStart = new Date(filters.statusDateStart);
+            if (Number.isNaN(statusStart.getTime()) || statusDate < statusStart) return false;
+          }
+          if (filters.statusDateEnd) {
+            const statusEnd = new Date(filters.statusDateEnd);
+            if (Number.isNaN(statusEnd.getTime())) return false;
+            statusEnd.setHours(23, 59, 59, 999);
+            if (statusDate > statusEnd) return false;
+          }
         }
 
         if (filters.diaristaId && filters.diaristaId !== diaristaId) {
@@ -459,7 +585,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         }
         return true;
       });
-    }, [diariasBase, filters, statusResponsavelField]);
+    }, [diariasBase, filters, statusDateConfig, statusResponsavelField]);
 
     const buildExportRow = (diaria: DiariaTemporaria) => {
       const postoInfo =
@@ -508,7 +634,15 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         Pix: diaristaInfo?.pix || "-",
         Observacao: diaria.observacao?.trim() || "",
         "Criado por": criadoPorNome,
+        "Criada em": formatDate(diaria.created_at),
       };
+      baseRow["Confirmada em"] = formatDate(diaria.confirmada_em);
+      baseRow["Aprovada em"] = formatDate(diaria.aprovada_em);
+      baseRow["Lancada em"] = formatDate(diaria.lancada_em);
+      baseRow["Aprovada para pagamento em"] = formatDate(diaria.aprovada_para_pagamento_em);
+      baseRow["Paga em"] = formatDate(diaria.paga_em);
+      baseRow["Cancelada em"] = formatDate(diaria.cancelada_em);
+      baseRow["Reprovada em"] = formatDate(diaria.reprovada_em);
       baseRow["Novo posto?"] = novoPostoFlag ? "Sim" : "N?o";
       if (!isAguardandoPage) {
         baseRow["Responsavel status"] = responsavelStatusNome || "";
@@ -835,6 +969,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         endDate: "",
         criadoPorId: "",
         statusResponsavelId: "",
+        statusDateStart: "",
+        statusDateEnd: "",
       });
 
     const fallbackMonth = useMemo(() => {
@@ -998,6 +1134,108 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       setDetailsDialogOpen(true);
     };
 
+    const toggleSelect = (id: string) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+    };
+
+    const allVisibleSelected =
+      diariasFiltradas.length > 0 &&
+      diariasFiltradas.every((diaria) => selectedIds.has(diaria.id.toString()));
+
+    const toggleSelectAllVisible = () => {
+      setSelectedIds((prev) => {
+        if (allVisibleSelected) {
+          return new Set(Array.from(prev).filter((id) => !diariasFiltradas.some((d) => d.id.toString() === id)));
+        }
+        const next = new Set(prev);
+        diariasFiltradas.forEach((diaria) => next.add(diaria.id.toString()));
+        return next;
+      });
+    };
+
+    const clearSelection = () => setSelectedIds(new Set());
+
+    const bulkAvailableStatuses = useMemo(
+      () => statusOptions.filter((status) => !requiresReasonForStatus(status)),
+      [statusOptions],
+    );
+
+    const handleBulkStatusApply = async (status: string) => {
+      if (!status) {
+        toast.error("Selecione um status para aplicar.");
+        return;
+      }
+      if (requiresReasonForStatus(status)) {
+        toast.error("Reprovar ou cancelar não estão disponíveis em massa.");
+        return;
+      }
+      const ids = Array.from(selectedIds);
+      if (ids.length === 0) {
+        toast.info("Nenhuma diaria selecionada.");
+        return;
+      }
+      const message = `Aplicar "${STATUS_LABELS[status] || status}" em ${ids.length} diaria(s)?`;
+      if (typeof window !== "undefined" && !window.confirm(message)) return;
+      setUpdatingId("bulk");
+      try {
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update({ status })
+          .in("id", ids);
+        if (error) throw error;
+        toast.success(`Status atualizado para ${STATUS_LABELS[status] || status} em ${ids.length} diaria(s).`);
+        clearSelection();
+        await refetchDiarias();
+      } catch (error: any) {
+        toast.error(error.message || "Erro ao atualizar status em massa.");
+      } finally {
+        setUpdatingId(null);
+      }
+    };
+
+    const handleBulkDefaultAction = () => {
+      if (!pageDefaultAction) {
+        toast.info("Nenhuma ação em massa disponível nesta lista.");
+        return;
+      }
+      handleBulkStatusApply(pageDefaultAction.nextStatus);
+    };
+
+    const handleBulkDeleteCancelled = async () => {
+      if (!isCancelPage) return;
+      const ids = Array.from(selectedIds);
+      if (ids.length === 0) {
+        toast.info("Nenhuma diaria selecionada para excluir.");
+        return;
+      }
+      const message = `Excluir ${ids.length} diaria(s) cancelada(s)? Esta ação não pode ser desfeita.`;
+      if (typeof window !== "undefined" && !window.confirm(message)) return;
+      setDeletingId("bulk-delete");
+      try {
+        const { error } = await supabase.from("diarias_temporarias").delete().in("id", ids);
+        if (error) throw error;
+        toast.success("Diarias canceladas excluídas.");
+        clearSelection();
+        await refetchDiarias();
+      } catch (error: any) {
+        toast.error(error.message || "Erro ao excluir diarias canceladas.");
+      } finally {
+        setDeletingId(null);
+      }
+    };
+
+    useEffect(() => {
+      clearSelection();
+    }, [selectedMonth, normalizedKey]);
+
     const closeDetailsDialog = () => {
       setDetailsDialogOpen(false);
       setSelectedDiaria(null);
@@ -1035,6 +1273,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const pagaPorNome = getUsuarioNome(selectedDiaria?.paga_por);
     const statusResponsavelInfo = selectedDiaria ? getStatusResponsavel(selectedDiaria) : { id: null, label: "" };
     const statusResponsavelNome = statusResponsavelInfo.id ? getUsuarioNome(statusResponsavelInfo.id) : "";
+    const statusDates = (STATUS_DATE_LABELS.map(({ field, label }) => {
+      const value = selectedDiaria ? (selectedDiaria as any)[field] : null;
+      if (!value) return null;
+      return { label, value: formatDate(value) };
+    }).filter(Boolean) as { label: string; value: string }[]) || [];
+
+    const statusDatesWithCreated = useMemo(() => {
+      const items = [...statusDates];
+      if (isPagaPage && selectedDiaria?.created_at) {
+        items.unshift({ label: "Criada em", value: formatDateTime(selectedDiaria.created_at) });
+      }
+      return items;
+    }, [isPagaPage, selectedDiaria?.created_at, statusDates]);
 
     const showReasonColumn =
       normalizedKey === normalizedCancelStatus || normalizedKey === normalizedReprovadaStatus;
@@ -1243,6 +1494,36 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       }
                     />
                   </div>
+                  {statusDateConfig && (
+                    <>
+                      <div className="space-y-1">
+                        <Label htmlFor={`filtro-temp-status-inicio-${statusKey}`}>
+                          {statusDateConfig.startLabel}
+                        </Label>
+                        <Input
+                          id={`filtro-temp-status-inicio-${statusKey}`}
+                          type="date"
+                          value={filters.statusDateStart}
+                          onChange={(event) =>
+                            setFilters((prev) => ({ ...prev, statusDateStart: event.target.value }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`filtro-temp-status-fim-${statusKey}`}>
+                          {statusDateConfig.endLabel}
+                        </Label>
+                        <Input
+                          id={`filtro-temp-status-fim-${statusKey}`}
+                          type="date"
+                          value={filters.statusDateEnd}
+                          onChange={(event) =>
+                            setFilters((prev) => ({ ...prev, statusDateEnd: event.target.value }))
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
                 {hasActiveFilters && (
                   <div className="flex justify-end">
@@ -1259,6 +1540,43 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 <Button variant="outline" onClick={() => setTotalDialogOpen(true)}>
                   Filtragem Avançada
                 </Button>
+                <Button
+                  variant="default"
+                  disabled={updatingId === "bulk" || selectedIds.size === 0 || !pageDefaultAction}
+                  onClick={handleBulkDefaultAction}
+                >
+                  {pageDefaultAction ? `${pageDefaultAction.label} (selecionadas)` : "Ação em massa"}
+                </Button>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={bulkStatusSelection}
+                    onValueChange={(value) => {
+                      setBulkStatusSelection(value);
+                      handleBulkStatusApply(value);
+                      setBulkStatusSelection("");
+                    }}
+                  >
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Status em massa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bulkAvailableStatuses.map((statusOption) => (
+                        <SelectItem key={statusOption} value={statusOption}>
+                          {STATUS_LABELS[statusOption]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {isCancelPage && (
+                  <Button
+                    variant="destructive"
+                    disabled={deletingId === "bulk-delete" || selectedIds.size === 0}
+                    onClick={handleBulkDeleteCancelled}
+                  >
+                    Excluir selecionadas
+                  </Button>
+                )}
               </div>
               <div className="overflow-x-auto">
                 {diariasFiltradas.length === 0 ? (
@@ -1271,6 +1589,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            aria-label="Selecionar todas"
+                            checked={allVisibleSelected}
+                            onCheckedChange={toggleSelectAllVisible}
+                          />
+                        </TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead className="hidden md:table-cell">Colaborador</TableHead>
                         <TableHead className="hidden md:table-cell">Posto</TableHead>
@@ -1323,6 +1648,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             className="cursor-pointer transition hover:bg-muted/90"
                             onClick={() => handleRowClick(diaria)}
                           >
+                            <TableCell onClick={(event) => event.stopPropagation()}>
+                              <Checkbox
+                                aria-label="Selecionar diaria"
+                                checked={selectedIds.has(diaria.id.toString())}
+                                onCheckedChange={() => toggleSelect(diaria.id.toString())}
+                              />
+                            </TableCell>
                             <TableCell>{formatDate(diaria.data_diaria)}</TableCell>
                             <TableCell className="hidden md:table-cell">{colaboradorDisplay}</TableCell>
                             <TableCell className="hidden md:table-cell">{postoNome}</TableCell>
@@ -1834,13 +2166,26 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="font-medium">{currencyFormatter.format(selectedDiaria.valor_diaria || 0)}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground text-xs">Atualizado em</p>
-                      <p className="font-medium">{formatDateTime(selectedDiaria.updated_at)}</p>
+                      <p className="text-muted-foreground text-xs">Criada em</p>
+                      <p className="font-medium">{formatDateTime(selectedDiaria.created_at)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Criado por</p>
                       <p className="font-medium">{criadoPorNome || "-"}</p>
                     </div>
+                    {statusDatesWithCreated.length > 0 && (
+                      <div className="sm:col-span-2">
+                        <p className="text-muted-foreground text-xs">Datas dos status</p>
+                        <div className="mt-2 grid gap-2 md:grid-cols-2">
+                          {statusDatesWithCreated.map((item) => (
+                            <div key={item.label}>
+                              <p className="text-muted-foreground text-xs">{item.label}</p>
+                              <p className="font-medium">{item.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {isPagaPage && (
                       <>
                         <div>
@@ -2027,5 +2372,3 @@ export const Diarias2AprovadasPagamentoPage = createStatusPage(STATUS_CONFIGS[4]
 export const Diarias2ReprovadasPage = createStatusPage(STATUS_CONFIGS[5]);
 export const Diarias2CanceladasPage = createStatusPage(STATUS_CONFIGS[6]);
 export const Diarias2PagasPage = createStatusPage(STATUS_CONFIGS[7]);
-
-

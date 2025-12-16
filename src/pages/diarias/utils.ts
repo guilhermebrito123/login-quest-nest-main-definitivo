@@ -94,7 +94,11 @@ export const formatDate = (value?: string | null) => {
 export const formatDateTime = (value?: string | null) => {
   if (!value) return "-";
   try {
-    return format(new Date(value), "dd/MM/yyyy HH:mm", { locale: ptBR });
+    // Treat timestamp as wall-clock in Brazil (server stores sem timezone or already in BRT).
+    const normalized = value.replace(" ", "T").replace(/([+-]\d{2}:?\d{2}|Z)$/i, "");
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return format(parsed, "dd/MM/yyyy HH:mm", { locale: ptBR });
   } catch {
     return value;
   }
