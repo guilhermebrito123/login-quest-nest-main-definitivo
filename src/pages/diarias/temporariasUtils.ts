@@ -57,6 +57,13 @@ export type DiariaTemporaria = {
   paga_por?: string | null;
   cancelada_por?: string | null;
   reprovada_por?: string | null;
+  confirmada_em?: string | null;
+  aprovada_em?: string | null;
+  lancada_em?: string | null;
+  aprovada_para_pagamento_em?: string | null;
+  paga_em?: string | null;
+  cancelada_em?: string | null;
+  reprovada_em?: string | null;
   intervalo?: number | null;
   horario_inicio?: string | null;
   horario_fim?: string | null;
