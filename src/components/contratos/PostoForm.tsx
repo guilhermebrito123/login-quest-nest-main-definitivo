@@ -56,6 +56,9 @@ interface PostoFormState {
   unidade_id: string;
   nome: string;
   funcao: string;
+  efetivo_planejado: string;
+  adc_insalubridade_percentual: string;
+  acumulo_funcao_percentual: string;
   valor_diaria: string;
   valor_unitario: string;
   adicional_noturno: boolean | null;
@@ -106,6 +109,9 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
     unidade_id: unidadeId || "",
     nome: "",
     funcao: "",
+    efetivo_planejado: "1",
+    adc_insalubridade_percentual: "",
+    acumulo_funcao_percentual: "",
     valor_diaria: "",
     valor_unitario: "",
     adicional_noturno: null,
@@ -160,7 +166,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
       const { data, error } = await supabase
         .from("postos_servico")
         .select(
-          "unidade_id, nome, funcao, valor_diaria, valor_unitario, adicional_noturno, salario, intrajornada, insalubridade, periculosidade, acumulo_funcao, gratificacao, vt_dia, vr_dia, assistencia_medica, cesta, premio_assiduidade, turno, escala, dias_semana, jornada, horario_inicio, horario_fim, intervalo_refeicao, status, observacoes_especificas, outros_beneficios, primeiro_dia_atividade, ultimo_dia_atividade"
+          "unidade_id, nome, funcao, efetivo_planejado, adc_insalubridade_percentual, acumulo_funcao_percentual, valor_diaria, valor_unitario, adicional_noturno, salario, intrajornada, insalubridade, periculosidade, acumulo_funcao, gratificacao, vt_dia, vr_dia, assistencia_medica, cesta, premio_assiduidade, turno, escala, dias_semana, jornada, horario_inicio, horario_fim, intervalo_refeicao, status, observacoes_especificas, outros_beneficios, primeiro_dia_atividade, ultimo_dia_atividade"
         )
         .eq("id", postoId)
         .single();
@@ -176,6 +182,9 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
           unidade_id: data.unidade_id ?? "",
           nome: data.nome ?? "",
           funcao: data.funcao ?? "",
+          efetivo_planejado: data.efetivo_planejado?.toString() ?? "1",
+          adc_insalubridade_percentual: data.adc_insalubridade_percentual?.toString() ?? "",
+          acumulo_funcao_percentual: data.acumulo_funcao_percentual?.toString() ?? "",
           valor_diaria: data.valor_diaria?.toString() ?? "",
           valor_unitario: data.valor_unitario?.toString() ?? "",
           adicional_noturno: data.adicional_noturno ?? null,
@@ -231,6 +240,9 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         unidade_id,
         nome,
         funcao,
+        efetivo_planejado,
+        adc_insalubridade_percentual,
+        acumulo_funcao_percentual,
         valor_diaria,
         valor_unitario,
         adicional_noturno,
@@ -277,6 +289,13 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         unidade_id,
         nome,
         funcao,
+        efetivo_planejado: efetivo_planejado ? parseInt(efetivo_planejado) || 1 : 1,
+        adc_insalubridade_percentual: adc_insalubridade_percentual
+          ? parseFloat(adc_insalubridade_percentual)
+          : null,
+        acumulo_funcao_percentual: acumulo_funcao_percentual
+          ? parseFloat(acumulo_funcao_percentual)
+          : null,
         valor_diaria: valor_diaria ? parseFloat(valor_diaria) : 0,
         valor_unitario: valor_unitario ? parseFloat(valor_unitario) : null,
         adicional_noturno: adicional_noturno ?? false,
@@ -424,12 +443,24 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                 required
               />
-            </div><div className="space-y-2">
-              <Label htmlFor="funcao">Função</Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="funcao">Funcao</Label>
               <Input
                 id="funcao"
                 value={formData.funcao}
                 onChange={(e) => setFormData({ ...formData, funcao: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="efetivo_planejado">Efetivo planejado *</Label>
+              <Input
+                id="efetivo_planejado"
+                type="number"
+                min={1}
+                value={formData.efetivo_planejado}
+                onChange={(e) => setFormData({ ...formData, efetivo_planejado: e.target.value })}
+                required
               />
             </div>
 
@@ -591,6 +622,36 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
                 {renderBooleanField("cesta", "Cesta")}
                 {renderBooleanField("premio_assiduidade", "Premio assiduidade")}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="adc_insalubridade_percentual">Adicional de insalubridade (%)</Label>
+              <Input
+                id="adc_insalubridade_percentual"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.adc_insalubridade_percentual}
+                onChange={(e) =>
+                  setFormData({ ...formData, adc_insalubridade_percentual: e.target.value })
+                }
+                placeholder="Ex: 20"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="acumulo_funcao_percentual">Acumulo de funcao (%)</Label>
+              <Input
+                id="acumulo_funcao_percentual"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.acumulo_funcao_percentual}
+                onChange={(e) =>
+                  setFormData({ ...formData, acumulo_funcao_percentual: e.target.value })
+                }
+                placeholder="Ex: 10"
+              />
             </div>
 
             <div className="space-y-2">
@@ -764,3 +825,4 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
 };
 
 export default PostoForm;
+

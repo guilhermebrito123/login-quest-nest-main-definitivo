@@ -13,26 +13,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, ShieldOff, Trash2, UserCog } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -44,7 +26,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { cidadesBrasil } from "@/data/cidades-brasil";
 import { ufsBrasil } from "@/data/ufs-brasil";
 
-type UserProfile = Tables<"usuarios">;
 type Candidate = Tables<"candidatos">;
 type Colaborador = Tables<"colaboradores">;
 type InternalProfile = Tables<"internal_profiles">;
@@ -63,17 +44,6 @@ const sanitizeFilename = (name: string) => {
   const noAccents = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return noAccents.replace(/[^a-zA-Z0-9._-]/g, "_");
 };
-
-const buildUserDefaults = (userId: string, email: string, role: UserRole): UserProfile => ({
-  id: userId,
-  email,
-  full_name: null,
-  phone: null,
-  role,
-  superior: null,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-});
 
 const buildCandidateDefaults = (email: string, userId?: string): Candidate => ({
   id: userId ?? crypto.randomUUID(),
@@ -122,29 +92,25 @@ const buildInternalDefaults = (userId: string, email?: string): InternalProfile 
   updated_at: new Date().toISOString(),
 });
 
-export default function MinhaConta() {
+export default function DadosEmpresariais() {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [userEmail, setUserEmail] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [candidateForm, setCandidateForm] = useState<Candidate | null>(null);
   const [colaboradorForm, setColaboradorForm] = useState<Colaborador | null>(null);
   const [internalProfile, setInternalProfile] = useState<InternalProfile | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [savingUserProfile, setSavingUserProfile] = useState(false);
   const [savingCandidate, setSavingCandidate] = useState(false);
   const [uploadingCurriculo, setUploadingCurriculo] = useState(false);
   const [curriculoFile, setCurriculoFile] = useState<File | null>(null);
+  const [curriculoSignedUrl, setCurriculoSignedUrl] = useState<string | null>(null);
   const [savingColaborador, setSavingColaborador] = useState(false);
   const [savingInternalProfile, setSavingInternalProfile] = useState(false);
+  const [deletingRoleData, setDeletingRoleData] = useState(false);
   const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false);
   const [estadoSelectOpen, setEstadoSelectOpen] = useState(false);
   const [experienceInput, setExperienceInput] = useState("");
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [password, setPassword] = useState("");
-  const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
 
   const cidadeOptions = useMemo(() => Array.from(new Set(cidadesBrasil)), []);
@@ -172,27 +138,55 @@ export default function MinhaConta() {
     loadUser();
   }, []);
 
-  const refreshUserProfile = async (id: string, fallbackEmail?: string) => {
-    const { data, error } = await supabase
-      .from("usuarios")
-      .select("id, email, role, full_name, phone, superior, created_at, updated_at")
-      .eq("id", id)
-      .maybeSingle();
+  useEffect(() => {
+    const refreshUrl = async () => {
+      if (candidateForm?.curriculo_path) {
+        const { data, error } = await supabase.storage
+          .from(CANDIDATO_ANEXOS_BUCKET)
+          .createSignedUrl(candidateForm.curriculo_path, 3600);
+        if (!error && data?.signedUrl) {
+          setCurriculoSignedUrl(data.signedUrl);
+          return;
+        }
+      }
+      setCurriculoSignedUrl(null);
+    };
+    refreshUrl();
+  }, [candidateForm?.curriculo_path]);
 
-    if (error) throw error;
-
-    if (data) {
-      setUserProfile(data);
-      setUserRole(data.role);
-      setUserEmail(data.email || fallbackEmail || "");
-    } else {
-      setUserProfile(null);
-      setUserRole(null);
-      setUserEmail(fallbackEmail || "");
-    }
-
-    return data;
-  };
+  useEffect(() => {
+    const fetchFromStorage = async () => {
+      if (!userId || !userRole || userRole !== "candidato") return;
+      if (candidateForm?.curriculo_path) return;
+      try {
+        const { data, error } = await supabase.storage
+          .from(CANDIDATO_ANEXOS_BUCKET)
+          .list(`${userId}/curriculo`, { sortBy: { column: "created_at", order: "desc" } });
+        if (error) throw error;
+        const latest = (data || []).filter((f) => f.name).sort((a, b) => {
+          const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return bDate - aDate;
+        })[0];
+        if (!latest) return;
+        const path = `${userId}/curriculo/${latest.name}`;
+        const { data: signed } = await supabase.storage
+          .from(CANDIDATO_ANEXOS_BUCKET)
+          .createSignedUrl(path, 3600);
+        setCandidateForm((prev) => (prev ? { ...prev, curriculo_path: path } : prev));
+        setCurriculoSignedUrl(signed?.signedUrl ?? null);
+        // Atualiza no banco, se já existir registro
+        await supabase
+          .from("candidatos")
+          .update({ curriculo_path: path, updated_at: new Date().toISOString() })
+          .eq("user_id", userId);
+      } catch (err) {
+        console.error("Erro ao recuperar curriculo do storage", err);
+      }
+    };
+    fetchFromStorage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, userRole, candidateForm?.curriculo_path]);
 
   const loadUser = async () => {
     setLoading(true);
@@ -210,81 +204,72 @@ export default function MinhaConta() {
 
       const email = user.email || "";
       setUserId(user.id);
-
-      const userRow = await refreshUserProfile(user.id, email);
-      const role = userRow?.role ?? null;
-      const profileEmail = userRow?.email || email;
-
-      if (role) {
-        await loadRoleData(profileEmail, role, user.id);
-      }
+      setUserEmail(email);
+      const { data: userRow, error: profileError } = await supabase
+        .from("usuarios")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      await loadRoleData(email, (userRow?.role as UserRole | null) ?? null, user.id);
     } catch (error: any) {
-      console.error("Erro ao carregar perfil", error);
+      console.error("Erro ao carregar perfil empresarial", error);
       toast.error(error.message || "Nao foi possivel carregar seus dados");
     } finally {
       setLoading(false);
     }
   };
 
-  const loadRoleData = async (email: string, role: UserRole, userId?: string) => {
+  const loadRoleData = async (email: string, roleMeta: UserRole | null, userId?: string) => {
     setRoleLoading(true);
     try {
+      let role = roleMeta;
+      if (!role && userId) {
+        const { data } = await supabase.from("usuarios").select("role").eq("id", userId).maybeSingle();
+        role = data?.role ?? null;
+      }
+      setUserRole(role);
+
       if (role === "candidato") {
         let candidateData: Candidate | null = null;
-
-        if (userId) {
-          const { data, error } = await supabase
-            .from("candidatos")
-            .select("*")
-            .eq("user_id", userId)
-            .maybeSingle();
-
-          if (error && error.code !== "PGRST116") throw error;
-          candidateData = data;
-        }
-
+        const { data: byUser, error: userErr } = await supabase
+          .from("candidatos")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (userErr && userErr.code !== "PGRST116") throw userErr;
+        candidateData = byUser ?? null;
         if (!candidateData) {
-          const { data, error } = await supabase
+          const { data: byEmail, error: emailErr } = await supabase
             .from("candidatos")
             .select("*")
             .eq("email", email)
             .maybeSingle();
-
-          if (error && error.code !== "PGRST116") throw error;
-          candidateData = data;
+          if (emailErr && emailErr.code !== "PGRST116") throw emailErr;
+          candidateData = byEmail ?? null;
         }
-
-        const next = candidateData ?? buildCandidateDefaults(email, userId);
-        setCandidateForm(next);
+        setCandidateForm(candidateData ?? buildCandidateDefaults(email, userId));
         setColaboradorForm(null);
         setInternalProfile(null);
       } else if (role === "colaborador") {
         let colaboradorData: Colaborador | null = null;
-
-        if (userId) {
-          const { data, error } = await supabase
-            .from("colaboradores")
-            .select("*")
-            .eq("user_id", userId)
-            .maybeSingle();
-
-          if (error && error.code !== "PGRST116") throw error;
-          colaboradorData = data;
-        }
-
+        const { data: byUser, error: userErr } = await supabase
+          .from("colaboradores")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (userErr && userErr.code !== "PGRST116") throw userErr;
+        colaboradorData = byUser ?? null;
         if (!colaboradorData) {
-          const { data, error } = await supabase
+          const { data: byEmail, error: emailErr } = await supabase
             .from("colaboradores")
             .select("*")
             .eq("email", email)
             .maybeSingle();
-
-          if (error && error.code !== "PGRST116") throw error;
-          colaboradorData = data;
+          if (emailErr && emailErr.code !== "PGRST116") throw emailErr;
+          colaboradorData = byEmail ?? null;
         }
-
-        const next = colaboradorData ?? buildColaboradorDefaults(email, userId);
-        setColaboradorForm(next);
+        setColaboradorForm(colaboradorData ?? buildColaboradorDefaults(email, userId));
         setCandidateForm(null);
         setInternalProfile(null);
       } else if (role === "perfil_interno" && userId) {
@@ -293,11 +278,8 @@ export default function MinhaConta() {
           .select("*")
           .eq("user_id", userId)
           .maybeSingle();
-
         if (error && error.code !== "PGRST116") throw error;
-
-        const next = data ?? buildInternalDefaults(userId, email);
-        setInternalProfile(next);
+        setInternalProfile(data ?? buildInternalDefaults(userId, email));
         setCandidateForm(null);
         setColaboradorForm(null);
       } else {
@@ -306,8 +288,8 @@ export default function MinhaConta() {
         setInternalProfile(null);
       }
     } catch (error: any) {
-      console.error("Erro ao carregar dados completos do perfil", error);
-      toast.error(error.message || "Nao foi possivel carregar dados completos do perfil");
+      console.error("Erro ao carregar dados empresariais", error);
+      toast.error(error.message || "Nao foi possivel carregar dados empresariais");
     } finally {
       setRoleLoading(false);
     }
@@ -320,12 +302,6 @@ export default function MinhaConta() {
     }));
   };
 
-  const updateUserProfileForm = (updates: Partial<UserProfile>) => {
-    if (!userId) return;
-    const role = userProfile?.role ?? userRole ?? "candidato";
-    setUserProfile((prev) => ({ ...(prev ?? buildUserDefaults(userId, userEmail, role)), ...updates }));
-  };
-
   const updateColaboradorForm = (updates: Partial<Colaborador>) => {
     setColaboradorForm((prev) => ({
       ...(prev ?? buildColaboradorDefaults(userEmail, userId ?? undefined)),
@@ -336,131 +312,6 @@ export default function MinhaConta() {
   const updateInternalProfileForm = (updates: Partial<InternalProfile>) => {
     if (!userId) return;
     setInternalProfile((prev) => ({ ...(prev ?? buildInternalDefaults(userId, userEmail)), ...updates }));
-  };
-
-  const syncSharedFieldsToRole = async (
-    fullName: string | null,
-    email: string,
-    phone: string | null,
-    role: UserRole,
-  ) => {
-    if (!userId) return;
-
-    if (role === "candidato") {
-      let base = candidateForm;
-      if (!base) {
-        const { data, error } = await supabase
-          .from("candidatos")
-          .select("*")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (error && error.code !== "PGRST116") throw error;
-        base = data ?? null;
-      }
-
-      const filledBase = base ?? buildCandidateDefaults(email, userId);
-      const nomeCompleto = fullName?.trim() || filledBase.nome_completo || "";
-      const payload: Candidate = {
-        ...filledBase,
-        id: userId,
-        user_id: userId,
-        email,
-        nome_completo: nomeCompleto,
-        telefone: phone?.trim() || filledBase.telefone || null,
-        created_at: filledBase.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const { data, error } = await supabase
-        .from("candidatos")
-        .upsert(payload, { onConflict: "id" })
-        .select()
-        .maybeSingle();
-
-      if (error) throw error;
-      setCandidateForm(data ?? payload);
-      return;
-    }
-
-    if (role === "colaborador") {
-      let base = colaboradorForm;
-      if (!base) {
-        const { data, error } = await supabase
-          .from("colaboradores")
-          .select("*")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (error && error.code !== "PGRST116") throw error;
-        base = data ?? null;
-      }
-
-      const filledBase = base ?? buildColaboradorDefaults(email, userId);
-      const nomeCompleto = fullName?.trim() || filledBase.nome_completo || "";
-      const cpf = filledBase.cpf?.trim() || "CPF nao informado";
-      const payload: Colaborador = {
-        ...filledBase,
-        id: userId,
-        user_id: userId,
-        email,
-        nome_completo: nomeCompleto,
-        telefone: phone?.trim() || filledBase.telefone || "",
-        cpf,
-        status_colaborador: filledBase.status_colaborador || "ativo",
-        created_at: filledBase.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const { data, error } = await supabase
-        .from("colaboradores")
-        .upsert(payload, { onConflict: "id" })
-        .select()
-        .maybeSingle();
-
-      if (error) throw error;
-      setColaboradorForm(data ?? payload);
-      return;
-    }
-
-    if (role === "perfil_interno") {
-      let base = internalProfile;
-      if (!base) {
-        const { data, error } = await supabase
-          .from("internal_profiles")
-          .select("*")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (error && error.code !== "PGRST116") throw error;
-        base = data ?? null;
-      }
-
-      const filledBase = base ?? buildInternalDefaults(userId, email);
-      const payload: InternalProfile = {
-        ...filledBase,
-        user_id: userId,
-        nome_completo: fullName?.trim() || filledBase.nome_completo || null,
-        email,
-        phone: phone?.trim() || filledBase.phone || null,
-        cpf: filledBase.cpf?.trim() || null,
-        nivel_acesso: filledBase.nivel_acesso || "cliente_view",
-        created_at: filledBase.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const { data, error } = await supabase
-        .from("internal_profiles")
-        .update(payload)
-        .eq("user_id", userId)
-        .select()
-        .maybeSingle();
-
-      if (error && error.code !== "PGRST116") throw error;
-      if (data) {
-        setInternalProfile(data);
-      }
-    }
   };
 
   const handleAddExperience = () => {
@@ -478,46 +329,6 @@ export default function MinhaConta() {
     });
   };
 
-  const handleSaveUserProfile = async () => {
-    const role = userProfile?.role ?? userRole ?? null;
-    if (!userId || !role) return;
-    setSavingUserProfile(true);
-    try {
-      const base = userProfile ?? buildUserDefaults(userId, userEmail, role);
-      const nextEmail = base.email?.trim() || userEmail;
-      const nextFullName = base.full_name?.trim() || null;
-      const nextPhone = base.phone?.trim() || null;
-      const payload: Partial<UserProfile> = {
-        full_name: nextFullName,
-        phone: nextPhone,
-        email: nextEmail,
-        updated_at: new Date().toISOString(),
-      };
-
-      const { data, error } = await supabase
-        .from("usuarios")
-        .update(payload)
-        .eq("id", userId)
-        .select()
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (role) {
-        await syncSharedFieldsToRole(nextFullName, nextEmail, nextPhone, role);
-      }
-
-      await refreshUserProfile(userId, data?.email || nextEmail);
-
-      toast.success("Dados do usuario salvos");
-    } catch (error: any) {
-      console.error("Erro ao salvar usuario", error);
-      toast.error(error.message || "Nao foi possivel salvar dados do usuario");
-    } finally {
-      setSavingUserProfile(false);
-    }
-  };
-
   const handleSaveCandidate = async () => {
     if (!userEmail || !userId) {
       toast.error("Usuario nao autenticado");
@@ -525,9 +336,28 @@ export default function MinhaConta() {
     }
     setSavingCandidate(true);
     try {
-      const base = candidateForm ?? buildCandidateDefaults(userEmail, userId);
+      // Use existing id se existir para evitar conflito de PK
+      let base = candidateForm;
+      if (!base) {
+        const { data } = await supabase
+          .from("candidatos")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle();
+        base = data ?? null;
+      }
+      if (!base) {
+        const { data } = await supabase
+          .from("candidatos")
+          .select("*")
+          .eq("email", userEmail)
+          .maybeSingle();
+        base = data ?? buildCandidateDefaults(userEmail, userId);
+      }
+
       let uploadedPath = base.curriculo_path;
-      const candidateId = userId || base.id || crypto.randomUUID();
+      const candidateId = base.id || userId || crypto.randomUUID();
+      const previousPath = base.curriculo_path;
 
       if (curriculoFile) {
         if (curriculoFile.size > MAX_CURRICULO_BYTES) {
@@ -547,6 +377,9 @@ export default function MinhaConta() {
 
         if (error) throw error;
         uploadedPath = data?.path ?? path;
+        if (previousPath && previousPath !== uploadedPath) {
+          await supabase.storage.from(CANDIDATO_ANEXOS_BUCKET).remove([previousPath]);
+        }
       }
 
       const nomeCompleto = base.nome_completo?.trim() || "";
@@ -576,7 +409,7 @@ export default function MinhaConta() {
 
       const { data, error } = await supabase
         .from("candidatos")
-        .upsert(payload, { onConflict: "user_id" })
+        .upsert(payload, { onConflict: "id" })
         .select()
         .maybeSingle();
 
@@ -586,13 +419,61 @@ export default function MinhaConta() {
       setCandidateForm(saved);
       setCurriculoFile(null);
       setExperienceInput("");
-      await refreshUserProfile(userId, saved.email);
+      if (saved.curriculo_path) {
+        const { data: signed } = await supabase.storage
+          .from(CANDIDATO_ANEXOS_BUCKET)
+          .createSignedUrl(saved.curriculo_path, 3600);
+        setCurriculoSignedUrl(signed?.signedUrl ?? null);
+      } else {
+        setCurriculoSignedUrl(null);
+      }
       toast.success("Dados de candidato salvos");
     } catch (error: any) {
       console.error("Erro ao salvar candidato", error);
       toast.error(error.message || "Nao foi possivel salvar dados de candidato");
     } finally {
       setUploadingCurriculo(false);
+      setSavingCandidate(false);
+    }
+  };
+
+  const handleDeleteCandidate = async () => {
+    if (!userId) return;
+    setDeletingRoleData(true);
+    try {
+      const { error } = await supabase.from("candidatos").delete().eq("user_id", userId);
+      if (error) throw error;
+      setCandidateForm(buildCandidateDefaults(userEmail, userId));
+      toast.success("Dados de candidato removidos");
+    } catch (error: any) {
+      console.error("Erro ao remover candidato", error);
+      toast.error(error.message || "Nao foi possivel remover dados de candidato");
+    } finally {
+      setDeletingRoleData(false);
+    }
+  };
+
+  const handleDeleteCurriculo = async () => {
+    if (!userId || !candidateForm?.curriculo_path) return;
+    setSavingCandidate(true);
+    try {
+      const path = candidateForm.curriculo_path;
+      await supabase.storage.from(CANDIDATO_ANEXOS_BUCKET).remove([path]);
+      const { data, error } = await supabase
+        .from("candidatos")
+        .update({ curriculo_path: null, updated_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      setCandidateForm((prev) => (prev ? { ...prev, curriculo_path: null, updated_at: data?.updated_at ?? prev.updated_at } : prev));
+      setCurriculoFile(null);
+      setCurriculoSignedUrl(null);
+      toast.success("Curriculo removido");
+    } catch (error: any) {
+      console.error("Erro ao remover curriculo", error);
+      toast.error(error.message || "Nao foi possivel remover o curriculo");
+    } finally {
       setSavingCandidate(false);
     }
   };
@@ -604,7 +485,23 @@ export default function MinhaConta() {
     }
     setSavingColaborador(true);
     try {
-      const base = colaboradorForm ?? buildColaboradorDefaults(userEmail, userId);
+      let base = colaboradorForm;
+      if (!base) {
+        const { data } = await supabase
+          .from("colaboradores")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle();
+        base = data ?? null;
+      }
+      if (!base) {
+        const { data } = await supabase
+          .from("colaboradores")
+          .select("*")
+          .eq("email", userEmail)
+          .maybeSingle();
+        base = data ?? buildColaboradorDefaults(userEmail, userId);
+      }
       const cpf = base.cpf?.trim() || "CPF nao informado";
       const colaboradorId = userId || base.id || crypto.randomUUID();
       const dataAdmissao = base.data_admissao?.trim() || null;
@@ -627,7 +524,7 @@ export default function MinhaConta() {
 
       const { data, error } = await supabase
         .from("colaboradores")
-        .upsert(payload, { onConflict: "user_id" })
+        .upsert(payload, { onConflict: "id" })
         .select()
         .maybeSingle();
 
@@ -635,13 +532,28 @@ export default function MinhaConta() {
 
       const saved = data ?? payload;
       setColaboradorForm(saved);
-      await refreshUserProfile(userId, saved.email || userEmail);
       toast.success("Dados de colaborador salvos");
     } catch (error: any) {
       console.error("Erro ao salvar colaborador", error);
       toast.error(error.message || "Nao foi possivel salvar dados de colaborador");
     } finally {
       setSavingColaborador(false);
+    }
+  };
+
+  const handleDeleteColaborador = async () => {
+    if (!userId) return;
+    setDeletingRoleData(true);
+    try {
+      const { error } = await supabase.from("colaboradores").delete().eq("user_id", userId);
+      if (error) throw error;
+      setColaboradorForm(buildColaboradorDefaults(userEmail, userId));
+      toast.success("Dados de colaborador removidos");
+    } catch (error: any) {
+      console.error("Erro ao remover colaborador", error);
+      toast.error(error.message || "Nao foi possivel remover dados de colaborador");
+    } finally {
+      setDeletingRoleData(false);
     }
   };
 
@@ -679,7 +591,6 @@ export default function MinhaConta() {
       }
 
       setInternalProfile(data);
-      await refreshUserProfile(userId, data.email || userEmail);
       toast.success("Dados internos salvos");
     } catch (error: any) {
       console.error("Erro ao salvar perfil interno", error);
@@ -689,49 +600,19 @@ export default function MinhaConta() {
     }
   };
 
-  const handlePrepareDelete = () => {
-    if (!password.trim()) {
-      toast.error("Digite sua senha para continuar");
-      return;
-    }
-
-    setConfirmDeleteOpen(true);
-  };
-
-  const handleDeleteAccount = async () => {
-    if (!userEmail) {
-      toast.error("Email nao encontrado");
-      return;
-    }
-
-    setDeleting(true);
+  const handleDeleteInternalProfile = async () => {
+    if (!userId) return;
+    setDeletingRoleData(true);
     try {
-      const { error: reauthError } = await supabase.auth.signInWithPassword({
-        email: userEmail,
-        password,
-      });
-
-      if (reauthError) throw reauthError;
-
-      const { data, error } = await supabase.functions.invoke("delete-account");
+      const { error } = await supabase.from("internal_profiles").delete().eq("user_id", userId);
       if (error) throw error;
-
-      if (data?.profileDeleted === false && data?.profileError) {
-        toast.warning("Conta removida do acesso. Nao foi possivel limpar todos os dados do perfil.");
-      } else {
-        toast.success("Conta excluida com sucesso");
-      }
-
-      setDeleteDialogOpen(false);
-      setConfirmDeleteOpen(false);
-      setPassword("");
-      await supabase.auth.signOut();
-      navigate("/auth");
+      setInternalProfile(buildInternalDefaults(userId, userEmail));
+      toast.success("Dados internos removidos");
     } catch (error: any) {
-      console.error("Erro ao excluir conta", error);
-      toast.error(error.message || "Nao foi possivel excluir a conta");
+      console.error("Erro ao remover perfil interno", error);
+      toast.error(error.message || "Nao foi possivel remover dados internos");
     } finally {
-      setDeleting(false);
+      setDeletingRoleData(false);
     }
   };
 
@@ -754,17 +635,6 @@ export default function MinhaConta() {
       return (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Nome completo</Label>
-              <Input
-                value={current.nome_completo ?? ""}
-                onChange={(e) => updateCandidateForm({ nome_completo: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value={userEmail} disabled />
-            </div>
             <div className="space-y-2">
               <Label>Cidade</Label>
               <Select
@@ -810,13 +680,6 @@ export default function MinhaConta() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Telefone</Label>
-              <Input
-                value={current.telefone ?? ""}
-                onChange={(e) => updateCandidateForm({ telefone: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
               <Label>Celular</Label>
               <Input
                 value={current.celular ?? ""}
@@ -824,14 +687,24 @@ export default function MinhaConta() {
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Curriculo (link ou caminho)</Label>
-            <Input
-              value={current.curriculo_path ?? ""}
-              onChange={(e) => updateCandidateForm({ curriculo_path: e.target.value })}
-              placeholder="Ex: user-uuid/curriculo/curriculo.pdf"
-            />
-          </div>
+          {current.curriculo_path && (
+            <div className="space-y-2">
+              <Label>Curriculo</Label>
+              <div className="flex flex-wrap gap-2 items-center text-sm">
+                <span className="text-muted-foreground break-all">{current.curriculo_path}</span>
+                {curriculoSignedUrl && (
+                  <Button asChild variant="secondary" size="sm">
+                    <a href={curriculoSignedUrl} target="_blank" rel="noreferrer">
+                      Baixar / abrir
+                    </a>
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={handleDeleteCurriculo} disabled={savingCandidate}>
+                  Remover arquivo
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Enviar curriculo (PDF ou DOC)</Label>
             <Input
@@ -881,16 +754,21 @@ export default function MinhaConta() {
             </div>
           </div>
           <div className="flex justify-end">
-            <Button onClick={handleSaveCandidate} disabled={savingCandidate || uploadingCurriculo}>
-              {savingCandidate || uploadingCurriculo ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                "Salvar dados de candidato"
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleDeleteCandidate} disabled={deletingRoleData}>
+                {deletingRoleData ? "Removendo..." : "Remover dados"}
+              </Button>
+              <Button onClick={handleSaveCandidate} disabled={savingCandidate || uploadingCurriculo}>
+                {savingCandidate || uploadingCurriculo ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar dados de candidato"
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       );
@@ -901,20 +779,6 @@ export default function MinhaConta() {
       return (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Nome completo</Label>
-              <Input
-                value={current.nome_completo || ""}
-                onChange={(e) => updateColaboradorForm({ nome_completo: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input
-                value={current.email || userEmail}
-                onChange={(e) => updateColaboradorForm({ email: e.target.value })}
-              />
-            </div>
             <div className="space-y-2">
               <Label>CPF</Label>
               <Input
@@ -927,13 +791,6 @@ export default function MinhaConta() {
               <Input
                 value={current.cargo || ""}
                 onChange={(e) => updateColaboradorForm({ cargo: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Telefone</Label>
-              <Input
-                value={current.telefone || ""}
-                onChange={(e) => updateColaboradorForm({ telefone: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -999,16 +856,21 @@ export default function MinhaConta() {
             />
           </div>
           <div className="flex justify-end">
-            <Button onClick={handleSaveColaborador} disabled={savingColaborador}>
-              {savingColaborador ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                "Salvar dados de colaborador"
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleDeleteColaborador} disabled={deletingRoleData}>
+                {deletingRoleData ? "Removendo..." : "Remover dados"}
+              </Button>
+              <Button onClick={handleSaveColaborador} disabled={savingColaborador}>
+                {savingColaborador ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar dados de colaborador"
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       );
@@ -1022,28 +884,6 @@ export default function MinhaConta() {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Nome completo</Label>
-            <Input
-              value={internal.nome_completo ?? ""}
-              onChange={(e) => updateInternalProfileForm({ nome_completo: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Email</Label>
-            <Input
-              type="email"
-              value={internal.email ?? ""}
-              onChange={(e) => updateInternalProfileForm({ email: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Telefone</Label>
-            <Input
-              value={internal.phone ?? ""}
-              onChange={(e) => updateInternalProfileForm({ phone: e.target.value })}
-            />
-          </div>
           <div className="space-y-2">
             <Label>CPF</Label>
             <Input
@@ -1069,30 +909,23 @@ export default function MinhaConta() {
             <Label>Nivel de acesso</Label>
             <Input value={internal.nivel_acesso ?? ""} disabled />
           </div>
-          <div className="space-y-2">
-            <Label>User ID</Label>
-            <Input value={internal.user_id ?? ""} disabled />
-          </div>
-          <div className="space-y-2">
-            <Label>Criado em</Label>
-            <Input value={internal.created_at ?? ""} disabled />
-          </div>
-          <div className="space-y-2">
-            <Label>Atualizado em</Label>
-            <Input value={internal.updated_at ?? ""} disabled />
-          </div>
         </div>
         <div className="flex justify-end">
-          <Button onClick={handleSaveInternalProfile} disabled={savingInternalProfile}>
-            {savingInternalProfile ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              "Salvar dados internos"
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDeleteInternalProfile} disabled={deletingRoleData}>
+              {deletingRoleData ? "Removendo..." : "Remover dados"}
+            </Button>
+            <Button onClick={handleSaveInternalProfile} disabled={savingInternalProfile}>
+              {savingInternalProfile ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                "Salvar dados internos"
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -1103,22 +936,19 @@ export default function MinhaConta() {
       <div className="max-w-3xl mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">Preferencias</p>
-            <h1 className="text-3xl font-semibold">Minha conta</h1>
+            <p className="text-sm text-muted-foreground">Dados empresariais</p>
+            <h1 className="text-3xl font-semibold">Perfil empresarial</h1>
             <p className="text-muted-foreground">
-              Visualize e edite seus dados de acordo com seu tipo de usuario.
+              Visualize e edite dados de candidato, colaborador ou perfil interno, conforme seu tipo de usuario.
             </p>
-          </div>
-          <div className="p-3 rounded-full bg-primary/10">
-            <UserCog className="h-6 w-6 text-primary" />
           </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Dados do usuario</CardTitle>
+            <CardTitle>Dados completos ({userRole ? roleLabels[userRole] : "perfil"})</CardTitle>
             <CardDescription>
-              Informacoes basicas do seu cadastro.
+              Informacoes especificas do seu papel na empresa.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1127,67 +957,8 @@ export default function MinhaConta() {
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>Carregando...</span>
               </div>
-            ) : !userProfile || !userId || !userRole ? (
-              <p className="text-sm text-muted-foreground">Dados do usuario nao encontrados.</p>
             ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Nome completo</Label>
-                    <Input
-                      value={userProfile.full_name ?? ""}
-                      onChange={(e) => updateUserProfileForm({ full_name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={userProfile.email ?? ""}
-                      onChange={(e) => updateUserProfileForm({ email: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Telefone</Label>
-                    <Input
-                      value={userProfile.phone ?? ""}
-                      onChange={(e) => updateUserProfileForm({ phone: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Perfil</Label>
-                    <Input value={roleLabels[userProfile.role] ?? userProfile.role} disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Superior</Label>
-                    <Input value={userProfile.superior ?? ""} disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Usuario ID</Label>
-                    <Input value={userProfile.id} disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Criado em</Label>
-                    <Input value={userProfile.created_at} disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Atualizado em</Label>
-                    <Input value={userProfile.updated_at} disabled />
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <Button onClick={handleSaveUserProfile} disabled={savingUserProfile}>
-                    {savingUserProfile ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Salvando...
-                      </>
-                    ) : (
-                      "Salvar dados do usuario"
-                    )}
-                  </Button>
-                </div>
-              </div>
+              renderRoleFields()
             )}
           </CardContent>
         </Card>

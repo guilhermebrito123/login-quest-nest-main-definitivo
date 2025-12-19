@@ -72,43 +72,46 @@ export type Database = {
       }
       candidatos: {
         Row: {
-          celular: string
-          cidade: string
+          celular: string | null
+          cidade: string | null
           created_at: string
-          curriculo_path: string
+          curriculo_path: string | null
           email: string
-          estado: string
-          experiencia_relevante: string[]
+          estado: string | null
+          experiencia_relevante: string[] | null
           id: string
           nome_completo: string
-          telefone: string
+          telefone: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
-          celular: string
-          cidade: string
+          celular?: string | null
+          cidade?: string | null
           created_at?: string
-          curriculo_path: string
+          curriculo_path?: string | null
           email: string
-          estado: string
-          experiencia_relevante: string[]
+          estado?: string | null
+          experiencia_relevante?: string[] | null
           id?: string
           nome_completo: string
-          telefone: string
+          telefone?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
-          celular?: string
-          cidade?: string
+          celular?: string | null
+          cidade?: string | null
           created_at?: string
-          curriculo_path?: string
+          curriculo_path?: string | null
           email?: string
-          estado?: string
-          experiencia_relevante?: string[]
+          estado?: string | null
+          experiencia_relevante?: string[] | null
           id?: string
           nome_completo?: string
-          telefone?: string
+          telefone?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -431,6 +434,7 @@ export type Database = {
           contato_telefone: string | null
           created_at: string
           id: number
+          itens_adicionais: string | null
           nome_fantasia: string
           razao_social: string
           updated_at: string
@@ -442,6 +446,7 @@ export type Database = {
           contato_telefone?: string | null
           created_at?: string
           id?: number
+          itens_adicionais?: string | null
           nome_fantasia?: string
           razao_social: string
           updated_at?: string
@@ -453,6 +458,7 @@ export type Database = {
           contato_telefone?: string | null
           created_at?: string
           id?: number
+          itens_adicionais?: string | null
           nome_fantasia?: string
           razao_social?: string
           updated_at?: string
@@ -561,6 +567,7 @@ export type Database = {
           telefone: string | null
           unidade_id: string | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           cargo?: string | null
@@ -578,6 +585,7 @@ export type Database = {
           telefone?: string | null
           unidade_id?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           cargo?: string | null
@@ -595,6 +603,7 @@ export type Database = {
           telefone?: string | null
           unidade_id?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1438,25 +1447,37 @@ export type Database = {
       internal_profiles: {
         Row: {
           cargo: string | null
+          cpf: string | null
           created_at: string
           departamento: string | null
-          nivel_acesso: Database["public"]["Enums"]["app_role"]
+          email: string | null
+          nivel_acesso: Database["public"]["Enums"]["internal_access_level"]
+          nome_completo: string | null
+          phone: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           cargo?: string | null
+          cpf?: string | null
           created_at?: string
           departamento?: string | null
-          nivel_acesso?: Database["public"]["Enums"]["app_role"]
+          email?: string | null
+          nivel_acesso?: Database["public"]["Enums"]["internal_access_level"]
+          nome_completo?: string | null
+          phone?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           cargo?: string | null
+          cpf?: string | null
           created_at?: string
           departamento?: string | null
-          nivel_acesso?: Database["public"]["Enums"]["app_role"]
+          email?: string | null
+          nivel_acesso?: Database["public"]["Enums"]["internal_access_level"]
+          nome_completo?: string | null
+          phone?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -1905,11 +1926,14 @@ export type Database = {
       postos_servico: {
         Row: {
           acumulo_funcao: boolean | null
+          acumulo_funcao_percentual: number | null
+          adc_insalubridade_percentual: number | null
           adicional_noturno: boolean | null
           assistencia_medica: boolean | null
           cesta: boolean | null
           created_at: string | null
           dias_semana: number[] | null
+          efetivo_planejado: number | null
           escala: string | null
           funcao: string
           gratificacao: boolean | null
@@ -1939,11 +1963,14 @@ export type Database = {
         }
         Insert: {
           acumulo_funcao?: boolean | null
+          acumulo_funcao_percentual?: number | null
+          adc_insalubridade_percentual?: number | null
           adicional_noturno?: boolean | null
           assistencia_medica?: boolean | null
           cesta?: boolean | null
           created_at?: string | null
           dias_semana?: number[] | null
+          efetivo_planejado?: number | null
           escala?: string | null
           funcao: string
           gratificacao?: boolean | null
@@ -1973,11 +2000,14 @@ export type Database = {
         }
         Update: {
           acumulo_funcao?: boolean | null
+          acumulo_funcao_percentual?: number | null
+          adc_insalubridade_percentual?: number | null
           adicional_noturno?: boolean | null
           assistencia_medica?: boolean | null
           cesta?: boolean | null
           created_at?: string | null
           dias_semana?: number[] | null
+          efetivo_planejado?: number | null
           escala?: string | null
           funcao?: string
           gratificacao?: boolean | null
@@ -2252,19 +2282,19 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          role: Database["public"]["Enums"]["app_role"]
+          role: Database["public"]["Enums"]["internal_access_level"]
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: Database["public"]["Enums"]["internal_access_level"]
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: Database["public"]["Enums"]["internal_access_level"]
           user_id?: string
         }
         Relationships: []
@@ -2276,7 +2306,7 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
-          role: Database["public"]["Enums"]["app_role"]
+          role: Database["public"]["Enums"]["user_type"]
           superior: string | null
           updated_at: string
         }
@@ -2286,7 +2316,7 @@ export type Database = {
           full_name?: string | null
           id: string
           phone?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: Database["public"]["Enums"]["user_type"]
           superior?: string | null
           updated_at?: string
         }
@@ -2296,7 +2326,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: Database["public"]["Enums"]["user_type"]
           superior?: string | null
           updated_at?: string
         }
@@ -2304,6 +2334,212 @@ export type Database = {
           {
             foreignKeyName: "profiles_superior_fkey"
             columns: ["superior"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vagas_temp: {
+        Row: {
+          aberta_por: string
+          altura: number | null
+          aprovada_por: string | null
+          cancelada_por: string | null
+          created_at: string
+          criado_por: string
+          curso_adicional: string[] | null
+          data_abertura: string
+          data_aprovacao: string | null
+          data_cancelamento: string | null
+          data_fechamento: string | null
+          data_fim: string | null
+          data_inicio: string
+          data_reprovacao: string | null
+          data_selecao: string | null
+          entrevistador: string | null
+          estado_civil: Database["public"]["Enums"]["estado_civil"] | null
+          experiencia: string[] | null
+          fechada_por: string | null
+          formacao: string[] | null
+          habilidade: string[] | null
+          horario_fim: string
+          horario_inicio: string
+          id: number
+          idade_maxima: number | null
+          idade_minima: number | null
+          intervalo_refeicao: number
+          motivo_contratacao: Database["public"]["Enums"]["motivo_contratacao"]
+          nome_candidato: string | null
+          nome_colaborador: string | null
+          nome_vaga: string
+          observacoes: string | null
+          peso: number | null
+          posto_servico_id: string
+          reprovada_por: string | null
+          requisito_descricao: string | null
+          sexo: Database["public"]["Enums"]["sexualidade"] | null
+          status: Database["public"]["Enums"]["status_vaga"]
+          tempo_minimo_experiencia: number | null
+          tipo_requisito: Database["public"]["Enums"]["tipos_requisito"]
+          tipo_vaga: Database["public"]["Enums"]["tipo_de_vaga"]
+          updated_at: string
+        }
+        Insert: {
+          aberta_por: string
+          altura?: number | null
+          aprovada_por?: string | null
+          cancelada_por?: string | null
+          created_at?: string
+          criado_por: string
+          curso_adicional?: string[] | null
+          data_abertura?: string
+          data_aprovacao?: string | null
+          data_cancelamento?: string | null
+          data_fechamento?: string | null
+          data_fim?: string | null
+          data_inicio: string
+          data_reprovacao?: string | null
+          data_selecao?: string | null
+          entrevistador?: string | null
+          estado_civil?: Database["public"]["Enums"]["estado_civil"] | null
+          experiencia?: string[] | null
+          fechada_por?: string | null
+          formacao?: string[] | null
+          habilidade?: string[] | null
+          horario_fim: string
+          horario_inicio: string
+          id?: number
+          idade_maxima?: number | null
+          idade_minima?: number | null
+          intervalo_refeicao?: number
+          motivo_contratacao: Database["public"]["Enums"]["motivo_contratacao"]
+          nome_candidato?: string | null
+          nome_colaborador?: string | null
+          nome_vaga: string
+          observacoes?: string | null
+          peso?: number | null
+          posto_servico_id: string
+          reprovada_por?: string | null
+          requisito_descricao?: string | null
+          sexo?: Database["public"]["Enums"]["sexualidade"] | null
+          status?: Database["public"]["Enums"]["status_vaga"]
+          tempo_minimo_experiencia?: number | null
+          tipo_requisito: Database["public"]["Enums"]["tipos_requisito"]
+          tipo_vaga: Database["public"]["Enums"]["tipo_de_vaga"]
+          updated_at?: string
+        }
+        Update: {
+          aberta_por?: string
+          altura?: number | null
+          aprovada_por?: string | null
+          cancelada_por?: string | null
+          created_at?: string
+          criado_por?: string
+          curso_adicional?: string[] | null
+          data_abertura?: string
+          data_aprovacao?: string | null
+          data_cancelamento?: string | null
+          data_fechamento?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          data_reprovacao?: string | null
+          data_selecao?: string | null
+          entrevistador?: string | null
+          estado_civil?: Database["public"]["Enums"]["estado_civil"] | null
+          experiencia?: string[] | null
+          fechada_por?: string | null
+          formacao?: string[] | null
+          habilidade?: string[] | null
+          horario_fim?: string
+          horario_inicio?: string
+          id?: number
+          idade_maxima?: number | null
+          idade_minima?: number | null
+          intervalo_refeicao?: number
+          motivo_contratacao?: Database["public"]["Enums"]["motivo_contratacao"]
+          nome_candidato?: string | null
+          nome_colaborador?: string | null
+          nome_vaga?: string
+          observacoes?: string | null
+          peso?: number | null
+          posto_servico_id?: string
+          reprovada_por?: string | null
+          requisito_descricao?: string | null
+          sexo?: Database["public"]["Enums"]["sexualidade"] | null
+          status?: Database["public"]["Enums"]["status_vaga"]
+          tempo_minimo_experiencia?: number | null
+          tipo_requisito?: Database["public"]["Enums"]["tipos_requisito"]
+          tipo_vaga?: Database["public"]["Enums"]["tipo_de_vaga"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vagas_temp_aberta_por_fkey"
+            columns: ["aberta_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vagas_temp_aprovada_por_fkey"
+            columns: ["aprovada_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vagas_temp_cancelada_por_fkey"
+            columns: ["cancelada_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vagas_temp_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vagas_temp_entrevistador_fkey"
+            columns: ["entrevistador"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vagas_temp_fechada_por_fkey"
+            columns: ["fechada_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vagas_temp_nome_candidato_fkey"
+            columns: ["nome_candidato"]
+            isOneToOne: false
+            referencedRelation: "candidatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vagas_temp_nome_colaborador_fkey"
+            columns: ["nome_colaborador"]
+            isOneToOne: false
+            referencedRelation: "colaboradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vagas_temp_posto_servico_id_fkey"
+            columns: ["posto_servico_id"]
+            isOneToOne: false
+            referencedRelation: "postos_servico"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vagas_temp_reprovada_por_fkey"
+            columns: ["reprovada_por"]
             isOneToOne: false
             referencedRelation: "usuarios"
             referencedColumns: ["id"]
@@ -2377,7 +2613,7 @@ export type Database = {
       gerar_dias_trabalho_proximo_mes: { Args: never; Returns: undefined }
       has_role: {
         Args: {
-          _role: Database["public"]["Enums"]["app_role"]
+          _role: Database["public"]["Enums"]["internal_access_level"]
           _user_id: string
         }
         Returns: boolean
@@ -2391,19 +2627,24 @@ export type Database = {
       processar_movimentacoes_agendadas: { Args: never; Returns: undefined }
     }
     Enums: {
-      app_role:
-        | "admin"
-        | "gestor_operacoes"
-        | "supervisor"
-        | "analista_centro_controle"
-        | "tecnico"
-        | "cliente_view"
       estado_civil:
         | "Solteiro"
         | "Casado"
         | "Divorciado"
         | "Viúvo"
         | "Indiferente"
+      internal_access_level:
+        | "admin"
+        | "gestor_operacoes"
+        | "supervisor"
+        | "analista_centro_controle"
+        | "tecnico"
+        | "cliente_view"
+      motivo_contratacao:
+        | "Substituição efetivo"
+        | "Substituição férias licença"
+        | "Implantação/Abertura de novo contrato"
+        | "Solicitação do cliente"
       motivo_vago_type:
         | "FALTA JUSTIFICADA"
         | "FALTA INJUSTIFICADA"
@@ -2444,7 +2685,18 @@ export type Database = {
         | "presenca_confirmada"
         | "ocupacao_agendada"
         | "inativo"
+      status_vaga:
+        | "Aberta"
+        | "Em seleção"
+        | "Em aprovação"
+        | "Aguardando documentação"
+        | "Aguardando exame"
+        | "Em Admissão"
+        | "Fechada"
+        | "Cancelada"
+        | "Reprovada"
       tipo_conta_bancaria: "conta corrente" | "conta poupança" | "conta salário"
+      tipo_de_vaga: "Efetivo" | "Temporário" | "Seleção" | "Estágio"
       tipos_requisito:
         | "TQC (D.A. 06-01)"
         | "TQC (D.A. 06-01) + exigências do cliente"
@@ -2455,6 +2707,7 @@ export type Database = {
         | "Vespertino"
         | "Revezamento"
         | "Ininterrupto"
+      user_type: "candidato" | "colaborador" | "perfil_interno"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2582,7 +2835,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: [
+      estado_civil: [
+        "Solteiro",
+        "Casado",
+        "Divorciado",
+        "Viúvo",
+        "Indiferente",
+      ],
+      internal_access_level: [
         "admin",
         "gestor_operacoes",
         "supervisor",
@@ -2590,12 +2850,11 @@ export const Constants = {
         "tecnico",
         "cliente_view",
       ],
-      estado_civil: [
-        "Solteiro",
-        "Casado",
-        "Divorciado",
-        "Viúvo",
-        "Indiferente",
+      motivo_contratacao: [
+        "Substituição efetivo",
+        "Substituição férias licença",
+        "Implantação/Abertura de novo contrato",
+        "Solicitação do cliente",
       ],
       motivo_vago_type: [
         "FALTA JUSTIFICADA",
@@ -2641,11 +2900,23 @@ export const Constants = {
         "ocupacao_agendada",
         "inativo",
       ],
+      status_vaga: [
+        "Aberta",
+        "Em seleção",
+        "Em aprovação",
+        "Aguardando documentação",
+        "Aguardando exame",
+        "Em Admissão",
+        "Fechada",
+        "Cancelada",
+        "Reprovada",
+      ],
       tipo_conta_bancaria: [
         "conta corrente",
         "conta poupança",
         "conta salário",
       ],
+      tipo_de_vaga: ["Efetivo", "Temporário", "Seleção", "Estágio"],
       tipos_requisito: [
         "TQC (D.A. 06-01)",
         "TQC (D.A. 06-01) + exigências do cliente",
@@ -2658,6 +2929,7 @@ export const Constants = {
         "Revezamento",
         "Ininterrupto",
       ],
+      user_type: ["candidato", "colaborador", "perfil_interno"],
     },
   },
 } as const

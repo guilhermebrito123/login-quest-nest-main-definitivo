@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
   ListChecks,
   ListOrdered,
+  Briefcase,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -39,7 +40,9 @@ type MenuItem = {
   icon: any;
   children?: { title: string; url: string; status?: string }[];
   statusCountsKey?: "diarias" | "diariasTemporarias";
+  badge?: string;
 };
+type UserRole = "candidato" | "colaborador" | "perfil_interno";
 
 const diariasChildren = [
   {
@@ -81,6 +84,7 @@ const diariasTemporariasChildren = [
 
 const menuItems: MenuItem[] = [
   { title: "Minha conta", url: "/minha-conta", icon: UserCog },
+  { title: "Dados empresariais", url: "/dados-empresariais", icon: Briefcase },
   { title: "Dashboard 24/7", url: "/dashboard-24h", icon: LayoutDashboard },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Gestão de Usuários", url: "/users", icon: Users },
@@ -129,7 +133,7 @@ export function AppSidebar() {
   const [diariasTemporariasCounts, setDiariasTemporariasCounts] = useState<
     Record<string, number>
   >({});
-
+  const [enterprisePending, setEnterprisePending] = useState(false);
   useEffect(() => {
     let isMounted = true;
 
@@ -176,6 +180,93 @@ export function AppSidebar() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const checkEnterprisePending = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: profile } = await supabase
+          .from("usuarios")
+          .select("role, email, full_name, phone")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        const role = (profile?.role as UserRole | null) ?? null;
+        if (!role) return;
+
+        let pending = false;
+        const filled = (v?: string | null) => !!v && v.toString().trim().length > 0;
+
+        if (role === "candidato") {
+          const { data } = await supabase
+            .from("candidatos")
+            .select("nome_completo, email, telefone, celular, cidade, estado, curriculo_path")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          pending =
+            !data ||
+            !filled(data.nome_completo) ||
+            !filled(data.email) ||
+            !(filled(data.telefone) || filled(data.celular)) ||
+            !filled(data.cidade) ||
+            !filled(data.estado) ||
+            !filled(data.curriculo_path);
+        } else if (role === "colaborador") {
+          const { data } = await supabase
+            .from("colaboradores")
+            .select("nome_completo, email, cpf, telefone, cargo, status_colaborador")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          pending =
+            !data ||
+            !filled(data.nome_completo) ||
+            !filled(data.email) ||
+            !filled(data.cpf) ||
+            !filled(data.telefone) ||
+            !filled(data.cargo) ||
+            !filled(data.status_colaborador);
+        } else if (role === "perfil_interno") {
+          const { data } = await supabase
+            .from("internal_profiles")
+            .select("nome_completo, email, phone, cpf, cargo, nivel_acesso")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          pending =
+            !data ||
+            !filled(data.nome_completo) ||
+            !filled(data.email) ||
+            !filled(data.phone) ||
+            !filled(data.cpf) ||
+            !filled(data.cargo) ||
+            !filled(data.nivel_acesso);
+        }
+
+        if (active) setEnterprisePending(pending);
+      } catch (error) {
+        console.error("Erro ao verificar pendencias empresariais:", error);
+      }
+    };
+
+    checkEnterprisePending();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const computedMenuItems = useMemo(
+    () =>
+      menuItems.map((item) =>
+        item.url === "/dados-empresariais" && enterprisePending
+          ? { ...item, badge: "!" }
+          : item
+      ),
+    [enterprisePending]
+  );
+
   const isActive = (path: string, exact = true) =>
     exact
       ? currentPath === path
@@ -196,7 +287,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
+              {computedMenuItems.map((item) => {
                 const hasChildren =
                   Array.isArray(item.children) && item.children.length > 0;
                 const itemActive = hasChildren
@@ -216,7 +307,12 @@ export function AppSidebar() {
                         activeClassName="bg-accent text-accent-foreground font-medium"
                       >
                         <item.icon className="h-5 w-5" />
-                        {open && <span>{item.title}</span>}
+                        {open && <span className="flex-1">{item.title}</span>}
+                        {item.badge && (
+                          <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-2 text-[10px] font-semibold text-white">
+                            {item.badge}
+                          </span>
+                        )}
                       </NavLink>
                     </SidebarMenuButton>
                     {hasChildren && open && itemActive && (

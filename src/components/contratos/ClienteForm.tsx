@@ -29,6 +29,7 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
     contato_nome: "",
     contato_email: "",
     contato_telefone: "",
+    itens_adicionais: "",
   };
   const [formData, setFormData] = useState(initialState);
 
@@ -42,7 +43,7 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
       setLoading(true);
       const { data, error } = await supabase
         .from("clientes")
-        .select("razao_social, nome_fantasia, cnpj, contato_nome, contato_email, contato_telefone")
+        .select("razao_social, nome_fantasia, cnpj, contato_nome, contato_email, contato_telefone, itens_adicionais")
         .eq("id", clienteId)
         .single();
 
@@ -60,6 +61,7 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
           contato_nome: data.contato_nome ?? "",
           contato_email: data.contato_email ?? "",
           contato_telefone: data.contato_telefone ?? "",
+          itens_adicionais: data.itens_adicionais ?? "",
         });
       }
       setLoading(false);
@@ -83,6 +85,7 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
         contato_nome: formData.contato_nome.trim(),
         contato_email: formData.contato_email.trim(),
         contato_telefone: formData.contato_telefone.trim(),
+        itens_adicionais: formData.itens_adicionais.trim(),
       };
 
       if (clienteId) {
@@ -199,6 +202,18 @@ const ClienteForm = ({ clienteId, onClose, onSuccess }: ClienteFormProps) => {
                   setFormData({ ...formData, contato_telefone: e.target.value })
                 }
                 placeholder="(00) 00000-0000"
+              />
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="itens_adicionais">Itens adicionais</Label>
+              <Input
+                id="itens_adicionais"
+                value={formData.itens_adicionais}
+                onChange={(e) =>
+                  setFormData({ ...formData, itens_adicionais: e.target.value })
+                }
+                placeholder="Campos ou observacoes extras do cliente"
               />
             </div>
           </div>
