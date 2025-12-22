@@ -28,15 +28,34 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Search, Shield, UserCog, Trash2 } from "lucide-react";
 
-type AppRole = Database["public"]["Enums"]["app_role"];
+type UserType = Database["public"]["Enums"]["user_type"];
+type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
 type ProfileRow = Database["public"]["Tables"]["usuarios"]["Row"];
 
 interface UserWithRole extends ProfileRow {
-  role: AppRole;
+  role: UserType;
+  accessLevel?: AccessLevel | null;
   superior_name?: string | null;
+  cpf?: string | null;
 }
 
-const roleOptions: AppRole[] = [
+const userTypeOptions: UserType[] = ["candidato", "colaborador", "perfil_interno"];
+const userTypeLabels: Record<UserType, string> = {
+  candidato: "Candidato",
+  colaborador: "Colaborador",
+  perfil_interno: "Perfil interno",
+};
+
+const getUserTypeBadgeColor = (type: UserType) => {
+  const colors: Record<UserType, string> = {
+    candidato: "bg-gray-500",
+    colaborador: "bg-blue-500",
+    perfil_interno: "bg-indigo-600",
+  };
+  return colors[type] || "bg-gray-500";
+};
+
+const accessLevelOptions: AccessLevel[] = [
   "admin",
   "gestor_operacoes",
   "supervisor",
@@ -45,7 +64,7 @@ const roleOptions: AppRole[] = [
   "cliente_view",
 ];
 
-const roleLabels: Record<AppRole, string> = {
+const accessLevelLabels: Record<AccessLevel, string> = {
   admin: "Administrador",
   gestor_operacoes: "Gestor de Operacoes",
   supervisor: "Supervisor",
@@ -54,8 +73,8 @@ const roleLabels: Record<AppRole, string> = {
   cliente_view: "Cliente (Visualizacao)",
 };
 
-const getRoleBadgeColor = (role: AppRole) => {
-  const colors: Record<AppRole, string> = {
+const getAccessBadgeColor = (level: AccessLevel) => {
+  const colors: Record<AccessLevel, string> = {
     admin: "bg-red-500",
     gestor_operacoes: "bg-purple-500",
     supervisor: "bg-blue-500",
@@ -63,7 +82,7 @@ const getRoleBadgeColor = (role: AppRole) => {
     tecnico: "bg-green-500",
     cliente_view: "bg-gray-500",
   };
-  return colors[role] || "bg-gray-500";
+  return colors[level] || "bg-gray-500";
 };
 
 const UserManagement = () => {
@@ -73,6 +92,7 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
+  const [updatingAccessId, setUpdatingAccessId] = useState<string | null>(null);
   const [updatingSuperiorId, setUpdatingSuperiorId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -97,15 +117,15 @@ const UserManagement = () => {
         return;
       }
 
-      const { data: roleData, error: roleError } = await supabase
-        .from("usuarios")
-        .select("role")
-        .eq("id", user.id)
+      const { data: profileAccess, error: profileError } = await supabase
+        .from("internal_profiles")
+        .select("nivel_acesso")
+        .eq("user_id", user.id)
         .maybeSingle();
 
-      if (roleError) throw roleError;
+      if (profileError) throw profileError;
 
-      if (roleData?.role !== "admin") {
+      if (profileAccess?.nivel_acesso !== "admin") {
         toast({
           title: "Acesso negado",
           description: "Apenas administradores podem acessar esta pagina.",
@@ -141,7 +161,11 @@ const UserManagement = () => {
           role,
           superior,
           created_at,
-          updated_at
+          updated_at,
+          internal_profiles (
+            nivel_acesso,
+            cpf
+          )
         `)
         .order("full_name", { ascending: true });
 
@@ -158,11 +182,13 @@ const UserManagement = () => {
           email: user.email,
           full_name: user.full_name,
           phone: user.phone,
-          role: user.role as AppRole,
+          role: user.role as UserType,
+          accessLevel: user.internal_profiles?.[0]?.nivel_acesso || null,
           superior: user.superior ?? null,
           created_at: user.created_at,
           updated_at: user.updated_at,
           superior_name: user.superior ? nameMap.get(user.superior) ?? null : null,
+          cpf: user.internal_profiles?.[0]?.cpf || null,
         })) || [];
 
       setUsers(usersWithRoles);
@@ -191,20 +217,19 @@ const UserManagement = () => {
     setFilteredUsers(filtered);
   };
 
-  const handleRoleChange = async (userId: string, newRole: AppRole) => {
-    const userName = users.find((u) => u.id === userId)?.full_name || "o usuario";
+  const handleRoleChange = async (userId: string, newRole: UserType) => {
+    const current = users.find((u) => u.id === userId);
+    const userName = current?.full_name || "o usuario";
     const confirmed = window.confirm(
-      `Confirmar alteracao de perfil para ${userName}? O novo perfil sera: ${roleLabels[newRole]}.`
+      `Confirmar alteracao de perfil para ${userName}? O novo perfil sera: ${userTypeLabels[newRole]}.`
     );
     if (!confirmed) return;
 
     setUpdatingRoleId(userId);
     try {
-      const { error } = await supabase
-        .from("usuarios")
-        .update({ role: newRole })
-        .eq("id", userId);
-
+      const updatePayload =
+        newRole === "perfil_interno" ? { role: newRole } : { role: newRole, superior: null };
+      const { error } = await supabase.from("usuarios").update(updatePayload).eq("id", userId);
       if (error) throw error;
 
       toast({
@@ -212,9 +237,7 @@ const UserManagement = () => {
         description: "O perfil do usuario foi alterado com sucesso.",
       });
 
-      setUsers((prev) =>
-        prev.map((user) => (user.id === userId ? { ...user, role: newRole } : user))
-      );
+      await loadUsers();
     } catch (error: any) {
       toast({
         title: "Erro ao atualizar perfil",
@@ -226,8 +249,50 @@ const UserManagement = () => {
     }
   };
 
-  const handleSuperiorChange = async (userId: string, superiorId: string | null) => {
+  const handleAccessLevelChange = async (userId: string, newLevel: AccessLevel) => {
     const userName = users.find((u) => u.id === userId)?.full_name || "o usuario";
+    const confirmed = window.confirm(
+      `Confirmar nivel de acesso para ${userName}? Novo nivel: ${accessLevelLabels[newLevel]}.`,
+    );
+    if (!confirmed) return;
+
+    setUpdatingAccessId(userId);
+    try {
+      const { error } = await supabase
+        .from("internal_profiles")
+        .upsert({ user_id: userId, nivel_acesso: newLevel }, { onConflict: "user_id" });
+      if (error) throw error;
+
+      setUsers((prev) =>
+        prev.map((user) => (user.id === userId ? { ...user, accessLevel: newLevel } : user)),
+      );
+      toast({
+        title: "Nivel de acesso atualizado",
+        description: "O nivel de acesso interno foi salvo.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar nivel de acesso",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingAccessId(null);
+    }
+  };
+
+  const handleSuperiorChange = async (userId: string, superiorId: string | null) => {
+    const currentUser = users.find((u) => u.id === userId);
+    if (!currentUser || currentUser.role !== "perfil_interno") {
+      toast({
+        title: "Superior indisponivel",
+        description: "Apenas perfis internos podem ter superior definido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const userName = currentUser.full_name || "o usuario";
     const superiorName = superiorId
       ? users.find((u) => u.id === superiorId)?.full_name || "superior selecionado"
       : "Sem superior";
@@ -397,55 +462,93 @@ const UserManagement = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Perfil de acesso</label>
+                    <label className="text-sm font-medium">Tipo de usuario</label>
                     <Select
                       value={user.role}
-                      onValueChange={(value) => handleRoleChange(user.id, value as AppRole)}
+                      onValueChange={(value) => handleRoleChange(user.id, value as UserType)}
                       disabled={updatingRoleId === user.id}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione o perfil" />
+                        <SelectValue placeholder="Selecione o tipo" />
                       </SelectTrigger>
                       <SelectContent>
-                        {roleOptions.map((value) => (
+                        {userTypeOptions.map((value) => (
                           <SelectItem key={value} value={value}>
                             <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${getRoleBadgeColor(value)}`} />
-                              {roleLabels[value]}
+                              <div className={`w-2 h-2 rounded-full ${getUserTypeBadgeColor(value)}`} />
+                              {userTypeLabels[value]}
                             </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Badge className={`${getRoleBadgeColor(user.role)} text-white`}>
-                      {roleLabels[user.role]}
+                    <Badge className={`${getUserTypeBadgeColor(user.role)} text-white`}>
+                      {userTypeLabels[user.role]}
                     </Badge>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Superior imediato</label>
-                    <Select
-                      value={user.superior || "none"}
-                      onValueChange={(value) => handleSuperiorChange(user.id, value === "none" ? null : value)}
-                      disabled={updatingSuperiorId === user.id}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o superior" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sem superior</SelectItem>
-                        {users
-                          .filter((u) => u.id !== user.id)
-                          .map((candidate) => (
-                            <SelectItem key={candidate.id} value={candidate.id}>
-                              {candidate.full_name || candidate.email}
+                  {user.role === "perfil_interno" && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Nivel de acesso interno</label>
+                      <Select
+                        value={user.accessLevel || ""}
+                        onValueChange={(value) => handleAccessLevelChange(user.id, value as AccessLevel)}
+                        disabled={updatingAccessId === user.id}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o nivel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accessLevelOptions.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${getAccessBadgeColor(value)}`} />
+                                {accessLevelLabels[value]}
+                              </div>
                             </SelectItem>
                           ))}
-                      </SelectContent>
-                    </Select>
-                    {user.superior_name && (
+                        </SelectContent>
+                      </Select>
+                      {user.accessLevel && (
+                        <Badge className={`${getAccessBadgeColor(user.accessLevel)} text-white`}>
+                          {accessLevelLabels[user.accessLevel]}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Superior imediato</label>
+                    {user.role === "perfil_interno" ? (
+                      <>
+                        <Select
+                          value={user.superior || "none"}
+                          onValueChange={(value) => handleSuperiorChange(user.id, value === "none" ? null : value)}
+                          disabled={updatingSuperiorId === user.id}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o superior" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sem superior</SelectItem>
+                            {users
+                              .filter((u) => u.id !== user.id)
+                              .map((candidate) => (
+                                <SelectItem key={candidate.id} value={candidate.id}>
+                                  {candidate.full_name || candidate.email}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        {user.superior_name && (
+                          <p className="text-xs text-muted-foreground">
+                            Atual: {user.superior_name}
+                          </p>
+                        )}
+                      </>
+                    ) : (
                       <p className="text-xs text-muted-foreground">
-                        Atual: {user.superior_name}
+                        Nao aplicavel para candidatos ou colaboradores.
                       </p>
                     )}
                   </div>

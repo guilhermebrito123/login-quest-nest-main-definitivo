@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,11 +52,17 @@ const ESCALAS_COM_DIAS_OBRIGATORIOS = new Set(["5x2", "6x1"]);
 
 type PostoStatus = (typeof POSTO_STATUS_OPTIONS)[number]["value"];
 type TurnoOption = (typeof TURNO_OPTIONS)[number];
+type AcumuloFuncaoOption = Database["public"]["Enums"]["acumulo_funcao_options"];
+const ACUMULO_FUNCAO_OPTIONS: AcumuloFuncaoOption[] = ["Sim", "Não", "Especial"];
 
 interface PostoFormState {
   unidade_id: string;
+  cliente_id: string;
   nome: string;
   funcao: string;
+  efetivo_planejado: string;
+  adc_insalubridade_percentual: string;
+  acumulo_funcao_percentual: string;
   valor_diaria: string;
   valor_unitario: string;
   adicional_noturno: boolean | null;
@@ -63,7 +70,7 @@ interface PostoFormState {
   intrajornada: boolean | null;
   insalubridade: boolean | null;
   periculosidade: boolean | null;
-  acumulo_funcao: boolean | null;
+  acumulo_funcao: AcumuloFuncaoOption | "";
   gratificacao: boolean | null;
   vt_dia: string;
   vr_dia: string;
@@ -94,7 +101,6 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
     | "intrajornada"
     | "insalubridade"
     | "periculosidade"
-    | "acumulo_funcao"
     | "gratificacao"
     | "assistencia_medica"
     | "cesta"
@@ -104,8 +110,12 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
   const [unidades, setUnidades] = useState<any[]>([]);
   const initialState: PostoFormState = {
     unidade_id: unidadeId || "",
+    cliente_id: "",
     nome: "",
     funcao: "",
+    efetivo_planejado: "1",
+    adc_insalubridade_percentual: "",
+    acumulo_funcao_percentual: "",
     valor_diaria: "",
     valor_unitario: "",
     adicional_noturno: null,
@@ -113,7 +123,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
     intrajornada: null,
     insalubridade: null,
     periculosidade: null,
-    acumulo_funcao: null,
+    acumulo_funcao: "",
     gratificacao: null,
     vt_dia: "",
     vr_dia: "",
@@ -141,6 +151,16 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
   }, []);
 
   useEffect(() => {
+    if (unidadeId && unidades.length) {
+      const found = unidades.find((u) => u.id === unidadeId);
+      if (found?.cliente_id) {
+        setFormData((prev) => ({ ...prev, cliente_id: found.cliente_id.toString() }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unidadeId, unidades]);
+
+  useEffect(() => {
     setFormData((prev) => {
       if (!ESCALAS_COM_DIAS_OBRIGATORIOS.has(prev.escala) && prev.dias_semana.length > 0) {
         return { ...prev, dias_semana: [] };
@@ -160,7 +180,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
       const { data, error } = await supabase
         .from("postos_servico")
         .select(
-          "unidade_id, nome, funcao, valor_diaria, valor_unitario, adicional_noturno, salario, intrajornada, insalubridade, periculosidade, acumulo_funcao, gratificacao, vt_dia, vr_dia, assistencia_medica, cesta, premio_assiduidade, turno, escala, dias_semana, jornada, horario_inicio, horario_fim, intervalo_refeicao, status, observacoes_especificas, outros_beneficios, primeiro_dia_atividade, ultimo_dia_atividade"
+          "unidade_id, cliente_id, nome, funcao, efetivo_planejado, adc_insalubridade_percentual, acumulo_funcao_percentual, valor_diaria, valor_unitario, adicional_noturno, salario, intrajornada, insalubridade, periculosidade, acumulo_funcao, gratificacao, vt_dia, vr_dia, assistencia_medica, cesta, premio_assiduidade, turno, escala, dias_semana, jornada, horario_inicio, horario_fim, intervalo_refeicao, status, observacoes_especificas, outros_beneficios, primeiro_dia_atividade, ultimo_dia_atividade"
         )
         .eq("id", postoId)
         .single();
@@ -174,8 +194,12 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
       } else if (data) {
         setFormData({
           unidade_id: data.unidade_id ?? "",
+          cliente_id: data.cliente_id?.toString() ?? "",
           nome: data.nome ?? "",
           funcao: data.funcao ?? "",
+          efetivo_planejado: data.efetivo_planejado?.toString() ?? "1",
+          adc_insalubridade_percentual: data.adc_insalubridade_percentual?.toString() ?? "",
+          acumulo_funcao_percentual: data.acumulo_funcao_percentual?.toString() ?? "",
           valor_diaria: data.valor_diaria?.toString() ?? "",
           valor_unitario: data.valor_unitario?.toString() ?? "",
           adicional_noturno: data.adicional_noturno ?? null,
@@ -183,7 +207,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
           intrajornada: data.intrajornada ?? null,
           insalubridade: data.insalubridade ?? null,
           periculosidade: data.periculosidade ?? null,
-          acumulo_funcao: data.acumulo_funcao ?? null,
+          acumulo_funcao: data.acumulo_funcao ?? "",
           gratificacao: data.gratificacao ?? null,
           vt_dia: data.vt_dia?.toString() ?? "",
           vr_dia: data.vr_dia?.toString() ?? "",
@@ -217,9 +241,16 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
   const loadUnidades = async () => {
     const { data } = await supabase
       .from("unidades")
-      .select("id, nome")
+      .select("id, nome, contrato_id, contratos(cliente_id)")
       .order("nome");
-    setUnidades(data || []);
+    const mapped =
+      data?.map((u: any) => ({
+        id: u.id,
+        nome: u.nome,
+        contrato_id: u.contrato_id,
+        cliente_id: u.contratos?.cliente_id ?? null,
+      })) || [];
+    setUnidades(mapped);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -231,6 +262,9 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         unidade_id,
         nome,
         funcao,
+        efetivo_planejado,
+        adc_insalubridade_percentual,
+        acumulo_funcao_percentual,
         valor_diaria,
         valor_unitario,
         adicional_noturno,
@@ -269,14 +303,42 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         return;
       }
 
+      if (!cliente_id) {
+        toast({
+          title: "Cliente obrigatório",
+          description: "Selecione uma unidade associada a um cliente para salvar o posto.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (!acumulo_funcao) {
+        toast({
+          title: "Acumulo de funcao obrigatorio",
+          description: "Selecione Sim, Não ou Especial antes de salvar.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       const beneficiosArray = outros_beneficios
         .map((item) => item.trim())
         .filter((item) => item.length > 0);
 
       const dataToSave = {
         unidade_id,
+        cliente_id: Number(cliente_id),
         nome,
         funcao,
+        efetivo_planejado: efetivo_planejado ? parseInt(efetivo_planejado) || 1 : 1,
+        adc_insalubridade_percentual: adc_insalubridade_percentual
+          ? parseFloat(adc_insalubridade_percentual)
+          : null,
+        acumulo_funcao_percentual: acumulo_funcao_percentual
+          ? parseFloat(acumulo_funcao_percentual)
+          : null,
         valor_diaria: valor_diaria ? parseFloat(valor_diaria) : 0,
         valor_unitario: valor_unitario ? parseFloat(valor_unitario) : null,
         adicional_noturno: adicional_noturno ?? false,
@@ -284,7 +346,7 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
         intrajornada: intrajornada ?? false,
         insalubridade: insalubridade ?? false,
         periculosidade: periculosidade ?? false,
-        acumulo_funcao: acumulo_funcao ?? false,
+        acumulo_funcao,
         gratificacao: gratificacao ?? false,
         vt_dia: vt_dia ? parseFloat(vt_dia) : null,
         vr_dia: vr_dia ? parseFloat(vr_dia) : null,
@@ -386,6 +448,29 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
     </div>
   );
 
+  const renderAcumuloFuncaoField = () => (
+    <div className="space-y-2">
+      <Label>Acumulo de funcao *</Label>
+      <Select
+        value={formData.acumulo_funcao || undefined}
+        onValueChange={(value) =>
+          setFormData((prev) => ({ ...prev, acumulo_funcao: value as AcumuloFuncaoOption }))
+        }
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Selecione" />
+        </SelectTrigger>
+        <SelectContent>
+          {ACUMULO_FUNCAO_OPTIONS.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-3xl w-full max-h-[90vh] overflow-y-auto">
@@ -400,7 +485,14 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
               <Label htmlFor="unidade_id">Unidade *</Label>
               <Select
                 value={formData.unidade_id}
-                onValueChange={(value) => setFormData({ ...formData, unidade_id: value })}
+                onValueChange={(value) => {
+                  const unidadeSelecionada = unidades.find((u) => u.id === value);
+                  setFormData({
+                    ...formData,
+                    unidade_id: value,
+                    cliente_id: unidadeSelecionada?.cliente_id?.toString() || "",
+                  });
+                }}
                 disabled={!!unidadeId}
               >
                 <SelectTrigger>
@@ -415,6 +507,10 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Cliente (automático)</Label>
+              <Input value={formData.cliente_id ? `ID: ${formData.cliente_id}` : ""} disabled />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="nome">Nome *</Label>
@@ -424,12 +520,24 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                 required
               />
-            </div><div className="space-y-2">
-              <Label htmlFor="funcao">Função</Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="funcao">Funcao</Label>
               <Input
                 id="funcao"
                 value={formData.funcao}
                 onChange={(e) => setFormData({ ...formData, funcao: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="efetivo_planejado">Efetivo planejado *</Label>
+              <Input
+                id="efetivo_planejado"
+                type="number"
+                min={1}
+                value={formData.efetivo_planejado}
+                onChange={(e) => setFormData({ ...formData, efetivo_planejado: e.target.value })}
+                required
               />
             </div>
 
@@ -585,12 +693,42 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
                 {renderBooleanField("intrajornada", "Intrajornada")}
                 {renderBooleanField("insalubridade", "Insalubridade")}
                 {renderBooleanField("periculosidade", "Periculosidade")}
-                {renderBooleanField("acumulo_funcao", "Acumulo de funcao")}
+                {renderAcumuloFuncaoField()}
                 {renderBooleanField("gratificacao", "Gratificacao")}
                 {renderBooleanField("assistencia_medica", "Assistencia medica")}
                 {renderBooleanField("cesta", "Cesta")}
                 {renderBooleanField("premio_assiduidade", "Premio assiduidade")}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="adc_insalubridade_percentual">Adicional de insalubridade (%)</Label>
+              <Input
+                id="adc_insalubridade_percentual"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.adc_insalubridade_percentual}
+                onChange={(e) =>
+                  setFormData({ ...formData, adc_insalubridade_percentual: e.target.value })
+                }
+                placeholder="Ex: 20"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="acumulo_funcao_percentual">Acumulo de funcao (%)</Label>
+              <Input
+                id="acumulo_funcao_percentual"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.acumulo_funcao_percentual}
+                onChange={(e) =>
+                  setFormData({ ...formData, acumulo_funcao_percentual: e.target.value })
+                }
+                placeholder="Ex: 10"
+              />
             </div>
 
             <div className="space-y-2">
@@ -764,3 +902,4 @@ const PostoForm = ({ postoId, unidadeId, onClose, onSuccess }: PostoFormProps) =
 };
 
 export default PostoForm;
+

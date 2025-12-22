@@ -4,10 +4,18 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cidadesBrasil } from "@/data/cidades-brasil";
+import { ufsBrasil } from "@/data/ufs-brasil";
 import { toast } from "@/hooks/use-toast";
 import { Upload, CheckCircle2, ArrowLeft, ArrowRight } from "lucide-react";
 
@@ -20,6 +28,9 @@ const sanitizeFilename = (name: string) => {
   return noAccents.replace(/[^a-zA-Z0-9._-]/g, "_");
 };
 
+const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB
+const CANDIDATO_ANEXOS_BUCKET = "candidatos-anexos";
+
 const CandidatoCadastro = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -27,6 +38,9 @@ const CandidatoCadastro = () => {
   const [saving, setSaving] = useState(false);
   const [experienceInput, setExperienceInput] = useState("");
   const [curriculoFile, setCurriculoFile] = useState<File | null>(null);
+
+  const cidadeOptions = useMemo(() => Array.from(new Set(cidadesBrasil)), []);
+  const ufOptions = useMemo(() => Array.from(new Set(ufsBrasil)), []);
 
   const [form, setForm] = useState<CandidateInsert>({
     nome_completo: "",
@@ -82,11 +96,16 @@ const CandidatoCadastro = () => {
 
   const handleUploadCurriculo = async (candidateId: string) => {
     if (!curriculoFile) return form.curriculo_path;
+    if (curriculoFile.size > MAX_FILE_BYTES) {
+      throw new Error("Arquivo de currículo maior que 20MB");
+    }
     setUploading(true);
     const safeName = sanitizeFilename(curriculoFile.name || "curriculo.pdf");
     const path = `${candidateId}/${Date.now()}-${safeName}`;
-    const { error } = await supabase.storage.from("candidatos-anexos").upload(path, curriculoFile, {
+    const { error } = await supabase.storage.from(CANDIDATO_ANEXOS_BUCKET).upload(path, curriculoFile, {
       upsert: true,
+      cacheControl: "3600",
+      contentType: curriculoFile.type || "application/octet-stream",
     });
     setUploading(false);
     if (error) throw error;
@@ -214,20 +233,39 @@ const CandidatoCadastro = () => {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Cidade</Label>
-                    <Input
-                      value={form.cidade}
-                      onChange={(e) => setForm((prev) => ({ ...prev, cidade: e.target.value }))}
-                      placeholder="Sua cidade"
-                    />
+                    <Select
+                      value={form.cidade || undefined}
+                      onValueChange={(value) => setForm((prev) => ({ ...prev, cidade: value }))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecione sua cidade" />
+                      </SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          {cidadeOptions.map((cidade, index) => (
+                            <SelectItem key={`${cidade}-${index}`} value={cidade}>
+                              {cidade}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Estado</Label>
-                    <Input
-                      value={form.estado}
-                      onChange={(e) => setForm((prev) => ({ ...prev, estado: e.target.value }))}
-                      placeholder="UF"
-                      maxLength={2}
-                    />
+                    <Select
+                      value={form.estado || undefined}
+                      onValueChange={(value) => setForm((prev) => ({ ...prev, estado: value }))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecione o estado (UF)" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {ufOptions.map((uf) => (
+                          <SelectItem key={uf} value={uf}>
+                            {uf}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               )}

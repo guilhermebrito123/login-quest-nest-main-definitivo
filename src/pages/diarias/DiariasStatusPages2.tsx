@@ -255,6 +255,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       () => Object.values(STATUS).filter((status) => status !== STATUS.reprovada),
       [],
     );
+    const [extraUserMap, setExtraUserMap] = useState<Map<string, string>>(new Map());
 
     const normalizedKey = normalizeStatus(statusKey);
     const isAguardandoPage = normalizedKey === normalizeStatus(STATUS.aguardando);
@@ -343,7 +344,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
     const getUsuarioNome = (id?: string | null) => {
       if (!id) return "-";
-      return usuarioMap.get(id) || "-";
+      return usuarioMap.get(id) || extraUserMap.get(id) || "-";
     };
 
     const uppercaseRows = (rows: Record<string, any>[]) =>
@@ -523,6 +524,75 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         filters.statusDateStart,
       ],
     );
+
+    useEffect(() => {
+      const idsToFetch = new Set<string>();
+      const collectId = (value?: string | null) => {
+        if (value && !usuarioMap.get(value) && !extraUserMap.get(value)) {
+          idsToFetch.add(value);
+        }
+      };
+      diariasDoStatusFull.forEach((diaria) => {
+        collectId(diaria.criado_por);
+        collectId(diaria.confirmada_por);
+        collectId(diaria.aprovada_por);
+        collectId(diaria.lancada_por);
+        collectId(diaria.aprovado_para_pgto_por);
+        collectId(diaria.paga_por);
+        collectId(diaria.cancelada_por);
+        collectId(diaria.reprovada_por);
+      });
+      if (idsToFetch.size === 0) return;
+
+      const fetchMissing = async () => {
+        const ids = Array.from(idsToFetch);
+        try {
+          const rpcResult = await supabase.rpc("get_profiles_names", { p_ids: ids });
+          const map = new Map(extraUserMap);
+          if (!rpcResult.error && rpcResult.data) {
+            rpcResult.data.forEach((u: any) => {
+              if (u.id) {
+                map.set(u.id, u.full_name || u.email || "-");
+              }
+            });
+            setExtraUserMap(map);
+            return;
+          }
+          if (
+            rpcResult.error &&
+            rpcResult.error.message &&
+            rpcResult.error.message.toLowerCase().includes("function") &&
+            rpcResult.error.message.toLowerCase().includes("does not exist")
+          ) {
+            // ignora se funcao nao existir
+          } else if (rpcResult.error) {
+            console.warn("RPC get_profiles_names falhou, tentando select direto", rpcResult.error);
+          }
+        } catch (err) {
+          console.warn("RPC get_profiles_names falhou, tentando select direto", err);
+        }
+
+        try {
+          const { data, error } = await supabase
+            .from("usuarios")
+            .select("id, full_name, email")
+            .in("id", Array.from(idsToFetch));
+          if (error) throw error;
+          const map = new Map(extraUserMap);
+          (data || []).forEach((u: any) => {
+            if (u.id) {
+              map.set(u.id, u.full_name || u.email || "-");
+            }
+          });
+          setExtraUserMap(map);
+        } catch (err) {
+          console.error("Erro ao buscar usuarios faltantes", err);
+        }
+      };
+
+      fetchMissing();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [diariasDoStatusFull, usuarioMap]);
 
     const diariasFiltradas = useMemo(() => {
       return diariasBase.filter((diaria) => {

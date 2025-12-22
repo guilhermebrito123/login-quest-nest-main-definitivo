@@ -200,24 +200,47 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     return Array.from(set).sort();
   }, [diarias]);
 
-  const { data: usuarios = [] } = useQuery({
-    queryKey: ["usuarios-temporarias", usuarioIdsFromDiarias],
-    queryFn: async () => {
-      if (usuarioIdsFromDiarias.length === 0) return [];
-      // Try RPC first (security definer bypasses restrictive RLS). Fallback to direct select.
+  const fetchUsuariosByIds = async (ids: string[]) => {
+    if (ids.length === 0) return [];
+    try {
       const rpcResult = await supabase.rpc("get_profiles_names", {
-        p_ids: usuarioIdsFromDiarias,
+        p_ids: ids,
       });
       if (!rpcResult.error && rpcResult.data) {
         return rpcResult.data;
       }
+      if (
+        rpcResult.error &&
+        rpcResult.error.message &&
+        rpcResult.error.message.toLowerCase().includes("function") &&
+        rpcResult.error.message.toLowerCase().includes("does not exist")
+      ) {
+        // Ignora se a function nao existir
+      } else if (rpcResult.error) {
+        console.warn("RPC get_profiles_names falhou, tentando select direto", rpcResult.error);
+      }
+    } catch (error) {
+      console.warn("RPC get_profiles_names falhou, tentando select direto", error);
+    }
 
-      const { data, error } = await supabase
-        .from("usuarios")
-        .select("id, full_name, email")
-        .in("id", usuarioIdsFromDiarias);
-      if (error) throw error;
-      return data || [];
+    const { data, error } = await supabase
+      .from("usuarios")
+      .select("id, full_name, email")
+      .in("id", ids);
+    if (error) throw error;
+    return data || [];
+  };
+
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ["usuarios-temporarias", usuarioIdsFromDiarias],
+    queryFn: async () => {
+      if (usuarioIdsFromDiarias.length === 0) return [];
+      try {
+        return await fetchUsuariosByIds(usuarioIdsFromDiarias);
+      } catch (error) {
+        console.error("Select direto em usuarios falhou, retornando ids sem nome", error);
+        return usuarioIdsFromDiarias.map((id) => ({ id, full_name: id, email: null }));
+      }
     },
     enabled: usuarioIdsFromDiarias.length > 0,
   });
@@ -274,7 +297,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     const map = new Map<string, string>();
     usuarios.forEach((usuario: any) => {
       if (usuario.id) {
-        map.set(usuario.id, usuario.full_name || usuario.email || usuario.nome || "");
+        map.set(usuario.id, usuario.full_name || usuario.email || usuario.nome || usuario.id);
       }
     });
     return map;
