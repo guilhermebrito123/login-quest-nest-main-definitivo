@@ -44,6 +44,7 @@ interface Cliente {
   contato_nome: string | null;
   contato_email: string | null;
   contato_telefone: string | null;
+  itens_adicionais: string | null;
 }
 
 interface Contrato {
@@ -68,6 +69,7 @@ interface Unidade {
 interface Posto {
   id: string;
   unidade_id: string;
+  cliente_id?: string;
   nome: string;
   funcao: string;
   status: string;
@@ -207,7 +209,13 @@ const Contratos = () => {
       .order("nome");
     
     if (error) throw error;
-    setPostos(data || []);
+    const mapped = (data || []).map((p: any) => ({
+      ...p,
+      id: p.id?.toString?.() ?? "",
+      unidade_id: p.unidade_id?.toString?.() ?? "",
+      cliente_id: p.cliente_id?.toString?.() ?? "",
+    }));
+    setPostos(mapped);
     
     // Load colaboradores count for each posto
     if (data) {
@@ -298,12 +306,25 @@ const Contratos = () => {
     );
   });
 
-  const filteredContratos = selectedCliente 
-    ? contratos.filter(c => c.cliente_id === selectedCliente)
-    : contratos.filter(c => 
-        c.negocio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        String(c.conq_perd).includes(searchTerm)
-      );
+  const contratoMatchesSearch = (contrato: Contrato) => {
+    const termo = searchTerm.toLowerCase();
+    const cliente = clientes.find((c) => c.id === contrato.cliente_id);
+    const nomeFantasia = cliente?.nome_fantasia?.toLowerCase() ?? "";
+    const razaoSocial = cliente?.razao_social?.toLowerCase() ?? "";
+
+    return (
+      contrato.negocio.toLowerCase().includes(termo) ||
+      String(contrato.conq_perd).includes(searchTerm) ||
+      nomeFantasia.includes(termo) ||
+      razaoSocial.includes(termo)
+    );
+  };
+
+  const filteredContratos = contratos.filter((contrato) => {
+    const matchesSelectedCliente = selectedCliente ? contrato.cliente_id === selectedCliente : true;
+    const matchesSearch = contratoMatchesSearch(contrato);
+    return matchesSelectedCliente && matchesSearch;
+  });
 
   const filteredUnidades = selectedContrato
     ? unidades.filter(u => u.contrato_id === selectedContrato)

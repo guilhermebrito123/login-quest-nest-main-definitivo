@@ -1925,12 +1925,15 @@ export type Database = {
       }
       postos_servico: {
         Row: {
-          acumulo_funcao: boolean | null
+          acumulo_funcao:
+            | Database["public"]["Enums"]["acumulo_funcao_options"]
+            | null
           acumulo_funcao_percentual: number | null
           adc_insalubridade_percentual: number | null
           adicional_noturno: boolean | null
           assistencia_medica: boolean | null
           cesta: boolean | null
+          cliente_id: number
           created_at: string | null
           dias_semana: number[] | null
           efetivo_planejado: number | null
@@ -1962,12 +1965,15 @@ export type Database = {
           vt_dia: number | null
         }
         Insert: {
-          acumulo_funcao?: boolean | null
+          acumulo_funcao?:
+            | Database["public"]["Enums"]["acumulo_funcao_options"]
+            | null
           acumulo_funcao_percentual?: number | null
           adc_insalubridade_percentual?: number | null
           adicional_noturno?: boolean | null
           assistencia_medica?: boolean | null
           cesta?: boolean | null
+          cliente_id: number
           created_at?: string | null
           dias_semana?: number[] | null
           efetivo_planejado?: number | null
@@ -1999,12 +2005,15 @@ export type Database = {
           vt_dia?: number | null
         }
         Update: {
-          acumulo_funcao?: boolean | null
+          acumulo_funcao?:
+            | Database["public"]["Enums"]["acumulo_funcao_options"]
+            | null
           acumulo_funcao_percentual?: number | null
           adc_insalubridade_percentual?: number | null
           adicional_noturno?: boolean | null
           assistencia_medica?: boolean | null
           cesta?: boolean | null
+          cliente_id?: number
           created_at?: string | null
           dias_semana?: number[] | null
           efetivo_planejado?: number | null
@@ -2036,6 +2045,13 @@ export type Database = {
           vt_dia?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "postos_servico_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "postos_servico_unidade_id_fkey"
             columns: ["unidade_id"]
@@ -2221,6 +2237,44 @@ export type Database = {
             columns: ["execucao_checklist_item_id"]
             isOneToOne: false
             referencedRelation: "execucao_checklist_item"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subitens: {
+        Row: {
+          cliente_id: number
+          created_at: string
+          id: string
+          nome: string
+          observacao: string | null
+          updated_at: string
+          valor_unitario: number | null
+        }
+        Insert: {
+          cliente_id: number
+          created_at?: string
+          id?: string
+          nome: string
+          observacao?: string | null
+          updated_at?: string
+          valor_unitario?: number | null
+        }
+        Update: {
+          cliente_id?: number
+          created_at?: string
+          id?: string
+          nome?: string
+          observacao?: string | null
+          updated_at?: string
+          valor_unitario?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subitens_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
             referencedColumns: ["id"]
           },
         ]
@@ -2627,6 +2681,7 @@ export type Database = {
       processar_movimentacoes_agendadas: { Args: never; Returns: undefined }
     }
     Enums: {
+      acumulo_funcao_options: "Sim" | "Não" | "Especial"
       estado_civil:
         | "Solteiro"
         | "Casado"
@@ -2835,6 +2890,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      acumulo_funcao_options: ["Sim", "Não", "Especial"],
       estado_civil: [
         "Solteiro",
         "Casado",
