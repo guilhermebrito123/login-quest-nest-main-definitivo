@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -35,6 +36,33 @@ const toUpperOrNull = (value: string | null | undefined) => {
   return trimmed ? trimmed.toUpperCase() : null;
 };
 
+const TooltipLabel = ({
+  label,
+  tooltip,
+  htmlFor,
+}: { label: string; tooltip: string; htmlFor?: string }) => (
+  <div className="flex items-center gap-2">
+    <Label className="cursor-default" htmlFor={htmlFor}>
+      {label}
+    </Label>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="h-6 w-6 rounded-full border border-amber-400 bg-amber-50 text-[11px] font-bold text-amber-900 shadow-sm hover:bg-amber-100"
+          aria-label={`Ajuda: ${label}`}
+        >
+          i
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[260px] bg-amber-50 text-amber-900 shadow-md">
+        <span className="font-semibold">Ajuda: </span>
+        <span>{tooltip}</span>
+      </TooltipContent>
+    </Tooltip>
+  </div>
+);
+
 
   const initialFormState = {
     dataDiaria: "",
@@ -42,7 +70,7 @@ const toUpperOrNull = (value: string | null | undefined) => {
     horarioFim: "",
     intervalo: "",
     colaboradorNome: "",
-    postoServico: "",
+    postoServicoId: "",
     clienteId: "",
     valorDiaria: "",
   diaristaId: "",
@@ -68,6 +96,11 @@ const Diarias2 = () => {
     postoMap,
     diarias,
   } = useDiariasTemporariasData(selectedMonth);
+  const postosOptions = Array.from(postoMap.values()).map((p: any) => ({
+    id: p.id,
+    nome: p.nome || "Sem nome",
+    cliente_id: p.cliente_id,
+  }));
   const getClienteInfoFromPosto = (postoInfo: any) => {
     const contrato = postoInfo?.unidade?.contrato;
     if (contrato?.cliente_id || contrato?.clientes?.nome_fantasia || contrato?.clientes?.razao_social) {
@@ -166,8 +199,9 @@ const Diarias2 = () => {
       toast.error("Informe o colaborador ausente.");
       return;
     }
-    if (isMotivoLicencaNojo && !formState.colaboradorNome) {
-      toast.error("Informe o colaborador falecido.");
+
+    if (!formState.postoServicoId) {
+      toast.error("Selecione o posto de servico.");
       return;
     }
 
@@ -176,16 +210,8 @@ const Diarias2 = () => {
         toast.error("Informe se e demissao.");
         return;
       }
-      if (formState.demissao === true && !formState.colaboradorDemitidoNome) {
-        toast.error("Informe o colaborador demitido.");
-        return;
-      }
       if (formState.demissao === false && formState.licencaNojo === null) {
         toast.error("Informe se e licenca nojo.");
-        return;
-      }
-      if (formState.demissao === false && formState.licencaNojo === true && !formState.colaboradorNome) {
-        toast.error("Informe o colaborador falecido.");
         return;
       }
     }
@@ -204,7 +230,6 @@ const Diarias2 = () => {
 
     const colaboradorAusente = null;
     const colaboradorNomeUpper = toUpperOrNull(formState.colaboradorNome);
-    const postoServicoValue = toUpperOrNull(formState.postoServico);
     const clienteIdValue = clienteIdNumber;
     const demissaoValue = isMotivoVagaEmAberto ? formState.demissao : null;
     const licencaNojoValue =
@@ -255,8 +280,8 @@ const Diarias2 = () => {
         colaborador_ausente: colaboradorAusente,
         colaborador_ausente_nome: colaboradorAusenteNome,
         colaborador_falecido: colaboradorFalecido,
-        posto_servico_id: null,
-        posto_servico: postoServicoValue,
+        posto_servico_id: formState.postoServicoId || null,
+        posto_servico: null,
         cliente_id: clienteIdValue,
         valor_diaria: valorNumber,
         diarista_id: formState.diaristaId,
@@ -292,12 +317,18 @@ const Diarias2 = () => {
               Registre diarias em casos de ausencia utilizando colaboradores alocados.
             </p>
           </div>
-          <Input
-            type="month"
-            value={selectedMonth}
-            onChange={(event) => setSelectedMonth(event.target.value)}
-            className="w-auto"
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Input
+                aria-label="Filtro de mes"
+                type="month"
+                value={selectedMonth}
+                onChange={(event) => setSelectedMonth(event.target.value)}
+                className="w-auto"
+              />
+            </TooltipTrigger>
+            <TooltipContent>Selecione o mes para filtrar as diarias exibidas.</TooltipContent>
+          </Tooltip>
         </div>
 
         <Card className="shadow-lg">
@@ -310,7 +341,7 @@ const Diarias2 = () => {
           <CardContent>
             <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <Label>Data da diaria</Label>
+                <TooltipLabel label="Data da diaria" tooltip="Dia em que a diaria sera realizada." />
                 <Input
                   type="date"
                   required
@@ -320,7 +351,10 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Horario de inicio</Label>
+                <TooltipLabel
+                  label="Horario de inicio"
+                  tooltip="Horario em que o diarista deve iniciar a diaria."
+                />
                 <Input
                   type="time"
                   required
@@ -330,7 +364,7 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Horario de fim</Label>
+                <TooltipLabel label="Horario de fim" tooltip="Horario previsto para encerrar a diaria." />
                 <Input
                   type="time"
                   required
@@ -340,7 +374,10 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Intervalo (minutos)</Label>
+                <TooltipLabel
+                  label="Intervalo (minutos) - opcional"
+                  tooltip="Tempo total de intervalo em minutos. Deixe vazio se nao houver."
+                />
                 <Input
                   type="number"
                   min="0"
@@ -352,7 +389,7 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Motivo</Label>
+                <TooltipLabel label="Motivo" tooltip="Motivo da ausencia ou da vaga em aberto." />
                 <Select
                   required
                   value={formState.motivoVago}
@@ -385,7 +422,10 @@ const Diarias2 = () => {
 
               {!isMotivoVagaEmAberto && !isMotivoLicencaNojo && (
                 <div className="space-y-2">
-                  <Label>Colaborador ausente</Label>
+                  <TooltipLabel
+                    label="Colaborador ausente"
+                    tooltip="Nome do colaborador que sera coberto pela diaria."
+                  />
                   <Input
                     required
                     value={formState.colaboradorNome}
@@ -397,9 +437,11 @@ const Diarias2 = () => {
 
               {isMotivoLicencaNojo && (
                 <div className="space-y-2">
-                  <Label>Colaborador falecido</Label>
+                  <TooltipLabel
+                    label="Colaborador falecido (opcional)"
+                    tooltip="Informe o colaborador falecido, se quiser registrar."
+                  />
                   <Input
-                    required
                     value={formState.colaboradorNome}
                     onChange={(event) => handleColaboradorNomeChange(event.target.value)}
                     placeholder="Nome do colaborador falecido"
@@ -410,9 +452,12 @@ const Diarias2 = () => {
               {isMotivoVagaEmAberto && (
                 <>
                   <div className="space-y-2">
-                  <Label>E demissao?</Label>
-                  <Select
-                    required
+                    <TooltipLabel
+                      label="E demissao?"
+                      tooltip="Indique se a vaga em aberto ocorreu por demissao."
+                    />
+                    <Select
+                      required
                       value={
                         formState.demissao === null ? "" : formState.demissao ? "true" : "false"
                       }
@@ -439,7 +484,10 @@ const Diarias2 = () => {
 
                   {formState.demissao === false && (
                     <div className="space-y-2">
-                      <Label>E licenca nojo?</Label>
+                      <TooltipLabel
+                        label="E licenca nojo?"
+                        tooltip="Marque se o afastamento e licenca nojo."
+                      />
                       <Select
                         required
                         value={
@@ -470,9 +518,11 @@ const Diarias2 = () => {
 
                   {formState.demissao === false && formState.licencaNojo === true && (
                     <div className="space-y-2">
-                      <Label>Colaborador falecido</Label>
+                      <TooltipLabel
+                        label="Colaborador falecido (opcional)"
+                        tooltip="Informe o colaborador falecido, se quiser registrar."
+                      />
                       <Input
-                        required
                         value={formState.colaboradorNome}
                         onChange={(event) => handleColaboradorNomeChange(event.target.value)}
                         placeholder="Nome do colaborador falecido"
@@ -482,9 +532,11 @@ const Diarias2 = () => {
 
                   {formState.demissao === true && (
                     <div className="space-y-2">
-                      <Label>Colaborador demitido</Label>
+                      <TooltipLabel
+                        label="Colaborador demitido (opcional)"
+                        tooltip="Use para registrar quem foi demitido (CASO NÃO SAIBA, NÃO PRECISA PREENCHER)."
+                      />
                       <Input
-                        required
                         value={formState.colaboradorDemitidoNome}
                         onChange={(event) =>
                           setFormState((prev) => ({
@@ -500,20 +552,17 @@ const Diarias2 = () => {
               )}
 
               <div className="space-y-2">
-                <Label>Posto de servico</Label>
-                <Input
-                  value={formState.postoServico}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, postoServico: event.target.value }))}
-                  placeholder="Nome do posto"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Cliente</Label>
+                <TooltipLabel label="Cliente" tooltip="Cliente associado a diaria." />
                 <Select
                   required
                   value={formState.clienteId}
-                  onValueChange={(value) => setFormState((prev) => ({ ...prev, clienteId: value }))}
+                  onValueChange={(value) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      clienteId: value,
+                      postoServicoId: "",
+                    }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o cliente" />
@@ -529,7 +578,48 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Valor da diaria</Label>
+                <TooltipLabel
+                  label="Posto de servico"
+                  tooltip="Posto onde o diarista vai atuar nesta diaria."
+                />
+                <Select
+                  required
+                  value={formState.postoServicoId}
+                  onValueChange={(value) => {
+                    const posto = postosOptions.find((p) => p.id === value);
+                    setFormState((prev) => ({
+                      ...prev,
+                      postoServicoId: value,
+                      clienteId: posto?.cliente_id ? posto.cliente_id.toString() : prev.clienteId,
+                    }));
+                  }}
+                  disabled={!formState.clienteId}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        formState.clienteId ? "Selecione o posto" : "Escolha o cliente primeiro"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    {postosOptions
+                      .filter(
+                        (posto) =>
+                          !formState.clienteId ||
+                          (posto.cliente_id && posto.cliente_id.toString() === formState.clienteId),
+                      )
+                      .map((posto) => (
+                        <SelectItem key={posto.id} value={posto.id}>
+                          {posto.nome}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <TooltipLabel label="Valor da diaria" tooltip="Valor combinado para a diaria." />
                 <Input
                   type="number"
                   min="0"
@@ -542,7 +632,10 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Diarista responsavel</Label>
+                <TooltipLabel
+                  label="Diarista responsavel"
+                  tooltip="Diarista que executara a diaria."
+                />
                 <Select
                   required
                   value={formState.diaristaId}
@@ -567,7 +660,10 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label>Observacao</Label>
+                <TooltipLabel
+                  label="Observacao"
+                  tooltip="Observacoes adicionais ou instrucoes relevantes."
+                />
                 <Textarea
                   value={formState.observacao}
                   onChange={(event) => setFormState((prev) => ({ ...prev, observacao: event.target.value }))}

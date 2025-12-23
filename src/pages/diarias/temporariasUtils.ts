@@ -8,6 +8,7 @@ export type PostoServicoResumo = {
   id: string;
   nome: string;
   valor_diaria: number | null;
+  cliente_id?: string | number | null;
   observacoes_especificas?: string | null;
   unidade?: {
     id: string;
@@ -200,6 +201,18 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     return Array.from(set).sort();
   }, [diarias]);
 
+  const { data: postosServicos = [] } = useQuery({
+    queryKey: ["postos-servico-temporarias"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("postos_servico")
+        .select("id, nome, valor_diaria, observacoes_especificas, cliente_id")
+        .order("nome");
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
   const fetchUsuariosByIds = async (ids: string[]) => {
     if (ids.length === 0) return [];
     try {
@@ -277,13 +290,24 @@ export function useDiariasTemporariasData(selectedMonth: string) {
 
   const postoMap = useMemo(() => {
     const map = new Map<string, PostoServicoResumo>();
+    postosServicos.forEach((posto: any) => {
+      if (!posto?.id) return;
+      map.set(String(posto.id), {
+        id: String(posto.id),
+        nome: posto.nome || "Sem nome",
+        valor_diaria: posto.valor_diaria ?? null,
+        observacoes_especificas: posto.observacoes_especificas ?? null,
+        cliente_id: posto.cliente_id ?? null,
+        unidade: null,
+      });
+    });
     colaboradores.forEach((colaborador) => {
       if (colaborador.posto_servico_id && colaborador.posto) {
         map.set(colaborador.posto_servico_id, colaborador.posto);
       }
     });
     return map;
-  }, [colaboradores]);
+  }, [colaboradores, postosServicos]);
 
   const clienteMap = useMemo(() => {
     const map = new Map<number, string>();

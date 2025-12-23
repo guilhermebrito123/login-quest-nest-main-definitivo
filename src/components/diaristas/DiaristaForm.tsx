@@ -77,6 +77,7 @@ interface DiaristaFormState {
   tipo_conta: "conta corrente" | "conta poupanca" | "conta salario";
   numero_conta: string;
   pix: string;
+  pix_pertence_beneficiario: boolean | null;
 }
 
 const createInitialFormState = (): DiaristaFormState => ({
@@ -94,6 +95,7 @@ const createInitialFormState = (): DiaristaFormState => ({
   tipo_conta: "conta corrente",
   numero_conta: "",
   pix: "",
+  pix_pertence_beneficiario: null,
 });
 
 const createEmptySpecificFiles = () =>
@@ -193,6 +195,10 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
         tipo_conta: diarista.tipo_conta || "conta corrente",
         numero_conta: diarista.numero_conta || "",
         pix: diarista.pix || "",
+        pix_pertence_beneficiario:
+          diarista.pix_pertence_beneficiario === null || diarista.pix_pertence_beneficiario === undefined
+            ? null
+            : !!diarista.pix_pertence_beneficiario,
       });
       lastCepLookupRef.current = diarista.cep?.replace(/\D/g, "") || "";
       loadAttachments();
@@ -438,7 +444,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     setLoading(true);
 
     try {
-      const diaristaId = diarista?.id ?? crypto.randomUUID();
+    const diaristaId = diarista?.id ?? crypto.randomUUID();
 
       const finalSpecificPaths = await uploadSpecificAttachments(diaristaId);
 
@@ -656,6 +662,35 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                   onChange={(e) => setFormData({ ...formData, pix: e.target.value })}
                   required
                 />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="pix_pertence_beneficiario">PIX pertence ao diarista?</Label>
+                <Select
+                  value={
+                    formData.pix_pertence_beneficiario === null
+                      ? "unset"
+                      : formData.pix_pertence_beneficiario
+                        ? "true"
+                        : "false"
+                  }
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      pix_pertence_beneficiario: value === "unset" ? null : value === "true",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma opção" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unset" disabled>
+                      Selecione
+                    </SelectItem>
+                    <SelectItem value="true">Sim</SelectItem>
+                    <SelectItem value="false">Não</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

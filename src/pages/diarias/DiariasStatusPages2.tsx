@@ -50,6 +50,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Trash2, Bell } from "lucide-react";
 import {
@@ -110,6 +111,47 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
     emptyMessage: "Nenhuma diaria paga.",
   },
 ];
+
+const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
+const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
+const MOTIVO_VAGO_OPTIONS = [
+  MOTIVO_VAGO_VAGA_EM_ABERTO,
+  "FALTA INJUSTIFICADA",
+  "LICENÇA MATERNIDADE",
+  "LICENÇA PATERNIDADE",
+  "LICENÇA CASAMENTO",
+  MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO,
+  "AFASTAMENTO INSS",
+  "FÉRIAS",
+  "SUSPENSÃO",
+];
+
+const TooltipLabel = ({
+  label,
+  tooltip,
+  htmlFor,
+}: { label: string; tooltip: string; htmlFor?: string }) => (
+  <div className="flex items-center gap-2">
+    <Label className="cursor-default" htmlFor={htmlFor}>
+      {label}
+    </Label>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="h-6 w-6 rounded-full border border-amber-400 bg-amber-50 text-[11px] font-bold text-amber-900 shadow-sm hover:bg-amber-100"
+          aria-label={`Ajuda: ${label}`}
+        >
+          i
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[220px] whitespace-normal break-words leading-tight bg-amber-50 text-amber-900 shadow-md">
+        <span className="font-semibold">Ajuda: </span>
+        <span>{tooltip}</span>
+      </TooltipContent>
+    </Tooltip>
+  </div>
+);
 
 const MOTIVO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
 const STATUS_DATE_LABELS: { field: keyof DiariaTemporaria; label: string }[] = [
@@ -203,6 +245,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       diarias,
       refetchDiarias,
       loadingDiarias,
+      clientes,
       diaristaMap,
       colaboradoresMap,
       postoMap,
@@ -222,6 +265,29 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [bulkStatusSelection, setBulkStatusSelection] = useState("");
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [editingDiariaId, setEditingDiariaId] = useState<string | null>(null);
+    const [editingSaving, setEditingSaving] = useState(false);
+    const OPTIONAL_VALUE = "__none__";
+    const UNSET_BOOL = "__unset__";
+    const [editForm, setEditForm] = useState({
+      dataDiaria: "",
+      horarioInicio: "",
+      horarioFim: "",
+      intervalo: "",
+      motivoVago: "",
+      postoServicoId: "",
+      clienteId: "",
+      valorDiaria: "",
+      diaristaId: "",
+      colaboradorNome: "",
+      colaboradorFalecido: "",
+      colaboradorDemitidoNome: "",
+      demissao: null as boolean | null,
+      licencaNojo: null as boolean | null,
+      novoPosto: null as boolean | null,
+      observacao: "",
+    });
     const [filters, setFilters] = useState({
       diaristaId: "",
       motivo: "",
@@ -262,6 +328,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const normalizedCancelStatus = normalizeStatus(STATUS.cancelada);
     const normalizedReprovadaStatus = normalizeStatus(STATUS.reprovada);
     const isCancelPage = normalizedKey === normalizedCancelStatus;
+    const isReprovadaPage = normalizedKey === normalizedReprovadaStatus;
+    const allowDelete = isCancelPage || isReprovadaPage;
     const isPagaPage = normalizedKey === normalizeStatus(STATUS.paga);
     const statusResponsavelField = useMemo(() => {
       const map = new Map<string, keyof DiariaTemporaria>([
@@ -289,6 +357,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return map.get(statusKey) || "Responsavel";
     }, [statusKey]);
 
+    const responsavelStatusHeader = useMemo(() => {
+      const map = new Map<string, string>([
+        [normalizeStatus(STATUS.confirmada), "Responsavel pela confirmacao"],
+        [normalizeStatus(STATUS.aprovada), "Responsavel pela aprovacao"],
+        [normalizeStatus(STATUS.lancada), "Responsavel lancamento"],
+        [normalizeStatus(STATUS.aprovadaPagamento), "Responsavel aprovacao pagamento"],
+        [normalizeStatus(STATUS.paga), "Responsavel pagamento"],
+        [normalizeStatus(STATUS.reprovada), "Responsavel reprovacao"],
+        [normalizeStatus(STATUS.cancelada), "Responsavel cancelamento"],
+      ]);
+      return map.get(normalizedKey) || "Responsavel status";
+    }, [normalizedKey]);
+
     const pageDefaultAction = useMemo(
       () => NEXT_STATUS_ACTIONS[normalizedKey] || null,
       [normalizedKey],
@@ -297,6 +378,17 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const statusDateConfig = useMemo(
       () => STATUS_DATE_FILTERS.get(normalizedKey) || null,
       [normalizedKey],
+    );
+
+    const buildStatusDateTooltip = useMemo(
+      () =>
+        statusDateConfig
+          ? {
+              start: `Utilize esta opcao de filtro em conjunto com "${statusDateConfig.endLabel}" para selecionar todas as diarias que foram ${(statusDateConfig.exportLabel || statusDateConfig.startLabel || "").replace(/ em$/i, "").toLowerCase()}s dentro desse periodo.`,
+              end: `Utilize esta opcao de filtro em conjunto com "${statusDateConfig.startLabel}" para selecionar todas as diarias que foram ${(statusDateConfig.exportLabel || statusDateConfig.endLabel || "").replace(/ em$/i, "").toLowerCase()}s dentro desse periodo.`,
+            }
+          : { start: "", end: "" },
+      [statusDateConfig],
     );
 
     const formatIntervalValue = (value?: number | null) => {
@@ -318,6 +410,17 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const parsed = Number(value);
       if (Number.isNaN(parsed)) return "-";
       return `${parsed.toFixed(2)} h`;
+    };
+
+    const formatPixPertence = (value?: boolean | null) => {
+      if (value === true) return "Sim";
+      if (value === false) return "Não";
+      return "-";
+    };
+
+    const toUpperOrNull = (value: string | null | undefined) => {
+      const trimmed = (value ?? "").trim();
+      return trimmed ? trimmed.toUpperCase() : null;
     };
 
     const getStatusResponsavel = (diaria: DiariaTemporaria) => {
@@ -463,6 +566,27 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       });
       return Array.from(set).sort((a, b) => a.localeCompare(b));
     }, [diariasDoStatus]);
+
+    const postosOptions = useMemo(() => {
+      return Array.from(postoMap.values())
+        .map((p: any) => ({
+          id: p.id?.toString?.() || "",
+          nome: p.nome || "Sem nome",
+          cliente_id: p.cliente_id ?? p.unidade?.contrato?.cliente_id ?? "",
+        }))
+        .filter((p) => p.id);
+    }, [postoMap]);
+
+    const clienteOptionsAll = useMemo(
+      () =>
+        clientes
+          .map((c) => ({
+            id: c.id.toString(),
+            nome: c.nome_fantasia || c.razao_social || c.id.toString(),
+          }))
+          .sort((a, b) => a.nome.localeCompare(b.nome)),
+      [clientes],
+    );
 
     const criadoPorOptions = useMemo(() => {
       const map = new Map<string, string>();
@@ -702,6 +826,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         "Numero da conta": diaristaInfo?.numero_conta || "-",
         "Tipo de conta": diaristaInfo?.tipo_conta || "-",
         Pix: diaristaInfo?.pix || "-",
+        "Pix pertence diarista": formatPixPertence(diaristaInfo?.pix_pertence_beneficiario),
         Observacao: diaria.observacao?.trim() || "",
         "Criado por": criadoPorNome,
         "Criada em": formatDate(diaria.created_at),
@@ -715,7 +840,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       baseRow["Reprovada em"] = formatDate(diaria.reprovada_em);
       baseRow["Novo posto?"] = novoPostoFlag ? "Sim" : "N?o";
       if (!isAguardandoPage) {
-        baseRow["Responsavel status"] = responsavelStatusNome || "";
+        baseRow[responsavelStatusHeader] = responsavelStatusNome || "";
       }
       if (isPagaPage) {
         baseRow["Confirmada por"] = confirmadaPorNome;
@@ -972,6 +1097,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           "Numero da conta": diaristaInfo?.numero_conta || "-",
           "Tipo de conta": diaristaInfo?.tipo_conta || "-",
           Pix: diaristaInfo?.pix || "-",
+          "Pix pertence diarista": formatPixPertence(diaristaInfo?.pix_pertence_beneficiario),
           "Data inicial": start,
           "Data final": end,
           Status: Array.from(statuses).join(", ") || "-",
@@ -1092,7 +1218,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
     const handleDeleteDiaria = async (id: string) => {
       if (typeof window !== "undefined") {
-        const confirmed = window.confirm("Deseja excluir esta diaria cancelada?");
+        const statusLabelDelete = isCancelPage ? "cancelada" : isReprovadaPage ? "reprovada" : "selecionada";
+        const confirmed = window.confirm(`Deseja excluir esta diaria ${statusLabelDelete}?`);
         if (!confirmed) return;
       }
       setDeletingId(id);
@@ -1172,7 +1299,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return (
         <Button
           size="sm"
-          variant="outline"
+          variant="default"
+          className="bg-emerald-600 text-white hover:bg-emerald-700"
           disabled={updatingId === diariaId}
           onClick={(event) => {
             event.stopPropagation();
@@ -1203,6 +1331,159 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       setSelectedDiaria(diaria);
       setDetailsDialogOpen(true);
     };
+
+    const openEditDialog = (diaria: DiariaTemporaria) => {
+      setEditingDiariaId(diaria.id.toString());
+      setEditForm({
+        dataDiaria: diaria.data_diaria || "",
+        horarioInicio: diaria.horario_inicio || "",
+        horarioFim: diaria.horario_fim || "",
+        intervalo: diaria.intervalo !== null && diaria.intervalo !== undefined ? String(diaria.intervalo) : "",
+        motivoVago: diaria.motivo_vago || "",
+        postoServicoId: diaria.posto_servico_id ? diaria.posto_servico_id.toString() : "",
+        clienteId: diaria.cliente_id ? diaria.cliente_id.toString() : "",
+        valorDiaria: diaria.valor_diaria !== null && diaria.valor_diaria !== undefined ? String(diaria.valor_diaria) : "",
+        diaristaId: diaria.diarista_id || "",
+        colaboradorNome: diaria.colaborador_ausente_nome || diaria.colaborador_falecido || "",
+        colaboradorFalecido: diaria.colaborador_falecido || "",
+        colaboradorDemitidoNome: diaria.colaborador_demitido_nome || "",
+        demissao: typeof diaria.demissao === "boolean" ? diaria.demissao : null,
+        licencaNojo: typeof diaria.licenca_nojo === "boolean" ? diaria.licenca_nojo : null,
+        novoPosto: typeof diaria.novo_posto === "boolean" ? diaria.novo_posto : null,
+        observacao: diaria.observacao || "",
+      });
+      setEditDialogOpen(true);
+    };
+
+    const closeEditDialog = () => {
+      setEditDialogOpen(false);
+      setEditingDiariaId(null);
+    };
+
+    const handleEditSubmit = async () => {
+      if (!editingDiariaId) return;
+      const isMotivoVaga = isVagaEmAberto(editForm.motivoVago);
+      const isMotivoLicenca = isLicencaNojo(editForm.motivoVago);
+
+      if (!editForm.dataDiaria || !editForm.horarioInicio || !editForm.horarioFim) {
+        toast.error("Preencha data e horarios da diaria.");
+        return;
+      }
+
+      if (!editForm.valorDiaria || !editForm.diaristaId || !editForm.motivoVago) {
+        toast.error("Preencha diarista, valor e motivo.");
+        return;
+      }
+
+      if (!editForm.clienteId) {
+        toast.error("Selecione o cliente.");
+        return;
+      }
+
+      if (!editForm.postoServicoId) {
+        toast.error("Selecione o posto de servico.");
+        return;
+      }
+
+      if (!isMotivoVaga && !isMotivoLicenca && !editForm.colaboradorNome) {
+        toast.error("Informe o colaborador ausente.");
+        return;
+      }
+
+      if (isMotivoVaga) {
+        if (editForm.demissao === null) {
+          toast.error("Informe se e demissao.");
+          return;
+        }
+        if (editForm.demissao === false && editForm.licencaNojo === null) {
+          toast.error("Informe se e licenca nojo.");
+          return;
+        }
+      }
+
+      const valorNumber = Number(editForm.valorDiaria);
+      if (Number.isNaN(valorNumber) || valorNumber <= 0) {
+        toast.error("Informe um valor valido.");
+        return;
+      }
+
+      const intervaloNumber =
+        typeof editForm.intervalo === "string" && editForm.intervalo.trim() === ""
+          ? null
+          : Number(editForm.intervalo);
+      if (intervaloNumber !== null && (Number.isNaN(intervaloNumber) || intervaloNumber < 0)) {
+        toast.error("Informe um intervalo valido (minutos).");
+        return;
+      }
+
+      const clienteIdNumber = Number(editForm.clienteId);
+      if (!Number.isFinite(clienteIdNumber)) {
+        toast.error("Cliente invalido.");
+        return;
+      }
+
+      const colaboradorNomeUpper = toUpperOrNull(editForm.colaboradorNome);
+      const postoSelecionado = postosOptions.find((p) => p.id === editForm.postoServicoId);
+      const postoServicoIdValue = editForm.postoServicoId || null;
+      const motivoVagoValue = (editForm.motivoVago || "").toUpperCase();
+      const demissaoValue = isMotivoVaga ? editForm.demissao : null;
+      const licencaNojoValue =
+        isMotivoVaga && demissaoValue === false ? editForm.licencaNojo === true : false;
+      const novoPostoValue =
+        isMotivoVaga && demissaoValue === false ? !(editForm.licencaNojo === true) : isMotivoVaga ? false : false;
+      const colaboradorFalecidoValue =
+        (isMotivoLicenca || (isMotivoVaga && licencaNojoValue)) && colaboradorNomeUpper
+          ? colaboradorNomeUpper
+          : null;
+      const colaboradorAusenteNomeValue =
+        isMotivoVaga || isMotivoLicenca ? null : colaboradorNomeUpper;
+      const colaboradorDemitidoNomeValue =
+        isMotivoVaga && demissaoValue === true ? toUpperOrNull(editForm.colaboradorDemitidoNome) : null;
+      const observacaoValue = toUpperOrNull(editForm.observacao);
+
+      setEditingSaving(true);
+      try {
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update({
+            data_diaria: editForm.dataDiaria,
+            horario_inicio: editForm.horarioInicio || null,
+            horario_fim: editForm.horarioFim || null,
+            intervalo: intervaloNumber,
+            valor_diaria: valorNumber,
+            diarista_id: editForm.diaristaId,
+            motivo_vago: motivoVagoValue || null,
+            posto_servico_id: postoServicoIdValue,
+            posto_servico: postoSelecionado?.nome ? toUpperOrNull(postoSelecionado.nome) : null,
+            cliente_id: clienteIdNumber,
+            colaborador_ausente: null,
+            colaborador_ausente_nome: colaboradorAusenteNomeValue,
+            colaborador_falecido: colaboradorFalecidoValue,
+            colaborador_demitido: null,
+            colaborador_demitido_nome: colaboradorDemitidoNomeValue,
+            demissao: demissaoValue,
+            licenca_nojo: licencaNojoValue,
+            novo_posto: novoPostoValue,
+            observacao: observacaoValue,
+          })
+          .eq("id", editingDiariaId);
+        if (error) throw error;
+        toast.success("Diaria atualizada com sucesso.");
+        await refetchDiarias();
+        closeEditDialog();
+      } catch (error: any) {
+        toast.error(error.message || "Nao foi possivel atualizar a diaria.");
+      } finally {
+        setEditingSaving(false);
+      }
+    };
+
+    const isEditMotivoVaga = isVagaEmAberto(editForm.motivoVago);
+    const isEditMotivoLicenca = isLicencaNojo(editForm.motivoVago);
+    const demissaoSelectValue =
+      editForm.demissao === null ? UNSET_BOOL : editForm.demissao ? "true" : "false";
+    const licencaNojoSelectValue =
+      editForm.licencaNojo === null ? UNSET_BOOL : editForm.licencaNojo ? "true" : "false";
 
     const toggleSelect = (id: string) => {
       setSelectedIds((prev) => {
@@ -1280,19 +1561,20 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     };
 
     const handleBulkDeleteCancelled = async () => {
-      if (!isCancelPage) return;
+      if (!allowDelete) return;
       const ids = Array.from(selectedIds);
       if (ids.length === 0) {
         toast.info("Nenhuma diaria selecionada para excluir.");
         return;
       }
-      const message = `Excluir ${ids.length} diaria(s) cancelada(s)? Esta ação não pode ser desfeita.`;
+      const statusLabelDelete = isCancelPage ? "cancelada(s)" : "reprovada(s)";
+      const message = `Excluir ${ids.length} diaria(s) ${statusLabelDelete}? Esta ação não pode ser desfeita.`;
       if (typeof window !== "undefined" && !window.confirm(message)) return;
       setDeletingId("bulk-delete");
       try {
         const { error } = await supabase.from("diarias_temporarias").delete().in("id", ids);
         if (error) throw error;
-        toast.success("Diarias canceladas excluídas.");
+        toast.success("Diarias excluídas.");
         clearSelection();
         await refetchDiarias();
       } catch (error: any) {
@@ -1419,7 +1701,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               <div className="flex flex-col gap-3">
                 <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-1">
-                    <Label htmlFor={`filtro-temp-diarista-${statusKey}`}>Diarista</Label>
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-diarista-${statusKey}`}
+                      label="Diarista"
+                      tooltip="Filtra diarias pelo diarista responsavel."
+                    />
                     <Select
                       value={filters.diaristaId || selectAllValue}
                       onValueChange={(value) =>
@@ -1443,7 +1729,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`filtro-temp-motivo-${statusKey}`}>Motivo</Label>
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-motivo-${statusKey}`}
+                      label="Motivo"
+                      tooltip="Filtra pelo motivo que levou a necessidade de se ter diária."
+                    />
                     <Select
                       value={filters.motivo || selectAllValue}
                       onValueChange={(value) =>
@@ -1467,7 +1757,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`filtro-temp-cliente-${statusKey}`}>Cliente</Label>
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-cliente-${statusKey}`}
+                      label="Cliente"
+                      tooltip="Mostra apenas diarias relacionadas ao cliente selecionado."
+                    />
                     <Select
                       value={filters.clienteId || selectAllValue}
                       onValueChange={(value) =>
@@ -1491,7 +1785,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`filtro-temp-criado-por-${statusKey}`}>Criado por</Label>
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-criado-por-${statusKey}`}
+                      label="Criado por"
+                      tooltip="Filtra pelo usuario interno que registrou a diaria."
+                    />
                     <Select
                       value={filters.criadoPorId || selectAllValue}
                       onValueChange={(value) =>
@@ -1516,7 +1814,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   </div>
                   {statusResponsavelField && (
                     <div className="space-y-1">
-                      <Label htmlFor={`filtro-temp-responsavel-${statusKey}`}>{statusResponsavelLabel}</Label>
+                      <TooltipLabel
+                        htmlFor={`filtro-temp-responsavel-${statusKey}`}
+                        label={statusResponsavelLabel}
+                        tooltip="Filtra pelo usuario responsavel pelo status atual."
+                      />
                       <Select
                         value={filters.statusResponsavelId || selectAllValue}
                         onValueChange={(value) =>
@@ -1543,7 +1845,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </div>
                   )}
                   <div className="space-y-1">
-                    <Label htmlFor={`filtro-temp-data-inicio-${statusKey}`}>Data inicial</Label>
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-data-inicio-${statusKey}`}
+                      label="Data inicial"
+                      tooltip="Utilize essa opção de filtro em conjunto com o filtro data final para visualizar todas as diárias realizadas dentro do intervalo."
+                    />
                     <Input
                       id={`filtro-temp-data-inicio-${statusKey}`}
                       type="date"
@@ -1554,7 +1860,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor={`filtro-temp-data-fim-${statusKey}`}>Data final</Label>
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-data-fim-${statusKey}`}
+                      label="Data final"
+                      tooltip="Utilize essa opção de filtro em conjunto com o filtro data inicial para visualizar todas as diárias realizadas dentro do intervalo."
+                    />
                     <Input
                       id={`filtro-temp-data-fim-${statusKey}`}
                       type="date"
@@ -1567,9 +1877,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   {statusDateConfig && (
                     <>
                       <div className="space-y-1">
-                        <Label htmlFor={`filtro-temp-status-inicio-${statusKey}`}>
-                          {statusDateConfig.startLabel}
-                        </Label>
+                        <TooltipLabel
+                          htmlFor={`filtro-temp-status-inicio-${statusKey}`}
+                          label={statusDateConfig.startLabel}
+                          tooltip={buildStatusDateTooltip.start}
+                        />
                         <Input
                           id={`filtro-temp-status-inicio-${statusKey}`}
                           type="date"
@@ -1580,9 +1892,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor={`filtro-temp-status-fim-${statusKey}`}>
-                          {statusDateConfig.endLabel}
-                        </Label>
+                        <TooltipLabel
+                          htmlFor={`filtro-temp-status-fim-${statusKey}`}
+                          label={statusDateConfig.endLabel}
+                          tooltip={buildStatusDateTooltip.end}
+                        />
                         <Input
                           id={`filtro-temp-status-fim-${statusKey}`}
                           type="date"
@@ -1612,6 +1926,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 </Button>
                 <Button
                   variant="default"
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
                   disabled={updatingId === "bulk" || selectedIds.size === 0 || !pageDefaultAction}
                   onClick={handleBulkDefaultAction}
                 >
@@ -1638,7 +1953,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </SelectContent>
                   </Select>
                 </div>
-                {isCancelPage && (
+                {allowDelete && (
                   <Button
                     variant="destructive"
                     disabled={deletingId === "bulk-delete" || selectedIds.size === 0}
@@ -1751,7 +2066,17 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                       Reprovar
                                     </Button>
                                   )}
-                                  {isCancelPage && (
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    className="bg-amber-400 text-black hover:bg-amber-500"
+                                    onClick={() => {
+                                      openEditDialog(diaria);
+                                    }}
+                                  >
+                                    Editar
+                                  </Button>
+                                  {allowDelete && (
                                     <Button
                                       size="icon"
                                       variant="ghost"
@@ -1788,7 +2113,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                   </Select>
                                   <Button
                                     size="sm"
-                                    variant="secondary"
+                                    variant="default"
+                                    className="bg-emerald-600 text-white hover:bg-emerald-700"
                                     disabled={
                                       updatingId === diaria.id.toString() ||
                                       !customStatusSelection[diaria.id.toString()] ||
@@ -1810,27 +2136,38 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             {diaristaInfo?.pix || "-"}
                           </TableCell>
                           <TableCell className="hidden md:table-cell" onClick={(event) => event.stopPropagation()}>
-                              <div className="flex flex-col items-end gap-2">
-                                <div className="flex flex-wrap justify-end gap-2">
-                                  {statusKey === STATUS.confirmada && (
+                                <div className="flex flex-col items-end gap-2">
+                                  <div className="flex flex-wrap justify-end gap-2">
+                                    {statusKey === STATUS.confirmada && (
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        disabled={updatingId === diaria.id.toString()}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          openReasonDialog(diaria.id.toString(), STATUS.reprovada);
+                                        }}
+                                      >
+                                        Reprovar
+                                      </Button>
+                                    )}
                                     <Button
                                       size="sm"
-                                      variant="destructive"
-                                      disabled={updatingId === diaria.id.toString()}
+                                      variant="default"
+                                      className="bg-amber-400 text-black hover:bg-amber-500"
                                       onClick={(event) => {
                                         event.stopPropagation();
-                                        openReasonDialog(diaria.id.toString(), STATUS.reprovada);
+                                        openEditDialog(diaria);
                                       }}
                                     >
-                                      Reprovar
+                                      Editar
                                     </Button>
-                                  )}
-                                  {isCancelPage && (
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="text-destructive"
-                                      disabled={deletingId === diaria.id.toString()}
+                                    {allowDelete && (
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="text-destructive"
+                                        disabled={deletingId === diaria.id.toString()}
                                       onClick={(event) => {
                                         event.stopPropagation();
                                         handleDeleteDiaria(diaria.id.toString());
@@ -1867,7 +2204,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                   </Select>
                                   <Button
                                     size="sm"
-                                    variant="secondary"
+                                    variant="default"
+                                    className="bg-emerald-600 text-white hover:bg-emerald-700"
                                     disabled={
                                       updatingId === diaria.id.toString() ||
                                       !customStatusSelection[diaria.id.toString()] ||
@@ -1926,6 +2264,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               </Button>
               <Button
                 type="button"
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
                 onClick={handleReasonSubmit}
                 disabled={!reasonText.trim() || updatingId === reasonDialog.diariaId}
               >
@@ -2417,13 +2756,363 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="text-muted-foreground text-xs">Chave Pix</p>
                       <p className="font-medium break-all">{selectedDiaristaInfo?.pix || "-"}</p>
                     </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Pix pertence ao diarista?</p>
+                      <p className="font-medium">
+                        {formatPixPertence(selectedDiaristaInfo?.pix_pertence_beneficiario)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
             <DialogFooter>
+              {selectedDiaria && (
+                <Button
+                  type="button"
+                  variant="default"
+                  className="bg-amber-400 text-black hover:bg-amber-500"
+                  onClick={() => {
+                    openEditDialog(selectedDiaria);
+                    closeDetailsDialog();
+                  }}
+                >
+                  Editar diária
+                </Button>
+              )}
               <Button type="button" onClick={closeDetailsDialog}>
                 Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={editDialogOpen} onOpenChange={(open) => (open ? null : closeEditDialog())}>
+          <DialogContent className="max-w-3xl w-full">
+            <DialogHeader>
+              <DialogTitle>Editar diária</DialogTitle>
+              <DialogDescription>Atualize os dados da diária temporária.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1">
+                <TooltipLabel label="Data" tooltip="Dia da diaria." />
+                <Input
+                  type="date"
+                  value={editForm.dataDiaria}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, dataDiaria: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <TooltipLabel
+                  label="Horário início"
+                  tooltip="Horario em que o diarista deve iniciar a diaria."
+                />
+                <Input
+                  type="time"
+                  value={editForm.horarioInicio}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, horarioInicio: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <TooltipLabel label="Horário fim" tooltip="Horario previsto para encerrar a diaria." />
+                <Input
+                  type="time"
+                  value={editForm.horarioFim}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, horarioFim: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <TooltipLabel
+                  label="Intervalo (min)"
+                  tooltip="Tempo total de intervalo em minutos; deixe vazio se nao houver."
+                />
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editForm.intervalo}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, intervalo: e.target.value }))}
+                  placeholder="Opcional"
+                />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <TooltipLabel label="Motivo" tooltip="Motivo da ausencia ou da vaga em aberto." />
+                <Select
+                  value={editForm.motivoVago || OPTIONAL_VALUE}
+                  onValueChange={(value) => {
+                    const isVagaAberto = isVagaEmAberto(value);
+                    const isLicencaNojo = isLicencaNojo(value);
+                    setEditForm((prev) => ({
+                      ...prev,
+                      motivoVago: value === OPTIONAL_VALUE ? "" : value,
+                      colaboradorNome: isVagaAberto || isLicencaNojo ? "" : prev.colaboradorNome,
+                      colaboradorFalecido: isVagaAberto || isLicencaNojo ? "" : prev.colaboradorFalecido,
+                      demissao: null,
+                      licencaNojo: null,
+                      colaboradorDemitidoNome: "",
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o motivo" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    <SelectItem value={OPTIONAL_VALUE} disabled>
+                      Selecione
+                    </SelectItem>
+                    {MOTIVO_VAGO_OPTIONS.map((motivo) => (
+                      <SelectItem key={motivo} value={motivo}>
+                        {motivo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {!isEditMotivoVaga && !isEditMotivoLicenca && (
+                <div className="space-y-1 md:col-span-2">
+                  <TooltipLabel
+                    label="Colaborador ausente"
+                    tooltip="Nome do colaborador que sera coberto pela diaria."
+                  />
+                  <Input
+                    required
+                    value={editForm.colaboradorNome}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, colaboradorNome: e.target.value }))}
+                    placeholder="Nome do colaborador ausente"
+                  />
+                </div>
+              )}
+
+              {isEditMotivoLicenca && (
+                <div className="space-y-1 md:col-span-2">
+                  <TooltipLabel
+                    label="Colaborador falecido (opcional)"
+                    tooltip="Informe o colaborador falecido, se quiser registrar."
+                  />
+                  <Input
+                    value={editForm.colaboradorNome}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, colaboradorNome: e.target.value }))}
+                    placeholder="Nome do colaborador falecido"
+                  />
+                </div>
+              )}
+
+              {isEditMotivoVaga && (
+                <>
+                  <div className="space-y-1">
+                    <TooltipLabel
+                      label="É demissão?"
+                      tooltip="Indique se a vaga em aberto ocorreu por demissao."
+                    />
+                    <Select
+                      required
+                      value={demissaoSelectValue}
+                      onValueChange={(value) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          demissao: value === UNSET_BOOL ? null : value === "true",
+                          licencaNojo: value === "true" ? null : prev.licencaNojo,
+                          colaboradorDemitidoNome: value === "true" ? prev.colaboradorDemitidoNome : "",
+                          colaboradorNome: value === "true" ? "" : prev.colaboradorNome,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma opção" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNSET_BOOL} disabled>
+                          Selecione
+                        </SelectItem>
+                        <SelectItem value="true">Sim</SelectItem>
+                        <SelectItem value="false">Não</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {editForm.demissao === false && (
+                    <div className="space-y-1">
+                      <TooltipLabel
+                        label="É licença nojo?"
+                        tooltip="Marque se o afastamento e licenca nojo."
+                      />
+                      <Select
+                        required
+                        value={licencaNojoSelectValue}
+                        onValueChange={(value) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            licencaNojo: value === UNSET_BOOL ? null : value === "true",
+                            colaboradorNome: value === "true" ? prev.colaboradorNome : "",
+                          }))
+                        }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione uma opção" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={UNSET_BOOL} disabled>
+                              Selecione
+                            </SelectItem>
+                            <SelectItem value="true">Sim</SelectItem>
+                            <SelectItem value="false">Não</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                  )}
+
+                  {editForm.demissao === true && (
+                    <div className="space-y-1 md:col-span-2">
+                      <TooltipLabel
+                        label="Colaborador demitido (opcional)"
+                        tooltip="Informe quem foi demitido, se quiser registrar."
+                      />
+                      <Input
+                        value={editForm.colaboradorDemitidoNome}
+                        onChange={(e) =>
+                          setEditForm((prev) => ({ ...prev, colaboradorDemitidoNome: e.target.value }))
+                        }
+                        placeholder="Nome do colaborador demitido"
+                      />
+                    </div>
+                  )}
+
+                  {editForm.demissao === false && editForm.licencaNojo === true && (
+                    <div className="space-y-1 md:col-span-2">
+                      <TooltipLabel
+                        label="Colaborador falecido (opcional)"
+                        tooltip="Informe o colaborador falecido, se quiser registrar."
+                      />
+                      <Input
+                        value={editForm.colaboradorNome}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, colaboradorNome: e.target.value }))}
+                        placeholder="Nome do colaborador falecido"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="space-y-1 md:col-span-2">
+                <TooltipLabel label="Cliente" tooltip="Cliente associado a diaria." />
+                <Select
+                  value={editForm.clienteId || OPTIONAL_VALUE}
+                  onValueChange={(value) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      clienteId: value === OPTIONAL_VALUE ? "" : value,
+                      postoServicoId: "",
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cliente" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value={OPTIONAL_VALUE} disabled>
+                      Selecione
+                    </SelectItem>
+                    {clienteOptionsAll.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <TooltipLabel label="Posto" tooltip="Nome do posto vinculado a diaria." />
+                <Select
+                  value={editForm.postoServicoId || OPTIONAL_VALUE}
+                  onValueChange={(value) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      postoServicoId: value === OPTIONAL_VALUE ? "" : value,
+                    }))
+                  }
+                  disabled={!editForm.clienteId}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={editForm.clienteId ? "Selecione o posto" : "Escolha o cliente primeiro"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    <SelectItem value={OPTIONAL_VALUE} disabled>
+                      Selecione
+                    </SelectItem>
+                    {postosOptions
+                      .filter(
+                        (posto) =>
+                          !editForm.clienteId ||
+                          (posto.cliente_id && posto.cliente_id.toString() === editForm.clienteId),
+                      )
+                      .map((posto) => (
+                        <SelectItem key={posto.id} value={posto.id}>
+                          {posto.nome}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <TooltipLabel
+                  label="Valor da diária (R$)"
+                  tooltip="Valor atualizado para a diaria."
+                />
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editForm.valorDiaria}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, valorDiaria: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <TooltipLabel
+                  label="Diarista responsável"
+                  tooltip="Diarista que executara a diaria."
+                />
+                <Select
+                  value={editForm.diaristaId}
+                  onValueChange={(value) => setEditForm((prev) => ({ ...prev, diaristaId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o diarista" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    {diaristaOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <TooltipLabel
+                  label="Observação"
+                  tooltip="Observacoes adicionais ou instrucoes relevantes."
+                />
+                <Textarea
+                  value={editForm.observacao}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, observacao: e.target.value }))}
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeEditDialog}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={handleEditSubmit} disabled={editingSaving}>
+                {editingSaving ? "Salvando..." : "Salvar alterações"}
               </Button>
             </DialogFooter>
           </DialogContent>
