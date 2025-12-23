@@ -357,6 +357,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return map.get(statusKey) || "Responsavel";
     }, [statusKey]);
 
+    const statusResponsavelTooltip = useMemo(() => {
+      const map = new Map<string, string>([
+        [normalizeStatus(STATUS.confirmada), "Filtra pelo usuario responsavel pela confirmacao."],
+        [normalizeStatus(STATUS.aprovada), "Filtra pelo usuario responsavel pela aprovacao."],
+        [normalizeStatus(STATUS.lancada), "Filtra pelo usuario responsavel pelo lancamento."],
+        [normalizeStatus(STATUS.aprovadaPagamento), "Filtra pelo usuario responsavel pela aprovacao de pagamento."],
+        [normalizeStatus(STATUS.paga), "Filtra pelo usuario responsavel pelo pagamento."],
+        [normalizeStatus(STATUS.reprovada), "Filtra pelo usuario responsavel pela reprovacao."],
+        [normalizeStatus(STATUS.cancelada), "Filtra pelo usuario responsavel pelo cancelamento."],
+      ]);
+      return map.get(normalizedKey) || "Filtra pelo usuario responsavel pelo status.";
+    }, [normalizedKey]);
+
     const responsavelStatusHeader = useMemo(() => {
       const map = new Map<string, string>([
         [normalizeStatus(STATUS.confirmada), "Responsavel pela confirmacao"],
@@ -1817,7 +1830,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <TooltipLabel
                         htmlFor={`filtro-temp-responsavel-${statusKey}`}
                         label={statusResponsavelLabel}
-                        tooltip="Filtra pelo usuario responsavel pelo status atual."
+                        tooltip={statusResponsavelTooltip}
                       />
                       <Select
                         value={filters.statusResponsavelId || selectAllValue}
@@ -2824,7 +2837,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               <div className="space-y-1">
                 <TooltipLabel
                   label="Intervalo (min)"
-                  tooltip="Tempo total de intervalo em minutos; deixe vazio se nao houver."
+                  tooltip="Tempo total de intervalo em minutos. Deixe vazio se nao souber."
                 />
                 <Input
                   type="number"
@@ -2837,7 +2850,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               </div>
 
               <div className="space-y-1 md:col-span-2">
-                <TooltipLabel label="Motivo" tooltip="Motivo da ausencia ou da vaga em aberto." />
+                <TooltipLabel label="Motivo" tooltip="Motivo que levou a necessidade da diária." />
                 <Select
                   value={editForm.motivoVago || OPTIONAL_VALUE}
                   onValueChange={(value) => {
@@ -3024,7 +3037,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               </div>
 
               <div className="space-y-1 md:col-span-2">
-                <TooltipLabel label="Posto" tooltip="Nome do posto vinculado a diaria." />
+                <TooltipLabel label="Posto" tooltip=" Posto onde o diarista vai atuar nesta diaria." />
                 <Select
                   value={editForm.postoServicoId || OPTIONAL_VALUE}
                   onValueChange={(value) =>

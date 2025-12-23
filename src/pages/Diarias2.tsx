@@ -376,7 +376,7 @@ const Diarias2 = () => {
               <div className="space-y-2">
                 <TooltipLabel
                   label="Intervalo (minutos) - opcional"
-                  tooltip="Tempo total de intervalo em minutos. Deixe vazio se nao houver."
+                  tooltip="Tempo total de intervalo em minutos. Deixe vazio caso não tenha essa informação."
                 />
                 <Input
                   type="number"
@@ -389,7 +389,7 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2">
-                <TooltipLabel label="Motivo" tooltip="Motivo da ausencia ou da vaga em aberto." />
+                <TooltipLabel label="Motivo" tooltip="Motivo que levou a necessidade da diária." />
                 <Select
                   required
                   value={formState.motivoVago}
