@@ -377,6 +377,16 @@ export default function Diaristas() {
                   <p className="text-xs text-muted-foreground">Chave PIX</p>
                   <p className="font-medium break-words">{diaristaDetalhe.pix || "-"}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">PIX pertence ao diarista?</p>
+                  <p className="font-medium break-words">
+                    {diaristaDetalhe.pix_pertence_beneficiario === true
+                      ? "Sim"
+                      : diaristaDetalhe.pix_pertence_beneficiario === false
+                        ? "Não"
+                        : "-"}
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-2">
