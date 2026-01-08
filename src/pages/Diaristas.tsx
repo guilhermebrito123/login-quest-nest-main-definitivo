@@ -74,6 +74,14 @@ const formatCpf = (value?: string | null) => {
   return result;
 };
 
+const TEST_DIARISTA_NAME = "guilherme guerra";
+const TEST_DIARISTA_CPFS = new Set(["01999999999", "01999999998"]);
+const isTestDiarista = (diarista: any) => {
+  const name = (diarista?.nome_completo || "").trim().toLowerCase();
+  const cpfDigits = stripNonDigits(diarista?.cpf);
+  return name === TEST_DIARISTA_NAME && TEST_DIARISTA_CPFS.has(cpfDigits);
+};
+
 const formatCep = (value?: string | null) => {
   const digits = stripNonDigits(value).slice(0, 8);
   return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
@@ -328,15 +336,22 @@ export default function Diaristas() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredDiaristas?.map((diarista) => (
-                  <TableRow
-                    key={diarista.id}
-                    className="cursor-pointer"
-                    onClick={() => setDiaristaDetalhe(diarista)}
-                  >
+                filteredDiaristas?.map((diarista) => {
+                  const isTest = isTestDiarista(diarista);
+                  return (
+                    <TableRow
+                      key={diarista.id}
+                      className={`cursor-pointer ${isTest ? "bg-yellow-200 hover:bg-yellow-300" : ""}`}
+                      onClick={() => setDiaristaDetalhe(diarista)}
+                    >
                     <TableCell className="font-medium">
                       <div className="flex flex-wrap items-center gap-2">
                         <span>{diarista.nome_completo}</span>
+                        {isTest && (
+                          <span className="rounded-full bg-yellow-300 px-2 py-0.5 text-xs font-semibold text-yellow-900">
+                            Diarista teste (nao compoe a base real de diaristas)
+                          </span>
+                        )}
                         {blacklistMap.has(diarista.id) && (
                           <span className="rounded-full bg-black px-2 py-0.5 text-xs font-semibold text-white">
                             Blacklist
@@ -411,7 +426,8 @@ export default function Diaristas() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>

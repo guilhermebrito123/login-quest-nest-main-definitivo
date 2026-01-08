@@ -40,6 +40,14 @@ const toTrimOrNull = (value: string | null | undefined) => {
   const trimmed = (value ?? "").trim();
   return trimmed ? trimmed : null;
 };
+const stripNonDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
+const TEST_DIARISTA_NAME = "guilherme guerra";
+const TEST_DIARISTA_CPFS = new Set(["01999999999", "01999999998"]);
+const isTestDiarista = (diarista: any) => {
+  const name = (diarista?.nome_completo || "").trim().toLowerCase();
+  const cpfDigits = stripNonDigits(diarista?.cpf);
+  return name === TEST_DIARISTA_NAME && TEST_DIARISTA_CPFS.has(cpfDigits);
+};
 
 const TooltipLabel = ({
   label,
@@ -711,6 +719,7 @@ const Diarias2 = () => {
                     {diaristas.map((diarista) => {
                       const isBlacklisted = blacklistMap.has(diarista.id);
                       const isRestrito = diarista.status === "restrito";
+                      const isTest = isTestDiarista(diarista);
                       const statusLabels = [
                         isBlacklisted ? "Blacklist" : null,
                         isRestrito ? "Restrito" : null,
@@ -723,10 +732,20 @@ const Diarias2 = () => {
                           key={diarista.id}
                           value={diarista.id}
                           disabled={isBlacklisted || isRestrito}
+                          className={
+                            isTest
+                              ? "bg-yellow-200 text-yellow-900 data-[highlighted]:bg-yellow-300 data-[highlighted]:text-yellow-900"
+                              : ""
+                          }
                         >
                           {diarista.nome_completo}
                           {cpfLabel}
                           {statusSuffix}
+                          {isTest && (
+                            <span className="ml-2 rounded-full bg-yellow-300 px-2 py-0.5 text-[10px] font-semibold text-yellow-900">
+                              Diarista teste (nao compoe a base real de diaristas)
+                            </span>
+                          )}
                         </SelectItem>
                       );
                     })}

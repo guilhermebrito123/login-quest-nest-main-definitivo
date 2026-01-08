@@ -415,7 +415,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
 
     for (const field of SPECIFIC_ATTACHMENT_FIELDS) {
       if (!nextPaths[field.key]) {
-        throw new Error(`Envie o arquivo: ${field.label}`);
+        nextPaths[field.key] = "";
       }
     }
 
@@ -458,16 +458,6 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!formData.cpf.trim()) {
-      toast.error("Informe o CPF.");
-      return;
-    }
-
-    if (!formData.banco) {
-      toast.error("Selecione o banco do diarista");
-      return;
-    }
 
     if (formData.possui_antecedente) {
       toast.error("Nao e permitido cadastrar diaristas com antecedentes criminais");
@@ -539,73 +529,67 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cpf">CPF *</Label>
+              <Label htmlFor="cpf">CPF</Label>
               <Input
                 id="cpf"
                 value={formData.cpf}
                 onChange={(e) => setFormData({ ...formData, cpf: formatCpf(e.target.value) })}
                 placeholder="000.000.000-00"
-                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cep">CEP *</Label>
+              <Label htmlFor="cep">CEP</Label>
               <Input
                 id="cep"
                 value={formData.cep}
                 onChange={(e) => handleCepChange(e.target.value)}
                 placeholder="00000-000"
-                required
               />
               {cepLoading && <p className="text-xs text-muted-foreground">Consultando CEP...</p>}
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="endereco">Endereco *</Label>
+              <Label htmlFor="endereco">Endereco</Label>
               <Input
                 id="endereco"
                 value={formData.endereco}
                 onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cidade">Cidade *</Label>
+              <Label htmlFor="cidade">Cidade</Label>
               <Input
                 id="cidade"
                 value={formData.cidade}
                 onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
-                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="telefone">Telefone *</Label>
+              <Label htmlFor="telefone">Telefone</Label>
               <Input
                 id="telefone"
                 type="tel"
                 value={formData.telefone}
                 onChange={(e) => setFormData({ ...formData, telefone: formatTelefone(e.target.value) })}
                 placeholder="(00) 00000-0000"
-                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="possui_antecedente">Possui antecedente criminal? *</Label>
+              <Label htmlFor="possui_antecedente">Possui antecedente criminal?</Label>
               <Select
                 value={formData.possui_antecedente ? "true" : "false"}
                 onValueChange={(value) => setFormData({ ...formData, possui_antecedente: value === "true" })}
@@ -621,7 +605,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Status *</Label>
+              <Label htmlFor="status">Status</Label>
               <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as DiaristaFormState["status"] })}>
                 <SelectTrigger>
                   <SelectValue />
@@ -639,7 +623,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
             <p className="text-sm font-medium">Dados bancarios</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="banco">Banco *</Label>
+                <Label htmlFor="banco">Banco</Label>
                 <Select
                   value={formData.banco}
                   onValueChange={(value) => setFormData({ ...formData, banco: value })}
@@ -657,16 +641,15 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="agencia">Agencia *</Label>
+                <Label htmlFor="agencia">Agencia</Label>
                 <Input
                   id="agencia"
                   value={formData.agencia}
                   onChange={(e) => setFormData({ ...formData, agencia: e.target.value })}
-                  required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tipo_conta">Tipo de conta *</Label>
+                <Label htmlFor="tipo_conta">Tipo de conta</Label>
                 <Select
                   value={formData.tipo_conta}
                   onValueChange={(value) =>
@@ -684,12 +667,11 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="numero_conta">Numero da conta *</Label>
+                <Label htmlFor="numero_conta">Numero da conta</Label>
                 <Input
                   id="numero_conta"
                   value={formData.numero_conta}
                   onChange={(e) => setFormData({ ...formData, numero_conta: e.target.value })}
-                  required
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
@@ -734,7 +716,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
           </div>
 
           <div className="space-y-4">
-            <p className="text-sm font-medium">Documentos obrigatorios</p>
+            <p className="text-sm font-medium">Documentos</p>
             <div className="grid grid-cols-1 gap-4">
               {SPECIFIC_ATTACHMENT_FIELDS.map(({ key, label }) => {
                 const currentPath = specificAttachments[key];

@@ -488,6 +488,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const stripNonDigits = (value?: string | number | null) =>
       (value ?? "").toString().replace(/\D/g, "");
 
+    const TEST_DIARISTA_NAME = "guilherme guerra";
+    const TEST_DIARISTA_CPFS = new Set(["01999999999", "01999999998"]);
+    const isTestDiarista = (option: { nome?: string; cpf?: string | null }) => {
+      const name = (option.nome || "").trim().toLowerCase();
+      const cpfDigits = stripNonDigits(option.cpf);
+      return name === TEST_DIARISTA_NAME && TEST_DIARISTA_CPFS.has(cpfDigits);
+    };
+
     const formatCpf = (value?: string | number | null) => {
       const digits = stripNonDigits(value).slice(0, 11);
       const part1 = digits.slice(0, 3);
@@ -735,6 +743,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           .map((diarista) => ({
             id: diarista.id,
             nome: diarista.nome_completo || diarista.id,
+            cpf: diarista.cpf ?? null,
           }))
           .sort((a, b) => a.nome.localeCompare(b.nome)),
       [diaristas],
@@ -4772,6 +4781,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       const isBlacklisted = blacklistMap.has(option.id);
                       const isRestrito = diaristaStatusMap.get(option.id) === "restrito";
                       const isCurrent = option.id === editForm.diaristaId;
+                      const isTest = isTestDiarista(option);
                       const labels = [
                         isBlacklisted ? "Blacklist" : null,
                         isRestrito ? "Restrito" : null,
@@ -4783,9 +4793,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                           key={option.id}
                           value={option.id}
                           disabled={isRestrito || (isBlacklisted && !isCurrent)}
+                          className={
+                            isTest
+                              ? "bg-yellow-200 text-yellow-900 data-[highlighted]:bg-yellow-300 data-[highlighted]:text-yellow-900"
+                              : ""
+                          }
                         >
                           {option.nome}
                           {statusSuffix}
+                          {isTest && (
+                            <span className="ml-2 rounded-full bg-yellow-300 px-2 py-0.5 text-[10px] font-semibold text-yellow-900">
+                              Diarista teste (nao compoe a base real de diaristas)
+                            </span>
+                          )}
                         </SelectItem>
                       );
                     })}
