@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,10 @@ const MOTIVO_VAGO_OPTIONS = [
 const toUpperOrNull = (value: string | null | undefined) => {
   const trimmed = (value ?? "").trim();
   return trimmed ? trimmed.toUpperCase() : null;
+};
+const toTrimOrNull = (value: string | null | undefined) => {
+  const trimmed = (value ?? "").trim();
+  return trimmed ? trimmed : null;
 };
 
 const TooltipLabel = ({
@@ -71,6 +76,7 @@ const TooltipLabel = ({
     intervalo: "",
     colaboradorNome: "",
     postoServicoId: "",
+    unidade: "",
     clienteId: "",
     valorDiaria: "",
   diaristaId: "",
@@ -79,6 +85,8 @@ const TooltipLabel = ({
   licencaNojo: null as boolean | null,
   colaboradorDemitidoNome: "",
   observacao: "",
+  pixAlternativo: "",
+  beneficiarioAlternativo: "",
 };
 
 const Diarias2 = () => {
@@ -96,6 +104,25 @@ const Diarias2 = () => {
     postoMap,
     diarias,
   } = useDiariasTemporariasData(selectedMonth);
+  const { data: blacklist = [] } = useQuery({
+    queryKey: ["blacklist"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("blacklist")
+        .select("diarista_id, motivo");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const blacklistMap = useMemo(() => {
+    const map = new Map<string, { motivo?: string | null }>();
+    (blacklist || []).forEach((item: any) => {
+      if (item?.diarista_id) {
+        map.set(item.diarista_id, { motivo: item.motivo ?? null });
+      }
+    });
+    return map;
+  }, [blacklist]);
   const postosOptions = Array.from(postoMap.values()).map((p: any) => ({
     id: p.id,
     nome: p.nome || "Sem nome",
@@ -183,6 +210,12 @@ const Diarias2 = () => {
       toast.error("Preencha diarista, valor e motivo.");
       return;
     }
+    const blacklistEntry = blacklistMap.get(formState.diaristaId);
+    if (blacklistEntry) {
+      const motivo = blacklistEntry.motivo ? `: ${blacklistEntry.motivo}` : "";
+      toast.error(`Diarista esta na blacklist${motivo}`);
+      return;
+    }
 
     if (!formState.clienteId) {
       toast.error("Selecione o cliente.");
@@ -228,6 +261,9 @@ const Diarias2 = () => {
       return;
     }
 
+    const postoInfo = formState.postoServicoId ? postoMap.get(formState.postoServicoId) : null;
+    const unidadeValue =
+      toUpperOrNull(formState.unidade) || toUpperOrNull(postoInfo?.unidade?.nome);
     const colaboradorAusente = null;
     const colaboradorNomeUpper = toUpperOrNull(formState.colaboradorNome);
     const clienteIdValue = clienteIdNumber;
@@ -252,6 +288,8 @@ const Diarias2 = () => {
         ? toUpperOrNull(formState.colaboradorDemitidoNome)
         : null;
     const observacaoValue = toUpperOrNull(formState.observacao);
+    const pixAlternativoValue = toTrimOrNull(formState.pixAlternativo);
+    const beneficiarioAlternativoValue = toUpperOrNull(formState.beneficiarioAlternativo);
     const motivoVagoValue = (formState.motivoVago || "").toUpperCase();
 
     const diaristaOcupado = diarias.some(
@@ -282,6 +320,7 @@ const Diarias2 = () => {
         colaborador_falecido: colaboradorFalecido,
         posto_servico_id: formState.postoServicoId || null,
         posto_servico: null,
+        unidade: unidadeValue,
         cliente_id: clienteIdValue,
         valor_diaria: valorNumber,
         diarista_id: formState.diaristaId,
@@ -292,6 +331,8 @@ const Diarias2 = () => {
         colaborador_demitido: colaboradorDemitidoValue,
         colaborador_demitido_nome: colaboradorDemitidoNomeValue,
         observacao: observacaoValue,
+        pix_alternativo: pixAlternativoValue,
+        beneficiario_alternativo: beneficiarioAlternativoValue,
         criado_por: userId,
       });
       if (error) throw error;
@@ -587,10 +628,13 @@ const Diarias2 = () => {
                   value={formState.postoServicoId}
                   onValueChange={(value) => {
                     const posto = postosOptions.find((p) => p.id === value);
+                    const postoInfo = value ? postoMap.get(value) : null;
+                    const unidadeFromPosto = postoInfo?.unidade?.nome || "";
                     setFormState((prev) => ({
                       ...prev,
                       postoServicoId: value,
                       clienteId: posto?.cliente_id ? posto.cliente_id.toString() : prev.clienteId,
+                      unidade: toTrimOrNull(prev.unidade) ? prev.unidade : unidadeFromPosto,
                     }));
                   }}
                   disabled={!formState.clienteId}
@@ -616,6 +660,20 @@ const Diarias2 = () => {
                       ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <TooltipLabel
+                  label="Unidade (opcional)"
+                  tooltip="Informe a unidade em que a diária será realizada."
+                />
+                <Input
+                  value={formState.unidade}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, unidade: event.target.value }))
+                  }
+                  placeholder="Nome da unidade (opcional)"
+                />
               </div>
 
               <div className="space-y-2">
@@ -650,18 +708,61 @@ const Diarias2 = () => {
                         Nenhum diarista encontrado
                       </SelectItem>
                     )}
-                    {diaristas.map((diarista) => (
-                      <SelectItem key={diarista.id} value={diarista.id}>
-                        {diarista.nome_completo}
-                      </SelectItem>
-                    ))}
+                    {diaristas.map((diarista) => {
+                      const isBlacklisted = blacklistMap.has(diarista.id);
+                      const isRestrito = diarista.status === "restrito";
+                      const statusLabels = [
+                        isBlacklisted ? "Blacklist" : null,
+                        isRestrito ? "Restrito" : null,
+                      ].filter(Boolean);
+                      const statusSuffix =
+                        statusLabels.length > 0 ? ` (${statusLabels.join(" / ")})` : "";
+                      const cpfLabel = diarista.cpf ? ` - ${diarista.cpf}` : " - CPF nao informado";
+                      return (
+                        <SelectItem
+                          key={diarista.id}
+                          value={diarista.id}
+                          disabled={isBlacklisted || isRestrito}
+                        >
+                          {diarista.nome_completo}
+                          {cpfLabel}
+                          {statusSuffix}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
 
+              <div className="space-y-2">
+                <TooltipLabel
+                  label="Pix alternativo (opcional)"
+                  tooltip="Informe uma chave Pix alternativa, se o pagamento nao for para o diarista."
+                />
+                <Input
+                  value={formState.pixAlternativo}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, pixAlternativo: event.target.value }))}
+                  placeholder="Opcional"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <TooltipLabel
+                  label="Beneficiario alternativo (opcional)"
+                  tooltip="Nome do beneficiario alternativo quando o Pix nao for do diarista."
+                />
+                <Input
+                  value={formState.beneficiarioAlternativo}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, beneficiarioAlternativo: event.target.value }))
+                  }
+                  placeholder="Opcional"
+                />
+              </div>
+
               <div className="space-y-2 md:col-span-2">
                 <TooltipLabel
-                  label="Observacao"
+                  label="Observacao (opcional)"
                   tooltip="Observacoes adicionais ou instrucoes relevantes."
                 />
                 <Textarea

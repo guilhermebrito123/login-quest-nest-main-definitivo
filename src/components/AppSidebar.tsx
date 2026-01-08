@@ -16,6 +16,7 @@ import {
   ListChecks,
   ListOrdered,
   Briefcase,
+  Lock,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -57,7 +58,6 @@ const diariasChildren = [
     url: "/diarias/lancadas",
     status: "Lançada para pagamento",
   },
-  { title: "Aprovadas p/ pagamento", url: "/diarias/aprovadas-pagamento", status: "Aprovada para pagamento" },
   { title: "Reprovadas", url: "/diarias/reprovadas" },
   { title: "Canceladas", url: "/diarias/canceladas" },
   { title: "Pagas", url: "/diarias/pagas" },
@@ -76,10 +76,10 @@ const diariasTemporariasChildren = [
     url: "/diarias2/lancadas",
     status: "Lançada para pagamento",
   },
-  { title: "Aprovadas p/ pagamento", url: "/diarias2/aprovadas-pagamento", status: "Aprovada para pagamento" },
   { title: "Pagas", url: "/diarias2/pagas" },
   { title: "Reprovadas", url: "/diarias2/reprovadas" },
   { title: "Canceladas", url: "/diarias2/canceladas" },
+  { title: "Logs", url: "/diarias2/logs" },
 ];
 
 const menuItems: MenuItem[] = [
@@ -93,7 +93,8 @@ const menuItems: MenuItem[] = [
   { title: "Chamados", url: "/chamados", icon: MessageSquare },
   { title: "Ordens de Serviço", url: "/ordens-servico", icon: ClipboardList },
   { title: "Colaboradores", url: "/colaboradores", icon: UserCheck },
-  { title: "Diaristas", url: "/diaristas", icon: UserCircle },
+  { title: "Diaristas✅", url: "/diaristas", icon: UserCircle },
+  { title: "Diaristas🔒", url: "/diaristas-restritos", icon: Lock },
   //{ title: "Diarias (versão futura)", url: "/diarias", icon: Calendar, children: diariasChildren, statusCountsKey: "diarias" },
   {
     title: "Diarias (versão 1.0.0)",

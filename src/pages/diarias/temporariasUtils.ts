@@ -49,6 +49,7 @@ export type DiariaTemporaria = {
   colaborador_falecido?: string | null;
   posto_servico_id: string | null;
   posto_servico?: string | null;
+  unidade?: string | null;
   cliente_id?: number | null;
   criado_por?: string | null;
   confirmada_por?: string | null;
@@ -76,6 +77,7 @@ export type DiariaTemporaria = {
   updated_at: string;
   motivo_cancelamento: string | null;
   motivo_reprovacao: string | null;
+  motivo_reprovacao_observacao?: string | null;
   motivo_vago: string;
   demissao?: boolean | null;
   licenca_nojo?: boolean | null;
@@ -83,14 +85,24 @@ export type DiariaTemporaria = {
   colaborador_demitido?: string | null;
   colaborador_demitido_nome?: string | null;
   observacao?: string | null;
+  ok_pagamento?: boolean | null;
+  ok_pagamento_em?: string | null;
+  ok_pagamento_por?: string | null;
+  observacao_pagamento?: string[] | null;
+  outros_motivos_reprovacao_pagamento?: string | null;
+  pix_alternativo?: string | null;
+  beneficiario_alternativo?: string | null;
   diarista?: Diarista | null;
   colaborador?: ColaboradorAlocado | null;
   posto?: PostoServicoResumo | null;
   colaborador_falecido?: string | null;
 };
 
-export function useDiariasTemporariasData(selectedMonth: string) {
-  const monthRangeStrings = useMemo(() => getMonthRange(selectedMonth), [selectedMonth]);
+export function useDiariasTemporariasData(selectedMonth?: string | null) {
+  const monthRangeStrings = useMemo(
+    () => (selectedMonth ? getMonthRange(selectedMonth) : null),
+    [selectedMonth],
+  );
 
   const { data: clientes = [] } = useQuery({
     queryKey: ["clientes-temporarias"],
@@ -190,7 +202,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
         diaria.confirmada_por,
         diaria.aprovada_por,
         diaria.lancada_por,
-        diaria.aprovado_para_pgto_por,
+        diaria.ok_pagamento_por,
         diaria.paga_por,
         diaria.cancelada_por,
         diaria.reprovada_por,
@@ -206,7 +218,30 @@ export function useDiariasTemporariasData(selectedMonth: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("postos_servico")
-        .select("id, nome, valor_diaria, observacoes_especificas, cliente_id")
+        .select(
+          `
+          id,
+          nome,
+          valor_diaria,
+          observacoes_especificas,
+          cliente_id,
+          unidade:unidades (
+            id,
+            nome,
+            contrato_id,
+            contrato:contratos (
+              id,
+              negocio,
+              cliente_id,
+              clientes (
+                id,
+                razao_social,
+                nome_fantasia
+              )
+            )
+          )
+        `,
+        )
         .order("nome");
       if (error) throw error;
       return (data || []) as any[];
@@ -259,6 +294,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
   });
 
   const monthRange = useMemo(() => {
+    if (!monthRangeStrings) return null;
     return {
       start: parseISO(monthRangeStrings.start),
       end: parseISO(monthRangeStrings.end),
@@ -266,6 +302,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
   }, [monthRangeStrings]);
 
   const filteredDiarias = useMemo(() => {
+    if (!monthRange) return diarias;
     return diarias.filter((diaria) => {
       if (!diaria.data_diaria) return false;
       try {
@@ -298,7 +335,7 @@ export function useDiariasTemporariasData(selectedMonth: string) {
         valor_diaria: posto.valor_diaria ?? null,
         observacoes_especificas: posto.observacoes_especificas ?? null,
         cliente_id: posto.cliente_id ?? null,
-        unidade: null,
+        unidade: posto.unidade ?? null,
       });
     });
     colaboradores.forEach((colaborador) => {

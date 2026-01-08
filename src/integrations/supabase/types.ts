@@ -70,6 +70,45 @@ export type Database = {
           },
         ]
       }
+      blacklist: {
+        Row: {
+          bloqueado_em: string | null
+          bloqueado_por: string | null
+          diarista_id: string
+          id: string
+          motivo: string
+        }
+        Insert: {
+          bloqueado_em?: string | null
+          bloqueado_por?: string | null
+          diarista_id: string
+          id?: string
+          motivo: string
+        }
+        Update: {
+          bloqueado_em?: string | null
+          bloqueado_por?: string | null
+          diarista_id?: string
+          id?: string
+          motivo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blacklist_bloqueado_por_fkey"
+            columns: ["bloqueado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_blacklist_diarista"
+            columns: ["diarista_id"]
+            isOneToOne: false
+            referencedRelation: "diaristas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidatos: {
         Row: {
           celular: string | null
@@ -727,6 +766,7 @@ export type Database = {
           aprovada_para_pagamento_em: string | null
           aprovada_por: string | null
           aprovado_para_pgto_por: string | null
+          beneficiario_alternativo: string | null
           cancelada_em: string | null
           cancelada_por: string | null
           cliente_id: number
@@ -751,17 +791,29 @@ export type Database = {
           lancada_por: string | null
           licenca_nojo: boolean | null
           motivo_cancelamento: string | null
-          motivo_reprovacao: string | null
+          motivo_reprovacao:
+            | Database["public"]["Enums"]["motivo_reprovacao"]
+            | null
+          motivo_reprovacao_observacao: string | null
           motivo_vago: Database["public"]["Enums"]["motivo_vago_type"]
           novo_posto: boolean | null
           observacao: string | null
+          observacao_pagamento:
+            | Database["public"]["Enums"]["observacao_pagamento_type"][]
+            | null
+          ok_pagamento: boolean | null
+          ok_pagamento_em: string | null
+          ok_pagamento_por: string | null
+          outros_motivos_reprovacao_pagamento: string | null
           paga_em: string | null
           paga_por: string | null
+          pix_alternativo: string | null
           posto_servico: string | null
           posto_servico_id: string | null
           reprovada_em: string | null
           reprovada_por: string | null
           status: Database["public"]["Enums"]["status_diaria"]
+          unidade: string | null
           updated_at: string
           valor_diaria: number
         }
@@ -770,6 +822,7 @@ export type Database = {
           aprovada_para_pagamento_em?: string | null
           aprovada_por?: string | null
           aprovado_para_pgto_por?: string | null
+          beneficiario_alternativo?: string | null
           cancelada_em?: string | null
           cancelada_por?: string | null
           cliente_id: number
@@ -794,17 +847,29 @@ export type Database = {
           lancada_por?: string | null
           licenca_nojo?: boolean | null
           motivo_cancelamento?: string | null
-          motivo_reprovacao?: string | null
+          motivo_reprovacao?:
+            | Database["public"]["Enums"]["motivo_reprovacao"]
+            | null
+          motivo_reprovacao_observacao?: string | null
           motivo_vago?: Database["public"]["Enums"]["motivo_vago_type"]
           novo_posto?: boolean | null
           observacao?: string | null
+          observacao_pagamento?:
+            | Database["public"]["Enums"]["observacao_pagamento_type"][]
+            | null
+          ok_pagamento?: boolean | null
+          ok_pagamento_em?: string | null
+          ok_pagamento_por?: string | null
+          outros_motivos_reprovacao_pagamento?: string | null
           paga_em?: string | null
           paga_por?: string | null
+          pix_alternativo?: string | null
           posto_servico?: string | null
           posto_servico_id?: string | null
           reprovada_em?: string | null
           reprovada_por?: string | null
           status?: Database["public"]["Enums"]["status_diaria"]
+          unidade?: string | null
           updated_at?: string
           valor_diaria: number
         }
@@ -813,6 +878,7 @@ export type Database = {
           aprovada_para_pagamento_em?: string | null
           aprovada_por?: string | null
           aprovado_para_pgto_por?: string | null
+          beneficiario_alternativo?: string | null
           cancelada_em?: string | null
           cancelada_por?: string | null
           cliente_id?: number
@@ -837,17 +903,29 @@ export type Database = {
           lancada_por?: string | null
           licenca_nojo?: boolean | null
           motivo_cancelamento?: string | null
-          motivo_reprovacao?: string | null
+          motivo_reprovacao?:
+            | Database["public"]["Enums"]["motivo_reprovacao"]
+            | null
+          motivo_reprovacao_observacao?: string | null
           motivo_vago?: Database["public"]["Enums"]["motivo_vago_type"]
           novo_posto?: boolean | null
           observacao?: string | null
+          observacao_pagamento?:
+            | Database["public"]["Enums"]["observacao_pagamento_type"][]
+            | null
+          ok_pagamento?: boolean | null
+          ok_pagamento_em?: string | null
+          ok_pagamento_por?: string | null
+          outros_motivos_reprovacao_pagamento?: string | null
           paga_em?: string | null
           paga_por?: string | null
+          pix_alternativo?: string | null
           posto_servico?: string | null
           posto_servico_id?: string | null
           reprovada_em?: string | null
           reprovada_por?: string | null
           status?: Database["public"]["Enums"]["status_diaria"]
+          unidade?: string | null
           updated_at?: string
           valor_diaria?: number
         }
@@ -923,6 +1001,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "diarias_temporarias_ok_pagamento_por_fkey"
+            columns: ["ok_pagamento_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "diarias_temporarias_paga_por_fkey"
             columns: ["paga_por"]
             isOneToOne: false
@@ -945,6 +1030,87 @@ export type Database = {
           },
         ]
       }
+      diarias_temporarias_logs: {
+        Row: {
+          campo: string
+          criado_em: string | null
+          diaria_id: number
+          id: string
+          operacao: string
+          operacao_em: string | null
+          usuario_responsavel: string | null
+          valor_antigo: string | null
+          valor_novo: string | null
+        }
+        Insert: {
+          campo: string
+          criado_em?: string | null
+          diaria_id: number
+          id?: string
+          operacao: string
+          operacao_em?: string | null
+          usuario_responsavel?: string | null
+          valor_antigo?: string | null
+          valor_novo?: string | null
+        }
+        Update: {
+          campo?: string
+          criado_em?: string | null
+          diaria_id?: number
+          id?: string
+          operacao?: string
+          operacao_em?: string | null
+          usuario_responsavel?: string | null
+          valor_antigo?: string | null
+          valor_novo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diarias_temporarias_logs_diaria_id_fkey"
+            columns: ["diaria_id"]
+            isOneToOne: false
+            referencedRelation: "diarias_temporarias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diarias_temporarias_logs_usuario_responsavel_fkey"
+            columns: ["usuario_responsavel"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diarias_temporarias_logs_completos: {
+        Row: {
+          alteracoes: Json | null
+          data_operacao: string
+          diaria_id: number
+          id: number
+          operacao: string
+          registro_completo: Json | null
+          usuario: string | null
+        }
+        Insert: {
+          alteracoes?: Json | null
+          data_operacao?: string
+          diaria_id: number
+          id?: number
+          operacao: string
+          registro_completo?: Json | null
+          usuario?: string | null
+        }
+        Update: {
+          alteracoes?: Json | null
+          data_operacao?: string
+          diaria_id?: number
+          id?: number
+          operacao?: string
+          registro_completo?: Json | null
+          usuario?: string | null
+        }
+        Relationships: []
+      }
       diaristas: {
         Row: {
           agencia: string | null
@@ -960,6 +1126,7 @@ export type Database = {
           email: string | null
           endereco: string | null
           id: string
+          motivo_restricao: string | null
           nome_completo: string
           numero_conta: string | null
           pix: string
@@ -984,6 +1151,7 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           id?: string
+          motivo_restricao?: string | null
           nome_completo: string
           numero_conta?: string | null
           pix?: string
@@ -1008,6 +1176,7 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           id?: string
+          motivo_restricao?: string | null
           nome_completo?: string
           numero_conta?: string | null
           pix?: string
@@ -2608,6 +2777,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adicionar_diarista_blacklist: {
+        Args: {
+          p_bloqueado_por: string
+          p_diarista_id: string
+          p_motivo: string
+        }
+        Returns: undefined
+      }
       agendar_ocupacao_posto: {
         Args: {
           p_colaborador_id: string
@@ -2667,6 +2844,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_diff_jsonb: { Args: { new_row: Json; old_row: Json }; Returns: Json }
       gerar_dias_trabalho_proximo_mes: { Args: never; Returns: undefined }
       has_role: {
         Args: {
@@ -2703,6 +2881,7 @@ export type Database = {
         | "Substituição férias licença"
         | "Implantação/Abertura de novo contrato"
         | "Solicitação do cliente"
+      motivo_reprovacao: "Diarista ausente" | "Dados incorretos"
       motivo_vago_type:
         | "FALTA JUSTIFICADA"
         | "FALTA INJUSTIFICADA"
@@ -2714,6 +2893,9 @@ export type Database = {
         | "LICENÇA PATERNIDADE"
         | "LICENÇA CASAMENTO"
         | "LICENÇA NOJO (FALECIMENTO)"
+      observacao_pagamento_type:
+        | "Valores divergentes"
+        | "Beneficiário do pix não identificado"
       periodicidade_type:
         | "diaria"
         | "semanal"
@@ -2729,11 +2911,10 @@ export type Database = {
         | "Confirmada"
         | "Aprovada"
         | "Lançada para pagamento"
-        | "Aprovada para pagamento"
+        | "Paga"
         | "Cancelada"
         | "Reprovada"
-        | "Paga"
-      status_diarista: "ativo" | "inativo" | "desligado"
+      status_diarista: "ativo" | "inativo" | "desligado" | "restrito"
       status_execucao: "ativo" | "concluido" | "atrasado" | "cancelado"
       status_posto:
         | "vago"
@@ -2915,6 +3096,7 @@ export const Constants = {
         "Implantação/Abertura de novo contrato",
         "Solicitação do cliente",
       ],
+      motivo_reprovacao: ["Diarista ausente", "Dados incorretos"],
       motivo_vago_type: [
         "FALTA JUSTIFICADA",
         "FALTA INJUSTIFICADA",
@@ -2926,6 +3108,10 @@ export const Constants = {
         "LICENÇA PATERNIDADE",
         "LICENÇA CASAMENTO",
         "LICENÇA NOJO (FALECIMENTO)",
+      ],
+      observacao_pagamento_type: [
+        "Valores divergentes",
+        "Beneficiário do pix não identificado",
       ],
       periodicidade_type: [
         "diaria",
@@ -2943,12 +3129,11 @@ export const Constants = {
         "Confirmada",
         "Aprovada",
         "Lançada para pagamento",
-        "Aprovada para pagamento",
+        "Paga",
         "Cancelada",
         "Reprovada",
-        "Paga",
       ],
-      status_diarista: ["ativo", "inativo", "desligado"],
+      status_diarista: ["ativo", "inativo", "desligado", "restrito"],
       status_execucao: ["ativo", "concluido", "atrasado", "cancelado"],
       status_posto: [
         "vago",

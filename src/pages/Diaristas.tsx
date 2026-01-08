@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -33,8 +33,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DiaristaForm } from "@/components/diaristas/DiaristaForm";
+import { Constants } from "@/integrations/supabase/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const BUCKET = "diaristas-anexos";
+const STATUS_OPTIONS = Constants.public.Enums.status_diarista;
 
 const DIARISTA_DOCUMENTS = [
   { key: "anexo_cpf", label: "Documento CPF" },
@@ -46,7 +55,41 @@ const DIARISTA_DOCUMENTS = [
 const getStatusVariant = (status?: string): "default" | "secondary" | "destructive" => {
   if (status === "ativo") return "default";
   if (status === "desligado") return "destructive";
+  if (status === "restrito") return "destructive";
   return "secondary";
+};
+
+const stripNonDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
+
+const formatCpf = (value?: string | null) => {
+  const digits = stripNonDigits(value).slice(0, 11);
+  const part1 = digits.slice(0, 3);
+  const part2 = digits.slice(3, 6);
+  const part3 = digits.slice(6, 9);
+  const part4 = digits.slice(9, 11);
+  let result = part1;
+  if (part2) result += `.${part2}`;
+  if (part3) result += `.${part3}`;
+  if (part4) result += `-${part4}`;
+  return result;
+};
+
+const formatCep = (value?: string | null) => {
+  const digits = stripNonDigits(value).slice(0, 8);
+  return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+};
+
+const formatTelefone = (value?: string | null) => {
+  const digits = stripNonDigits(value).slice(0, 11);
+  if (!digits) return "";
+  if (digits.length <= 2) return `(${digits}`;
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  if (rest.length <= 4) return `(${ddd}) ${rest}`;
+  const splitIndex = rest.length <= 8 ? 4 : 5;
+  const first = rest.slice(0, splitIndex);
+  const second = rest.slice(splitIndex);
+  return `(${ddd}) ${first}${second ? `-${second}` : ""}`;
 };
 
 interface DiaristaAnexo {
@@ -65,6 +108,7 @@ export default function Diaristas() {
   const [diaristaDetalhe, setDiaristaDetalhe] = useState<any>(null);
   const [detalheAnexos, setDetalheAnexos] = useState<DiaristaAnexo[]>([]);
   const [loadingAnexos, setLoadingAnexos] = useState(false);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: diaristas, isLoading } = useQuery({
@@ -79,6 +123,25 @@ export default function Diaristas() {
       return data || [];
     },
   });
+
+  const { data: blacklist = [] } = useQuery({
+    queryKey: ["blacklist"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("blacklist")
+        .select("id, diarista_id, motivo, bloqueado_em, bloqueado_por");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const blacklistMap = useMemo(() => {
+    const map = new Map<string, any>();
+    (blacklist || []).forEach((item: any) => {
+      if (item?.diarista_id) map.set(item.diarista_id, item);
+    });
+    return map;
+  }, [blacklist]);
 
   const filteredDiaristas = diaristas?.filter((diarista) =>
     diarista.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -102,6 +165,37 @@ export default function Diaristas() {
       setDeletingId(null);
     } catch (error: any) {
       toast.error("Erro ao excluir diarista: " + error.message);
+    }
+  };
+
+  const handleStatusChange = async (
+    diaristaId: string,
+    nextStatus: string,
+    currentStatus?: string | null,
+  ) => {
+    if (!nextStatus || nextStatus === currentStatus) return;
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        `Confirmar alteracao de status para "${nextStatus}"?`,
+      );
+      if (!confirmed) return;
+    }
+    setStatusUpdatingId(diaristaId);
+    try {
+      const { error } = await supabase
+        .from("diaristas")
+        .update({ status: nextStatus })
+        .eq("id", diaristaId);
+      if (error) throw error;
+      toast.success("Status do diarista atualizado.");
+      queryClient.invalidateQueries({ queryKey: ["diaristas"] });
+      queryClient.invalidateQueries({ queryKey: ["diaristas-temporarias"] });
+      queryClient.invalidateQueries({ queryKey: ["diaristas-ativos"] });
+      queryClient.invalidateQueries({ queryKey: ["diaristas-restritos"] });
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar status do diarista.");
+    } finally {
+      setStatusUpdatingId(null);
     }
   };
 
@@ -241,10 +335,22 @@ export default function Diaristas() {
                     onClick={() => setDiaristaDetalhe(diarista)}
                   >
                     <TableCell className="font-medium">
-                      {diarista.nome_completo}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{diarista.nome_completo}</span>
+                        {blacklistMap.has(diarista.id) && (
+                          <span className="rounded-full bg-black px-2 py-0.5 text-xs font-semibold text-white">
+                            Blacklist
+                          </span>
+                        )}
+                        {diarista.status === "restrito" && (
+                          <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">
+                            Restrito
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>{diarista.cidade || "-"}</TableCell>
-                    <TableCell>{diarista.telefone}</TableCell>
+                    <TableCell>{formatTelefone(diarista.telefone) || "-"}</TableCell>
                     <TableCell className="hidden sm:table-cell">
                       {diarista.email}
                     </TableCell>
@@ -252,12 +358,36 @@ export default function Diaristas() {
                       {diarista.banco || "-"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={getStatusVariant(diarista.status)}>
-                        {diarista.status}
-                      </Badge>
+                      <div
+                        className="flex flex-col gap-2"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Badge variant={getStatusVariant(diarista.status)}>
+                          {diarista.status || "-"}
+                        </Badge>
+                        <Select
+                          value={diarista.status || ""}
+                          onValueChange={(value) =>
+                            handleStatusChange(diarista.id, value, diarista.status)
+                          }
+                          disabled={statusUpdatingId === diarista.id}
+                        >
+                          <SelectTrigger className="h-8 w-40">
+                            <SelectValue placeholder="Alterar status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_OPTIONS.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                {status}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        
                         <Button
                           variant="ghost"
                           size="icon"
@@ -342,8 +472,16 @@ export default function Diaristas() {
                   <p className="font-medium break-words">{diaristaDetalhe.email || "-"}</p>
                 </div>
                 <div>
+                  <p className="text-xs text-muted-foreground">CPF</p>
+                  <p className="font-medium break-words">
+                    {formatCpf(diaristaDetalhe.cpf) || "-"}
+                  </p>
+                </div>
+                <div>
                   <p className="text-xs text-muted-foreground">Telefone</p>
-                  <p className="font-medium break-words">{diaristaDetalhe.telefone || "-"}</p>
+                  <p className="font-medium break-words">
+                    {formatTelefone(diaristaDetalhe.telefone) || "-"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Cidade</p>
@@ -351,7 +489,7 @@ export default function Diaristas() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">CEP</p>
-                  <p className="font-medium break-words">{diaristaDetalhe.cep || "-"}</p>
+                  <p className="font-medium break-words">{formatCep(diaristaDetalhe.cep) || "-"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Status</p>
