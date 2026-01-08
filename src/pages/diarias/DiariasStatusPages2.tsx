@@ -314,7 +314,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       horarioInicio: "",
       horarioFim: "",
       intervalo: "",
-      motivoVago: "",
+      motivoVago: MOTIVO_VAGO_OPTIONS[0] || "",
       postoServicoId: "",
       unidade: "",
       clienteId: "",
@@ -476,6 +476,12 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const formatPixPertence = (value?: boolean | null) => {
       if (value === true) return "Sim";
       if (value === false) return "Não";
+      return "-";
+    };
+
+    const formatBooleanFlag = (value?: boolean | null) => {
+      if (value === true) return "Sim";
+      if (value === false) return "Nao";
       return "-";
     };
 
@@ -1167,9 +1173,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const colaboradorDemitidoNome = diaria.colaborador_demitido_nome || "";
       const licencaNojoFlag = diaria.licenca_nojo === true;
       const novoPostoFlag = diaria.novo_posto === true;
+      const isMotivoVagaEmAberto = isVagaEmAberto(diaria.motivo_vago);
       const isMotivoLicencaNojo = isLicencaNojo(diaria.motivo_vago);
       const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
       const baseRow: Record<string, any> = {
+        ID: diaria.id,
         Data: formatDate(diaria.data_diaria),
         Status: STATUS_LABELS[diaria.status] || diaria.status,
         "Horario inicio": formatTimeValue(diaria.horario_inicio),
@@ -1177,6 +1185,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         "Jornada diaria (h)": formatJornadaValue(diaria.jornada_diaria),
         "Intervalo (min)": formatIntervalValue(diaria.intervalo),
         "Motivo (dia vago)": diaria.motivo_vago || "-",
+        "Demissao?": isMotivoVagaEmAberto ? formatBooleanFlag(diaria.demissao === true) : "-",
+        "Licenca nojo?": isMotivoVagaEmAberto ? formatBooleanFlag(diaria.licenca_nojo === true) : "-",
+        "Novo posto?": isMotivoVagaEmAberto ? (novoPostoFlag ? "Sim" : "Nao") : "-",
         "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
         Posto: postoNome,
         Unidade: unidadeNome,
@@ -1213,7 +1224,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         diaria.ok_pagamento === true ? "Sim" : diaria.ok_pagamento === false ? "Nao" : "-";
       baseRow["Observacao pagamento"] = formatObservacaoPagamento(diaria.observacao_pagamento);
       baseRow["Outros motivos reprovacao pagamento"] = diaria.outros_motivos_reprovacao_pagamento || "";
-      baseRow["Novo posto?"] = novoPostoFlag ? "Sim" : "N?o";
       if (!isAguardandoPage) {
         baseRow[responsavelStatusHeader] = responsavelStatusNome || "";
       }
@@ -1227,19 +1237,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       if (isVagaEmAberto(diaria.motivo_vago)) {
         if (colaboradorDemitidoNome) {
           baseRow["Colaborador demitido"] = colaboradorDemitidoNome;
-          baseRow["Novo posto?"] = "N?o";
         } else if (licencaNojoFlag) {
           baseRow["Colaborador falecido"] = colaboradorFalecido || "-";
-          baseRow["Novo posto?"] = "N?o";
-        } else {
-          baseRow["Novo posto?"] = "Sim";
         }
       } else if (isMotivoLicencaNojo) {
         baseRow["Colaborador falecido"] = colaboradorFalecido || "-";
-        baseRow["Novo posto?"] = "N?o";
       } else {
         baseRow["Colaborador ausente"] = colaboradorNome;
-        baseRow["Novo posto?"] = "N?o";
       }
 
       return baseRow;
@@ -1270,6 +1274,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const groupDiarias = group.ids
           .map((id) => diariasById.get(id.toString()))
           .filter((item): item is DiariaTemporaria => Boolean(item));
+        const sortedGroupDiarias = [...groupDiarias].sort((a, b) =>
+          (a.data_diaria || "").localeCompare(b.data_diaria || ""),
+        );
+        const groupIdsLabel = sortedGroupDiarias.map((diaria) => diaria.id).join(", ");
         const hasAlternativo = Boolean(group.pixAlternativo) || Boolean(group.beneficiarioAlternativo);
         const beneficiario = hasAlternativo
           ? group.beneficiarioAlternativo
@@ -1289,8 +1297,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             : competenciaSet.size === 1
               ? Array.from(competenciaSet)[0]
               : "DIVERSOS";
-        const descricao = groupDiarias
-          .sort((a, b) => (a.data_diaria || "").localeCompare(b.data_diaria || ""))
+        const descricao = sortedGroupDiarias
           .map((diaria) => {
             const postoInfo =
               diaria.posto || (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
@@ -1299,27 +1306,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             return group.clienteLabel === "Diversos" ? `${base} (${clienteNome})` : base;
           })
           .join(" - ");
-        const groupObservacaoPagamento = (() => {
-          if (groupDiarias.length === 0) return "";
-          const firstKey = getObservacaoPagamentoKey(groupDiarias[0]?.observacao_pagamento);
-          const allEqual = groupDiarias.every(
-            (diaria) => getObservacaoPagamentoKey(diaria.observacao_pagamento) === firstKey,
-          );
-          if (!allEqual) return "Diversos";
-          if (!firstKey) return "";
-          return formatObservacaoPagamento(groupDiarias[0]?.observacao_pagamento);
-        })();
-        const groupOutrosMotivos = (() => {
-          if (groupDiarias.length === 0) return "";
-          const first = toTrimOrNull(groupDiarias[0]?.outros_motivos_reprovacao_pagamento);
-          const allEqual = groupDiarias.every(
-            (diaria) =>
-              toTrimOrNull(diaria.outros_motivos_reprovacao_pagamento) === first,
-          );
-          if (!allEqual) return "Diversos";
-          return first || "";
-        })();
         const baseRow: Record<string, string> = {
+          "IDs diarias": groupIdsLabel,
           Beneficiario: beneficiario,
           "CPF diarista": formatCpf(group.diaristaCpf) || "-",
           Valor: currencyFormatter.format(group.totalValor),
@@ -1328,8 +1316,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           Descricao: descricao,
           Cliente: group.clienteLabel,
           Competencia: competencia,
-          "Observacao pagamento": groupObservacaoPagamento,
-          "Outros motivos reprovacao pagamento": groupOutrosMotivos,
         };
         if (!isAprovadaPage) {
           baseRow.Pagamento = pagamentoStatus;
@@ -2138,6 +2124,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const postoInfo =
         diaria.posto ||
         (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+      const motivoVagoValue = toTrimOrNull(diaria.motivo_vago) || MOTIVO_VAGO_OPTIONS[0] || "";
       setOriginalDiaristaId(diaria.diarista_id || null);
       setEditingDiariaId(diaria.id.toString());
       setEditForm({
@@ -2145,7 +2132,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         horarioInicio: diaria.horario_inicio || "",
         horarioFim: diaria.horario_fim || "",
         intervalo: diaria.intervalo !== null && diaria.intervalo !== undefined ? String(diaria.intervalo) : "",
-        motivoVago: diaria.motivo_vago || "",
+        motivoVago: motivoVagoValue,
         postoServicoId: diaria.posto_servico_id ? diaria.posto_servico_id.toString() : "",
         unidade: diaria.unidade || postoInfo?.unidade?.nome || "",
         clienteId: diaria.cliente_id ? diaria.cliente_id.toString() : "",
@@ -2304,8 +2291,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
     };
 
-    const isEditMotivoVaga = isVagaEmAberto(editForm.motivoVago);
-    const isEditMotivoLicenca = isLicencaNojo(editForm.motivoVago);
+    const isEditMotivoVaga =
+      editForm.motivoVago.toUpperCase() === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+    const isEditMotivoLicenca =
+      editForm.motivoVago.toUpperCase() ===
+      MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO.toUpperCase();
     const demissaoSelectValue =
       editForm.demissao === null ? UNSET_BOOL : editForm.demissao ? "true" : "false";
     const licencaNojoSelectValue =
@@ -4153,6 +4143,28 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="text-muted-foreground text-xs">Motivo</p>
                       <p className="font-medium">{selectedDiaria.motivo_vago || "-"}</p>
                     </div>
+                    {motivoVagaEmAbertoSelecionado && (
+                      <>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Demissao?</p>
+                          <p className="font-medium">
+                            {formatBooleanFlag(selectedDiaria.demissao)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Licenca nojo?</p>
+                          <p className="font-medium">
+                            {formatBooleanFlag(selectedLicencaNojoFlag)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Novo posto?</p>
+                          <p className="font-medium">
+                            {formatBooleanFlag(selectedNovoPostoFlag)}
+                          </p>
+                        </div>
+                      </>
+                    )}
                     <div>
                       <p className="text-muted-foreground text-xs">Posto</p>
                       <p className="font-medium">{selectedPostoNome}</p>
@@ -4468,13 +4480,17 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               <div className="space-y-1 md:col-span-2">
                 <TooltipLabel label="Motivo" tooltip="Motivo que levou a necessidade da diária." />
                 <Select
-                  value={editForm.motivoVago || OPTIONAL_VALUE}
+                  required
+                  value={editForm.motivoVago}
                   onValueChange={(value) => {
-                    const isVagaAberto = isVagaEmAberto(value);
-                    const isLicencaNojo = isLicencaNojo(value);
+                    const upperValue = value.toUpperCase();
+                    const isVagaAberto =
+                      upperValue === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+                    const isLicencaNojo =
+                      upperValue === MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO.toUpperCase();
                     setEditForm((prev) => ({
                       ...prev,
-                      motivoVago: value === OPTIONAL_VALUE ? "" : value,
+                      motivoVago: value,
                       colaboradorNome: isVagaAberto || isLicencaNojo ? "" : prev.colaboradorNome,
                       colaboradorFalecido: isVagaAberto || isLicencaNojo ? "" : prev.colaboradorFalecido,
                       demissao: null,
@@ -4487,9 +4503,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     <SelectValue placeholder="Selecione o motivo" />
                   </SelectTrigger>
                   <SelectContent className="max-h-64 overflow-y-auto">
-                    <SelectItem value={OPTIONAL_VALUE} disabled>
-                      Selecione
-                    </SelectItem>
                     {MOTIVO_VAGO_OPTIONS.map((motivo) => (
                       <SelectItem key={motivo} value={motivo}>
                         {motivo}
