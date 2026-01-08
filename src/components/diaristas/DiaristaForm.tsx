@@ -60,6 +60,39 @@ const BRAZIL_BANKS = [
   "Banco Votorantim",
 ] as const;
 
+const stripNonDigits = (value: string) => value.replace(/\D/g, "");
+
+const formatCpf = (value: string) => {
+  const digits = stripNonDigits(value).slice(0, 11);
+  const part1 = digits.slice(0, 3);
+  const part2 = digits.slice(3, 6);
+  const part3 = digits.slice(6, 9);
+  const part4 = digits.slice(9, 11);
+  let result = part1;
+  if (part2) result += `.${part2}`;
+  if (part3) result += `.${part3}`;
+  if (part4) result += `-${part4}`;
+  return result;
+};
+
+const formatCep = (value: string) => {
+  const digits = stripNonDigits(value).slice(0, 8);
+  return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+};
+
+const formatTelefone = (value: string) => {
+  const digits = stripNonDigits(value).slice(0, 11);
+  if (!digits) return "";
+  if (digits.length <= 2) return `(${digits}`;
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  if (rest.length <= 4) return `(${ddd}) ${rest}`;
+  const splitIndex = rest.length <= 8 ? 4 : 5;
+  const first = rest.slice(0, splitIndex);
+  const second = rest.slice(splitIndex);
+  return `(${ddd}) ${first}${second ? `-${second}` : ""}`;
+};
+
 type SpecificAttachmentKey = (typeof SPECIFIC_ATTACHMENT_FIELDS)[number]["key"];
 
 interface DiaristaFormState {
@@ -182,11 +215,11 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     if (diarista) {
       setFormData({
         nome_completo: diarista.nome_completo || "",
-        cpf: diarista.cpf || "",
-        cep: diarista.cep || "",
+        cpf: formatCpf(diarista.cpf || ""),
+        cep: formatCep(diarista.cep || ""),
         endereco: diarista.endereco || "",
         cidade: diarista.cidade || "",
-        telefone: diarista.telefone || "",
+        telefone: formatTelefone(diarista.telefone || ""),
         email: diarista.email || "",
         possui_antecedente: diarista.possui_antecedente || false,
         status: diarista.status || "ativo",
@@ -234,8 +267,8 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
   };
 
   const handleCepChange = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 8);
-    const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+    const digits = stripNonDigits(value).slice(0, 8);
+    const formatted = formatCep(digits);
     setFormData((prev) => ({ ...prev, cep: formatted }));
     if (digits.length < 8) {
       lastCepLookupRef.current = "";
@@ -444,7 +477,13 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     setLoading(true);
 
     try {
-    const diaristaId = diarista?.id ?? crypto.randomUUID();
+      const diaristaId = diarista?.id ?? crypto.randomUUID();
+      const payload = {
+        ...formData,
+        cpf: stripNonDigits(formData.cpf),
+        cep: stripNonDigits(formData.cep),
+        telefone: stripNonDigits(formData.telefone),
+      };
 
       const finalSpecificPaths = await uploadSpecificAttachments(diaristaId);
 
@@ -452,7 +491,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
         const { error } = await supabase
           .from("diaristas")
           .update({
-            ...formData,
+            ...payload,
             ...finalSpecificPaths,
           })
           .eq("id", diaristaId);
@@ -462,7 +501,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
         const { error } = await supabase.from("diaristas").insert([
           {
             id: diaristaId,
-            ...formData,
+            ...payload,
             ...finalSpecificPaths,
           },
         ]);
@@ -504,10 +543,8 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
               <Input
                 id="cpf"
                 value={formData.cpf}
-                onChange={(e) =>
-                  setFormData({ ...formData, cpf: e.target.value.replace(/\\D/g, "").slice(0, 14) })
-                }
-                placeholder="Somente números"
+                onChange={(e) => setFormData({ ...formData, cpf: formatCpf(e.target.value) })}
+                placeholder="000.000.000-00"
                 required
               />
             </div>
@@ -550,7 +587,8 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 id="telefone"
                 type="tel"
                 value={formData.telefone}
-                onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, telefone: formatTelefone(e.target.value) })}
+                placeholder="(00) 00000-0000"
                 required
               />
             </div>

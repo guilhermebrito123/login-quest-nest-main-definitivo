@@ -32,8 +32,9 @@ type StatusDiaria =
   | "Confirmada"
   | "Aprovada"
   | "Lançada para pagamento"
-  | "Aprovada para pagamento"
-  | "Cancelada";
+  | "Paga"
+  | "Cancelada"
+  | "Reprovada";
 
 interface DiariaResumo {
   id: string;

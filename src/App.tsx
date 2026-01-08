@@ -19,12 +19,12 @@ import Escalas from "./pages/Escalas";
 import Ativos from "./pages/Ativos";
 import Estoque from "./pages/Estoque";
 import Diaristas from "./pages/Diaristas";
+import DiaristasRestritos from "./pages/DiaristasRestritos";
 import {
   DiariasAguardandoPage,
   DiariasConfirmadasPage,
   DiariasAprovadasPage,
   DiariasLancadasPage,
-  DiariasAprovadasPagamentoPage,
   DiariasReprovadasPage,
   DiariasCanceladasPage,
   DiariasPagasPage,
@@ -34,11 +34,11 @@ import {
   Diarias2ConfirmadasPage,
   Diarias2AprovadasPage,
   Diarias2LancadasPage,
-  Diarias2AprovadasPagamentoPage,
   Diarias2ReprovadasPage,
   Diarias2CanceladasPage,
   Diarias2PagasPage,
 } from "./pages/diarias/DiariasStatusPages2";
+import DiariasTemporariasLogsPage from "./pages/diarias/DiariasTemporariasLogsPage";
 import Diarias from "./pages/Diarias";
 import Diarias2 from "./pages/Diarias2";
 import Inspecao from "./pages/Inspecao";
@@ -80,19 +80,12 @@ const App = () => (
           <Route path="/ativos" element={<ProtectedRoute><Ativos /></ProtectedRoute>} />
           <Route path="/estoque" element={<ProtectedRoute><Estoque /></ProtectedRoute>} />
           <Route path="/diaristas" element={<ProtectedRoute><Diaristas /></ProtectedRoute>} />
+          <Route path="/diaristas-restritos" element={<ProtectedRoute><DiaristasRestritos /></ProtectedRoute>} />
           <Route path="/diarias/aguardando" element={<ProtectedRoute><DiariasAguardandoPage /></ProtectedRoute>} />
           <Route path="/diarias/confirmadas" element={<ProtectedRoute><DiariasConfirmadasPage /></ProtectedRoute>} />
           <Route path="/diarias/aprovadas" element={<ProtectedRoute><DiariasAprovadasPage /></ProtectedRoute>} />
           <Route path="/diarias/lancadas" element={<ProtectedRoute><DiariasLancadasPage /></ProtectedRoute>} />
           <Route path="/diarias/reprovadas" element={<ProtectedRoute><DiariasReprovadasPage /></ProtectedRoute>} />
-          <Route
-            path="/diarias/aprovadas-pagamento"
-            element={
-              <ProtectedRoute>
-                <DiariasAprovadasPagamentoPage />
-              </ProtectedRoute>
-            }
-          />
           <Route path="/diarias/pagas" element={<ProtectedRoute><DiariasPagasPage /></ProtectedRoute>} />
           <Route path="/diarias/canceladas" element={<ProtectedRoute><DiariasCanceladasPage /></ProtectedRoute>} />
           <Route path="/diarias" element={<ProtectedRoute><Diarias /></ProtectedRoute>} />
@@ -100,17 +93,10 @@ const App = () => (
           <Route path="/diarias2/confirmadas" element={<ProtectedRoute><Diarias2ConfirmadasPage /></ProtectedRoute>} />
           <Route path="/diarias2/aprovadas" element={<ProtectedRoute><Diarias2AprovadasPage /></ProtectedRoute>} />
           <Route path="/diarias2/lancadas" element={<ProtectedRoute><Diarias2LancadasPage /></ProtectedRoute>} />
-          <Route
-            path="/diarias2/aprovadas-pagamento"
-            element={
-              <ProtectedRoute>
-                <Diarias2AprovadasPagamentoPage />
-              </ProtectedRoute>
-            }
-          />
           <Route path="/diarias2/reprovadas" element={<ProtectedRoute><Diarias2ReprovadasPage /></ProtectedRoute>} />
           <Route path="/diarias2/canceladas" element={<ProtectedRoute><Diarias2CanceladasPage /></ProtectedRoute>} />
           <Route path="/diarias2/pagas" element={<ProtectedRoute><Diarias2PagasPage /></ProtectedRoute>} />
+          <Route path="/diarias2/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
           <Route path="/diarias2" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
           <Route path="/inspecao" element={<ProtectedRoute><Inspecao /></ProtectedRoute>} />
           <Route path="/checklists" element={<ProtectedRoute><Checklist /></ProtectedRoute>} />

@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
@@ -28,17 +29,16 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Constants } from "@/integrations/supabase/types";
 import {
   STATUS,
   STATUS_LABELS,
   NEXT_STATUS_ACTIONS,
   currencyFormatter,
-  currentMonthValue,
   formatDate,
   formatDateTime,
   STATUS_BADGE,
   normalizeStatus,
-  getMonthValue,
 } from "./utils";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -53,6 +53,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Trash2, Bell } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   useDiariasTemporariasData,
   DiariaTemporaria,
@@ -64,6 +65,18 @@ interface StatusPageConfig {
   statusKey: string;
   emptyMessage?: string;
 }
+
+type NaoOkTarget =
+  | { type: "single"; diaria: DiariaTemporaria }
+  | {
+      type: "group";
+      key: string;
+      ids: Array<string | number>;
+      diaristaId: string | null;
+      diaristaNome: string;
+      count: number;
+      totalValor: number;
+    };
 
 const STATUS_CONFIGS: StatusPageConfig[] = [
   {
@@ -86,11 +99,6 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
     statusKey: STATUS.lancada,
     title: "Diarias lancadas",
     description: "Controle as diarias lancadas aguardando pagamento.",
-  },
-  {
-    statusKey: STATUS.aprovadaPagamento,
-    title: "Diarias aprovadas para pagamento",
-    description: "Acompanhe diarias aprovadas em fase final de pagamento.",
   },
   {
     statusKey: STATUS.reprovada,
@@ -158,7 +166,6 @@ const STATUS_DATE_LABELS: { field: keyof DiariaTemporaria; label: string }[] = [
   { field: "confirmada_em", label: "Confirmada em" },
   { field: "aprovada_em", label: "Aprovada em" },
   { field: "lancada_em", label: "Lancada em" },
-  { field: "aprovada_para_pagamento_em", label: "Aprovada para pagamento em" },
   { field: "paga_em", label: "Paga em" },
   { field: "cancelada_em", label: "Cancelada em" },
   { field: "reprovada_em", label: "Reprovada em" },
@@ -200,15 +207,6 @@ const STATUS_DATE_FILTERS = new Map<
     },
   ],
   [
-    normalizeStatus(STATUS.aprovadaPagamento),
-    {
-      field: "aprovada_para_pagamento_em",
-      startLabel: "Primeiro dia aprovacao pagamento",
-      endLabel: "Ultimo dia aprovacao pagamento",
-      exportLabel: "Aprovada para pagamento em",
-    },
-  ],
-  [
     normalizeStatus(STATUS.paga),
     {
       field: "paga_em",
@@ -239,19 +237,38 @@ const STATUS_DATE_FILTERS = new Map<
 
 const createStatusPage = ({ statusKey, title, description, emptyMessage }: StatusPageConfig) => {
   return function DiariasTemporariasStatusPage() {
-    const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
     const {
       filteredDiarias,
       diarias,
       refetchDiarias,
       loadingDiarias,
       clientes,
+      diaristas,
       diaristaMap,
       colaboradoresMap,
       postoMap,
       clienteMap,
       usuarioMap,
-    } = useDiariasTemporariasData(selectedMonth);
+    } = useDiariasTemporariasData();
+    const { data: blacklist = [] } = useQuery({
+      queryKey: ["blacklist"],
+      queryFn: async () => {
+        const { data, error } = await supabase
+          .from("blacklist")
+          .select("diarista_id, motivo");
+        if (error) throw error;
+        return data || [];
+      },
+    });
+    const blacklistMap = useMemo(() => {
+      const map = new Map<string, { motivo?: string | null }>();
+      (blacklist || []).forEach((item: any) => {
+        if (item?.diarista_id) {
+          map.set(item.diarista_id, { motivo: item.motivo ?? null });
+        }
+      });
+      return map;
+    }, [blacklist]);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [customStatusSelection, setCustomStatusSelection] = useState<Record<string, string>>({});
     const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
@@ -262,14 +279,36 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       targetStatus: string | null;
     }>({ open: false, diariaId: null, targetStatus: null });
     const [reasonText, setReasonText] = useState("");
+    const [motivoReprovacao, setMotivoReprovacao] = useState("");
+    const [motivoReprovacaoObservacao, setMotivoReprovacaoObservacao] = useState("");
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [bulkStatusSelection, setBulkStatusSelection] = useState("");
+    const [bulkPixDialogOpen, setBulkPixDialogOpen] = useState(false);
+    const [bulkPixForm, setBulkPixForm] = useState({
+      pixAlternativo: "",
+      beneficiarioAlternativo: "",
+    });
+    const [bulkPixSaving, setBulkPixSaving] = useState(false);
+    const [groupOkSavingKey, setGroupOkSavingKey] = useState<string | null>(null);
+    const [groupLancarSavingKey, setGroupLancarSavingKey] = useState<string | null>(null);
+    const [groupDetailsDialogOpen, setGroupDetailsDialogOpen] = useState(false);
+    const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+    const [naoOkDialogOpen, setNaoOkDialogOpen] = useState(false);
+    const [naoOkSaving, setNaoOkSaving] = useState(false);
+    const [naoOkTarget, setNaoOkTarget] = useState<NaoOkTarget | null>(null);
+    const [naoOkObservacao, setNaoOkObservacao] = useState<string[]>([]);
+    const [naoOkOutroMotivo, setNaoOkOutroMotivo] = useState("");
+    const [naoOkWantsOutroMotivo, setNaoOkWantsOutroMotivo] = useState<boolean | null>(null);
+    const [lancadasView, setLancadasView] = useState<"lista" | "agrupadas">("lista");
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editingDiariaId, setEditingDiariaId] = useState<string | null>(null);
     const [editingSaving, setEditingSaving] = useState(false);
+    const [originalDiaristaId, setOriginalDiaristaId] = useState<string | null>(null);
     const OPTIONAL_VALUE = "__none__";
     const UNSET_BOOL = "__unset__";
+    const observacaoPagamentoOptions = Constants.public.Enums.observacao_pagamento_type;
+    const motivoReprovacaoOptions = Constants.public.Enums.motivo_reprovacao;
     const [editForm, setEditForm] = useState({
       dataDiaria: "",
       horarioInicio: "",
@@ -277,6 +316,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       intervalo: "",
       motivoVago: "",
       postoServicoId: "",
+      unidade: "",
       clienteId: "",
       valorDiaria: "",
       diaristaId: "",
@@ -287,8 +327,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       licencaNojo: null as boolean | null,
       novoPosto: null as boolean | null,
       observacao: "",
+      pixAlternativo: "",
+      beneficiarioAlternativo: "",
     });
     const [filters, setFilters] = useState({
+      diariaId: "",
       diaristaId: "",
       motivo: "",
       clienteId: "",
@@ -296,13 +339,18 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       endDate: "",
       criadoPorId: "",
       statusResponsavelId: "",
+      okPagamentoPorId: "",
       statusDateStart: "",
       statusDateEnd: "",
+      okPagamento: "",
     });
     const [totalRangeDiarista, setTotalRangeDiarista] = useState({
       diaristaId: "",
       startDate: "",
       endDate: "",
+    });
+    const [totalRangeDiaristaAll, setTotalRangeDiaristaAll] = useState({
+      diaristaId: "",
     });
     const [totalRangeCliente, setTotalRangeCliente] = useState({
       diaristaId: "",
@@ -325,18 +373,21 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
     const normalizedKey = normalizeStatus(statusKey);
     const isAguardandoPage = normalizedKey === normalizeStatus(STATUS.aguardando);
+    const isConfirmadaPage = normalizedKey === normalizeStatus(STATUS.confirmada);
     const normalizedCancelStatus = normalizeStatus(STATUS.cancelada);
     const normalizedReprovadaStatus = normalizeStatus(STATUS.reprovada);
     const isCancelPage = normalizedKey === normalizedCancelStatus;
     const isReprovadaPage = normalizedKey === normalizedReprovadaStatus;
     const allowDelete = isCancelPage || isReprovadaPage;
     const isPagaPage = normalizedKey === normalizeStatus(STATUS.paga);
+    const isLancadaPage = normalizedKey === normalizeStatus(STATUS.lancada);
+    const isAprovadaPage = normalizedKey === normalizeStatus(STATUS.aprovada);
+    const allowBulkPixUpdate = !isPagaPage && !isReprovadaPage && !isCancelPage;
     const statusResponsavelField = useMemo(() => {
       const map = new Map<string, keyof DiariaTemporaria>([
         [normalizeStatus(STATUS.confirmada), "confirmada_por"],
         [normalizeStatus(STATUS.aprovada), "aprovada_por"],
         [normalizeStatus(STATUS.lancada), "lancada_por"],
-        [normalizeStatus(STATUS.aprovadaPagamento), "aprovado_para_pgto_por"],
         [normalizeStatus(STATUS.paga), "paga_por"],
         [normalizeStatus(STATUS.cancelada), "cancelada_por"],
         [normalizeStatus(STATUS.reprovada), "reprovada_por"],
@@ -349,7 +400,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         [STATUS.confirmada, "Confirmadas por"],
         [STATUS.aprovada, "Aprovadas por"],
         [STATUS.lancada, "Lancadas por"],
-        [STATUS.aprovadaPagamento, "Aprovadas para pagamento por"],
         [STATUS.paga, "Pagas por"],
         [STATUS.reprovada, "Reprovadas por"],
         [STATUS.cancelada, "Canceladas por"],
@@ -362,7 +412,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         [normalizeStatus(STATUS.confirmada), "Filtra pelo usuario responsavel pela confirmacao."],
         [normalizeStatus(STATUS.aprovada), "Filtra pelo usuario responsavel pela aprovacao."],
         [normalizeStatus(STATUS.lancada), "Filtra pelo usuario responsavel pelo lancamento."],
-        [normalizeStatus(STATUS.aprovadaPagamento), "Filtra pelo usuario responsavel pela aprovacao de pagamento."],
         [normalizeStatus(STATUS.paga), "Filtra pelo usuario responsavel pelo pagamento."],
         [normalizeStatus(STATUS.reprovada), "Filtra pelo usuario responsavel pela reprovacao."],
         [normalizeStatus(STATUS.cancelada), "Filtra pelo usuario responsavel pelo cancelamento."],
@@ -375,7 +424,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         [normalizeStatus(STATUS.confirmada), "Responsavel pela confirmacao"],
         [normalizeStatus(STATUS.aprovada), "Responsavel pela aprovacao"],
         [normalizeStatus(STATUS.lancada), "Responsavel lancamento"],
-        [normalizeStatus(STATUS.aprovadaPagamento), "Responsavel aprovacao pagamento"],
         [normalizeStatus(STATUS.paga), "Responsavel pagamento"],
         [normalizeStatus(STATUS.reprovada), "Responsavel reprovacao"],
         [normalizeStatus(STATUS.cancelada), "Responsavel cancelamento"],
@@ -431,9 +479,29 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return "-";
     };
 
+    const stripNonDigits = (value?: string | number | null) =>
+      (value ?? "").toString().replace(/\D/g, "");
+
+    const formatCpf = (value?: string | number | null) => {
+      const digits = stripNonDigits(value).slice(0, 11);
+      const part1 = digits.slice(0, 3);
+      const part2 = digits.slice(3, 6);
+      const part3 = digits.slice(6, 9);
+      const part4 = digits.slice(9, 11);
+      let result = part1;
+      if (part2) result += `.${part2}`;
+      if (part3) result += `.${part3}`;
+      if (part4) result += `-${part4}`;
+      return result;
+    };
+
     const toUpperOrNull = (value: string | null | undefined) => {
       const trimmed = (value ?? "").trim();
       return trimmed ? trimmed.toUpperCase() : null;
+    };
+    const toTrimOrNull = (value: string | null | undefined) => {
+      const trimmed = (value ?? "").trim();
+      return trimmed ? trimmed : null;
     };
 
     const getStatusResponsavel = (diaria: DiariaTemporaria) => {
@@ -445,8 +513,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           return { id: diaria.aprovada_por || null, label: "Aprovacao" };
         case normalizeStatus(STATUS.lancada):
           return { id: diaria.lancada_por || null, label: "Lancamento" };
-        case normalizeStatus(STATUS.aprovadaPagamento):
-          return { id: diaria.aprovado_para_pgto_por || null, label: "Aprovacao pagamento" };
         case normalizeStatus(STATUS.paga):
           return { id: diaria.paga_por || null, label: "Pagamento" };
         case normalizeStatus(STATUS.cancelada):
@@ -462,6 +528,71 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       if (!id) return "-";
       return usuarioMap.get(id) || extraUserMap.get(id) || "-";
     };
+
+    const normalizeObservacaoPagamento = (value?: string[] | string | null) => {
+      if (!value) return [] as string[];
+      if (Array.isArray(value)) {
+        return value.map((item) => item.trim()).filter(Boolean);
+      }
+      const trimmed = value.trim();
+      return trimmed ? [trimmed] : [];
+    };
+
+    const formatObservacaoPagamento = (value?: string[] | string | null) => {
+      const list = normalizeObservacaoPagamento(value);
+      return list.length > 0 ? list.join("; ") : "";
+    };
+
+    const getObservacaoPagamentoKey = (value?: string[] | string | null) => {
+      const list = normalizeObservacaoPagamento(value);
+      if (list.length === 0) return "";
+      return list.map((item) => item.toLowerCase()).sort().join("||");
+    };
+
+    const formatCompetencia = (value?: string | null) => {
+      if (!value) return "";
+      const parts = value.split("-");
+      if (parts.length < 2) return "";
+      const year = parts[0];
+      const monthIndex = Number(parts[1]) - 1;
+      const monthLabels = [
+        "JAN",
+        "FEV",
+        "MAR",
+        "ABR",
+        "MAI",
+        "JUN",
+        "JUL",
+        "AGO",
+        "SET",
+        "OUT",
+        "NOV",
+        "DEZ",
+      ];
+      const monthLabel = monthLabels[monthIndex] || "";
+      const yearShort = year.slice(-2);
+      if (!monthLabel || !yearShort) return "";
+      return `${monthLabel}-${yearShort}`;
+    };
+
+    const getPagamentoRowClasses = (
+      okPagamento: boolean | null | undefined,
+      baseClasses = "",
+    ) => {
+      const base = baseClasses ? `${baseClasses} ` : "";
+      if (okPagamento === false) {
+        return (
+          `${base}bg-red-400 text-white hover:bg-red-500 ` +
+          "[&_.text-muted-foreground]:text-white/80 " +
+          "[&_button]:!bg-white [&_button]:!text-red-400 [&_button]:!border-red-400 " +
+          "[&_button:hover]:!bg-white/90 [&_button:disabled]:opacity-70"
+        );
+      }
+      return `${base}hover:bg-muted/90`;
+    };
+
+    const getPagamentoRowStyle = (okPagamento: boolean | null | undefined) =>
+      okPagamento === false ? { colorScheme: "dark" } : undefined;
 
     const uppercaseRows = (rows: Record<string, any>[]) =>
       rows.map((row) => {
@@ -481,6 +612,27 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       () => diarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
       [diarias, normalizedKey],
     );
+
+    const selectedDiarias = useMemo(
+      () => diariasDoStatusFull.filter((diaria) => selectedIds.has(diaria.id.toString())),
+      [diariasDoStatusFull, selectedIds],
+    );
+
+    const selectedDiaristaId = useMemo(() => {
+      let diaristaId: string | null = null;
+      for (const diaria of selectedDiarias) {
+        if (!diaria.diarista_id) return null;
+        if (diaristaId && diaristaId !== diaria.diarista_id) return null;
+        diaristaId = diaria.diarista_id;
+      }
+      return diaristaId;
+    }, [selectedDiarias]);
+
+    const selectedDiaristaNome = useMemo(() => {
+      if (!selectedDiaristaId) return "";
+      const diaristaInfo = diaristaMap.get(selectedDiaristaId);
+      return diaristaInfo?.nome_completo || "Diarista";
+    }, [selectedDiaristaId, diaristaMap]);
 
     const diariasDoStatus = useMemo(
       () => filteredDiarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
@@ -570,6 +722,27 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         .sort((a, b) => a.nome.localeCompare(b.nome));
     }, [diariasDoStatusFull, diaristaMap]);
 
+    const diaristaOptionsAll = useMemo(
+      () =>
+        diaristas
+          .filter((diarista) => diarista?.id)
+          .map((diarista) => ({
+            id: diarista.id,
+            nome: diarista.nome_completo || diarista.id,
+          }))
+          .sort((a, b) => a.nome.localeCompare(b.nome)),
+      [diaristas],
+    );
+    const diaristaStatusMap = useMemo(() => {
+      const map = new Map<string, string>();
+      diaristas.forEach((diarista) => {
+        if (diarista?.id && diarista.status) {
+          map.set(diarista.id, diarista.status);
+        }
+      });
+      return map;
+    }, [diaristas]);
+
     const motivoOptions = useMemo(() => {
       const set = new Set<string>();
       diariasDoStatus.forEach((diaria) => {
@@ -586,6 +759,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           id: p.id?.toString?.() || "",
           nome: p.nome || "Sem nome",
           cliente_id: p.cliente_id ?? p.unidade?.contrato?.cliente_id ?? "",
+          unidade: p.unidade?.nome ?? null,
         }))
         .filter((p) => p.id);
     }, [postoMap]);
@@ -629,6 +803,23 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         .sort((a, b) => a.nome.localeCompare(b.nome));
     }, [diariasDoStatusFull, usuarioMap, statusResponsavelField]);
 
+    const okPagamentoPorOptions = useMemo(() => {
+      if (!isPagaPage) return [];
+      const map = new Map<string, string>();
+      diariasDoStatusFull.forEach((diaria) => {
+        if (diaria.ok_pagamento_por) {
+          const nome =
+            usuarioMap.get(diaria.ok_pagamento_por) ||
+            extraUserMap.get(diaria.ok_pagamento_por) ||
+            "";
+          map.set(diaria.ok_pagamento_por, nome);
+        }
+      });
+      return Array.from(map.entries())
+        .map(([id, nome]) => ({ id, nome: nome || "(sem nome)" }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+    }, [diariasDoStatusFull, extraUserMap, isPagaPage, usuarioMap]);
+
     const clienteFilterOptions = useMemo(() => {
       const map = new Map<string, string>();
       const source = [...diariasDoStatus, ...diariasDoStatusFull];
@@ -649,13 +840,20 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
     const diariasBase = useMemo(
       () =>
-        filters.startDate || filters.endDate || filters.statusDateStart || filters.statusDateEnd
+        filters.diariaId.trim() ||
+        filters.startDate ||
+        filters.endDate ||
+        filters.okPagamentoPorId ||
+        filters.statusDateStart ||
+        filters.statusDateEnd
           ? diariasDoStatusFull
           : diariasDoStatus,
       [
         diariasDoStatus,
         diariasDoStatusFull,
+        filters.diariaId,
         filters.endDate,
+        filters.okPagamentoPorId,
         filters.startDate,
         filters.statusDateEnd,
         filters.statusDateStart,
@@ -674,7 +872,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         collectId(diaria.confirmada_por);
         collectId(diaria.aprovada_por);
         collectId(diaria.lancada_por);
-        collectId(diaria.aprovado_para_pgto_por);
+        collectId(diaria.ok_pagamento_por);
         collectId(diaria.paga_por);
         collectId(diaria.cancelada_por);
         collectId(diaria.reprovada_por);
@@ -775,6 +973,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         if (filters.diaristaId && filters.diaristaId !== diaristaId) {
           return false;
         }
+        if (filters.diariaId.trim() && filters.diariaId.trim() !== diaria.id.toString()) {
+          return false;
+        }
         if (filters.motivo && filters.motivo !== motivo) {
           return false;
         }
@@ -790,9 +991,160 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             return false;
           }
         }
+        if (isPagaPage && filters.okPagamentoPorId) {
+          if (filters.okPagamentoPorId !== (diaria.ok_pagamento_por || "")) {
+            return false;
+          }
+        }
+        if (isAprovadaPage && filters.okPagamento === "false" && diaria.ok_pagamento !== false) {
+          return false;
+        }
         return true;
       });
-    }, [diariasBase, filters, statusDateConfig, statusResponsavelField]);
+    }, [
+      diariasBase,
+      filters,
+      isAprovadaPage,
+      isPagaPage,
+      statusDateConfig,
+      statusResponsavelField,
+    ]);
+
+    const okPagamentoById = useMemo(() => {
+      const map = new Map<string, boolean | null>();
+      diariasFiltradas.forEach((diaria) => {
+        map.set(diaria.id.toString(), diaria.ok_pagamento ?? null);
+      });
+      return map;
+    }, [diariasFiltradas]);
+
+    const diariasById = useMemo(() => {
+      const map = new Map<string, DiariaTemporaria>();
+      diariasFiltradas.forEach((diaria) => {
+        map.set(diaria.id.toString(), diaria);
+      });
+      return map;
+    }, [diariasFiltradas]);
+
+    const lancadasAgrupadas = useMemo(() => {
+      if (!isLancadaPage && !isAprovadaPage && !isPagaPage) return [];
+      const groups = new Map<
+        string,
+          {
+            key: string;
+            diaristaId: string | null;
+            diaristaNome: string;
+            diaristaCpf: string | null;
+            diaristaPix: string | null;
+            pixAlternativo: string | null;
+            beneficiarioAlternativo: string | null;
+            totalValor: number;
+            count: number;
+            ids: Array<string | number>;
+          pendingOkIds: Array<string | number>;
+          clientes: Set<string>;
+        }
+      >();
+
+      diariasFiltradas.forEach((diaria) => {
+        const diaristaId = diaria.diarista_id || "";
+        const postoInfo =
+          diaria.posto || (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+        const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
+        const pixAlternativo = toTrimOrNull(diaria.pix_alternativo);
+        const beneficiarioAlternativo = toTrimOrNull(diaria.beneficiario_alternativo);
+        const diaristaKey = diaristaId || `no-diarista-${diaria.id}`;
+        const diaristaInfo = diaristaId ? diaristaMap.get(diaristaId) : null;
+        const diaristaCpfKey = diaristaInfo?.cpf ? stripNonDigits(diaristaInfo.cpf) : "";
+        const key = `${diaristaKey}||${diaristaCpfKey}||${pixAlternativo ?? ""}||${beneficiarioAlternativo ?? ""}`;
+        const group =
+          groups.get(key) ||
+          {
+            key,
+            diaristaId: diaristaId || null,
+            diaristaNome: diaristaInfo?.nome_completo || "-",
+            diaristaCpf: diaristaInfo?.cpf ?? null,
+            diaristaPix: diaristaInfo?.pix ?? null,
+            pixAlternativo,
+            beneficiarioAlternativo,
+            totalValor: 0,
+            count: 0,
+            ids: [],
+            pendingOkIds: [],
+            clientes: new Set<string>(),
+          };
+
+        const valorDiaria =
+          typeof diaria.valor_diaria === "number"
+            ? diaria.valor_diaria
+            : Number(diaria.valor_diaria) || 0;
+        group.totalValor += valorDiaria;
+        group.count += 1;
+        group.ids.push(diaria.id);
+        if (diaria.ok_pagamento !== true) {
+          group.pendingOkIds.push(diaria.id);
+        }
+        group.clientes.add(clienteNome || "-");
+        groups.set(key, group);
+      });
+
+      return Array.from(groups.values())
+        .map((group) => {
+          let clienteLabel = "-";
+          if (group.clientes.size > 1) {
+            clienteLabel = "Diversos";
+          } else {
+            clienteLabel = Array.from(group.clientes)[0] || "-";
+          }
+          return { ...group, clienteLabel };
+        })
+        .sort((a, b) => a.diaristaNome.localeCompare(b.diaristaNome));
+    }, [diariasFiltradas, diaristaMap, clienteMap, postoMap, isLancadaPage, isAprovadaPage, isPagaPage]);
+
+    const selectedGroup = useMemo(() => {
+      if (!selectedGroupKey) return null;
+      return lancadasAgrupadas.find((group) => group.key === selectedGroupKey) || null;
+    }, [lancadasAgrupadas, selectedGroupKey]);
+
+    const selectedGroupDiarias = useMemo(() => {
+      if (!selectedGroup) return [];
+      const ids = new Set(selectedGroup.ids.map((id) => id.toString()));
+      return diariasFiltradas
+        .filter((diaria) => ids.has(diaria.id.toString()))
+        .sort((a, b) => (a.data_diaria || "").localeCompare(b.data_diaria || ""));
+    }, [selectedGroup, diariasFiltradas]);
+
+    const selectedGroupDiaristaInfo = selectedGroup?.diaristaId
+      ? diaristaMap.get(selectedGroup.diaristaId)
+      : null;
+
+    const naoOkDiaristaNome = useMemo(() => {
+      if (!naoOkTarget) return "-";
+      if (naoOkTarget.type === "single") {
+        return diaristaMap.get(naoOkTarget.diaria.diarista_id)?.nome_completo || "-";
+      }
+      return naoOkTarget.diaristaNome || "-";
+    }, [naoOkTarget, diaristaMap]);
+
+    const groupObservacaoPagamento = useMemo(() => {
+      if (selectedGroupDiarias.length === 0) return null;
+      const firstKey = getObservacaoPagamentoKey(selectedGroupDiarias[0]?.observacao_pagamento);
+      const allEqual = selectedGroupDiarias.every(
+        (diaria) => getObservacaoPagamentoKey(diaria.observacao_pagamento) === firstKey,
+      );
+      if (!allEqual || !firstKey) return null;
+      return formatObservacaoPagamento(selectedGroupDiarias[0]?.observacao_pagamento);
+    }, [selectedGroupDiarias]);
+
+    const groupOutrosMotivos = useMemo(() => {
+      if (selectedGroupDiarias.length === 0) return null;
+      const first = toTrimOrNull(selectedGroupDiarias[0]?.outros_motivos_reprovacao_pagamento);
+      const allEqual = selectedGroupDiarias.every(
+        (diaria) =>
+          toTrimOrNull(diaria.outros_motivos_reprovacao_pagamento) === first,
+      );
+      return allEqual ? first : null;
+    }, [selectedGroupDiarias]);
 
     const buildExportRow = (diaria: DiariaTemporaria) => {
       const postoInfo =
@@ -802,13 +1154,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         diaria.colaborador ||
         (diaria.colaborador_ausente ? colaboradoresMap.get(diaria.colaborador_ausente) : null);
       const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
+      const unidadeNome = toTrimOrNull(diaria.unidade) || postoInfo?.unidade?.nome || "-";
       const criadoPorNome = getUsuarioNome(diaria.criado_por);
       const { id: responsavelStatusId } = getStatusResponsavel(diaria);
       const responsavelStatusNome = responsavelStatusId ? getUsuarioNome(responsavelStatusId) : "";
       const confirmadaPorNome = getUsuarioNome(diaria.confirmada_por);
-      const aprovadaPorNome = getUsuarioNome(diaria.aprovada_por);
       const lancadaPorNome = getUsuarioNome(diaria.lancada_por);
-      const aprovadaParaPgtoPorNome = getUsuarioNome(diaria.aprovado_para_pgto_por);
+      const okPagamentoPorNome = getUsuarioNome(diaria.ok_pagamento_por);
       const pagaPorNome = getUsuarioNome(diaria.paga_por);
       const colaboradorNome = diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
       const colaboradorFalecido = diaria.colaborador_falecido?.trim() || "";
@@ -825,8 +1177,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         "Jornada diaria (h)": formatJornadaValue(diaria.jornada_diaria),
         "Intervalo (min)": formatIntervalValue(diaria.intervalo),
         "Motivo (dia vago)": diaria.motivo_vago || "-",
-        "CPF diarista": diaristaInfo?.cpf || "-",
+        "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
         Posto: postoNome,
+        Unidade: unidadeNome,
         Cliente: clienteNome,
         Diarista: diaristaInfo?.nome_completo || "-",
         "Status diarista": diaristaInfo?.status || "-",
@@ -840,26 +1193,34 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         "Tipo de conta": diaristaInfo?.tipo_conta || "-",
         Pix: diaristaInfo?.pix || "-",
         "Pix pertence diarista": formatPixPertence(diaristaInfo?.pix_pertence_beneficiario),
+        "Pix alternativo": diaria.pix_alternativo ?? "",
+        "Beneficiario alternativo": diaria.beneficiario_alternativo ?? "",
         Observacao: diaria.observacao?.trim() || "",
         "Criado por": criadoPorNome,
         "Criada em": formatDate(diaria.created_at),
       };
       baseRow["Confirmada em"] = formatDate(diaria.confirmada_em);
-      baseRow["Aprovada em"] = formatDate(diaria.aprovada_em);
+      if (isPagaPage) {
+        baseRow["OK pagamento em"] = formatDate(diaria.ok_pagamento_em);
+      } else {
+        baseRow["Aprovada em"] = formatDate(diaria.aprovada_em);
+      }
       baseRow["Lancada em"] = formatDate(diaria.lancada_em);
-      baseRow["Aprovada para pagamento em"] = formatDate(diaria.aprovada_para_pagamento_em);
       baseRow["Paga em"] = formatDate(diaria.paga_em);
       baseRow["Cancelada em"] = formatDate(diaria.cancelada_em);
       baseRow["Reprovada em"] = formatDate(diaria.reprovada_em);
+      baseRow["OK pagamento?"] =
+        diaria.ok_pagamento === true ? "Sim" : diaria.ok_pagamento === false ? "Nao" : "-";
+      baseRow["Observacao pagamento"] = formatObservacaoPagamento(diaria.observacao_pagamento);
+      baseRow["Outros motivos reprovacao pagamento"] = diaria.outros_motivos_reprovacao_pagamento || "";
       baseRow["Novo posto?"] = novoPostoFlag ? "Sim" : "N?o";
       if (!isAguardandoPage) {
         baseRow[responsavelStatusHeader] = responsavelStatusNome || "";
       }
       if (isPagaPage) {
         baseRow["Confirmada por"] = confirmadaPorNome;
-        baseRow["Aprovada por"] = aprovadaPorNome;
+        baseRow["OK pagamento por"] = okPagamentoPorNome;
         baseRow["Lancada por"] = lancadaPorNome;
-        baseRow["Aprovada para pagamento por"] = aprovadaParaPgtoPorNome;
         baseRow["Paga por"] = pagaPorNome;
       }
 
@@ -898,6 +1259,91 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       toast.success("Arquivo XLSX gerado.");
     };
 
+    const handleExportGroupedXlsx = () => {
+      if (lancadasAgrupadas.length === 0) {
+        toast.info("Nenhuma diaria agrupada para exportar.");
+        return;
+      }
+      const pagamentoStatus =
+        isLancadaPage ? "LANCADO" : isPagaPage ? "PAGO" : isAprovadaPage ? "APROVADO" : "";
+      const rows = lancadasAgrupadas.map((group) => {
+        const groupDiarias = group.ids
+          .map((id) => diariasById.get(id.toString()))
+          .filter((item): item is DiariaTemporaria => Boolean(item));
+        const hasAlternativo = Boolean(group.pixAlternativo) || Boolean(group.beneficiarioAlternativo);
+        const beneficiario = hasAlternativo
+          ? group.beneficiarioAlternativo
+            ? `${group.beneficiarioAlternativo} (${group.diaristaNome})`
+            : group.diaristaNome
+          : group.diaristaNome;
+        const aprovacao =
+          groupDiarias.length > 0 && groupDiarias.every((diaria) => diaria.ok_pagamento === true)
+            ? "OK"
+            : "";
+        const competenciaSet = new Set(
+          groupDiarias.map((diaria) => formatCompetencia(diaria.data_diaria)).filter(Boolean),
+        );
+        const competencia =
+          competenciaSet.size === 0
+            ? ""
+            : competenciaSet.size === 1
+              ? Array.from(competenciaSet)[0]
+              : "DIVERSOS";
+        const descricao = groupDiarias
+          .sort((a, b) => (a.data_diaria || "").localeCompare(b.data_diaria || ""))
+          .map((diaria) => {
+            const postoInfo =
+              diaria.posto || (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+            const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
+            const base = `Diaria ${diaria.motivo_vago || ""} ${formatDate(diaria.data_diaria)}`;
+            return group.clienteLabel === "Diversos" ? `${base} (${clienteNome})` : base;
+          })
+          .join(" - ");
+        const groupObservacaoPagamento = (() => {
+          if (groupDiarias.length === 0) return "";
+          const firstKey = getObservacaoPagamentoKey(groupDiarias[0]?.observacao_pagamento);
+          const allEqual = groupDiarias.every(
+            (diaria) => getObservacaoPagamentoKey(diaria.observacao_pagamento) === firstKey,
+          );
+          if (!allEqual) return "Diversos";
+          if (!firstKey) return "";
+          return formatObservacaoPagamento(groupDiarias[0]?.observacao_pagamento);
+        })();
+        const groupOutrosMotivos = (() => {
+          if (groupDiarias.length === 0) return "";
+          const first = toTrimOrNull(groupDiarias[0]?.outros_motivos_reprovacao_pagamento);
+          const allEqual = groupDiarias.every(
+            (diaria) =>
+              toTrimOrNull(diaria.outros_motivos_reprovacao_pagamento) === first,
+          );
+          if (!allEqual) return "Diversos";
+          return first || "";
+        })();
+        const baseRow: Record<string, string> = {
+          Beneficiario: beneficiario,
+          "CPF diarista": formatCpf(group.diaristaCpf) || "-",
+          Valor: currencyFormatter.format(group.totalValor),
+          Aprovacao: aprovacao,
+          Banco: "ITAU",
+          Descricao: descricao,
+          Cliente: group.clienteLabel,
+          Competencia: competencia,
+          "Observacao pagamento": groupObservacaoPagamento,
+          "Outros motivos reprovacao pagamento": groupOutrosMotivos,
+        };
+        if (!isAprovadaPage) {
+          baseRow.Pagamento = pagamentoStatus;
+        }
+        return baseRow;
+      });
+      const sheet = XLSX.utils.json_to_sheet(uppercaseRows(rows));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, "Diarias agrupadas");
+      const fileName = `diarias-temp-agrupadas-${normalizeStatus(statusKey)}-${Date.now()}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast.success("Arquivo XLSX agrupado gerado.");
+    };
+
     const hasActiveFilters = useMemo(() => Object.values(filters).some(Boolean), [filters]);
 
     const diaristaTotal = useMemo(() => {
@@ -933,6 +1379,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         return acc + valorDiaria;
       }, 0);
     }, [diariasDoStatusFull, totalRangeDiarista]);
+
+    const diaristaTotalAll = useMemo(() => {
+      if (!totalRangeDiaristaAll.diaristaId) return null;
+      return diariasDoStatusFull.reduce((acc, diaria) => {
+        const diaristaId = diaria.diarista_id || "";
+        if (diaristaId !== totalRangeDiaristaAll.diaristaId) return acc;
+        const valorDiaria =
+          typeof diaria.valor_diaria === "number"
+            ? diaria.valor_diaria
+            : Number(diaria.valor_diaria) || 0;
+        return acc + valorDiaria;
+      }, 0);
+    }, [diariasDoStatusFull, totalRangeDiaristaAll]);
 
     const diaristaClienteTotal = useMemo(() => {
       if (
@@ -1054,6 +1513,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       });
     };
 
+    const filterDiariasParaTotalSemData = (diaristaId: string) =>
+      diariasDoStatusFull.filter((diaria) => diaria.diarista_id === diaristaId);
+
     const exportTotal = (opts: {
       diaristaId: string;
       diaristaNome: string;
@@ -1075,6 +1537,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
 
       const postos = new Set<string>();
+      const unidades = new Set<string>();
       const clientes = new Set<string>();
       const statuses = new Set<string>();
 
@@ -1082,8 +1545,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const postoInfo =
           diaria.posto ||
           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+        const unidadeNome = toTrimOrNull(diaria.unidade) || postoInfo?.unidade?.nome || "";
         if (diaria.posto_servico) postos.add(diaria.posto_servico);
         if (postoInfo?.nome) postos.add(postoInfo.nome);
+        if (unidadeNome) unidades.add(unidadeNome);
         const contratoInfo = getContratoInfoFromPosto(postoInfo);
         const clienteNomeDiaria =
           (typeof diaria.cliente_id === "number" && clienteMap.get(diaria.cliente_id)) ||
@@ -1104,7 +1569,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         {
           Titulo: tituloBase,
           Diarista: diaristaNome || "-",
-          "CPF diarista": diaristaInfo?.cpf || "-",
+          "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
           Banco: diaristaInfo?.banco || "-",
           Agencia: diaristaInfo?.agencia || "-",
           "Numero da conta": diaristaInfo?.numero_conta || "-",
@@ -1116,6 +1581,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           Status: Array.from(statuses).join(", ") || "-",
           Cliente: clienteNome || Array.from(clientes).join(", ") || "-",
           Posto: Array.from(postos).join(", ") || "-",
+          Unidade: Array.from(unidades).join(", ") || "-",
           "Valor total (R$)": total ?? 0,
         },
       ]);
@@ -1126,6 +1592,77 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const fileName = clienteNome
         ? `total-temp-diarista-cliente-${normalizeStatus(statusKey)}-${Date.now()}.xlsx`
         : `total-temp-diarista-${normalizeStatus(statusKey)}-${Date.now()}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast.success("Planilha de total gerada.");
+    };
+
+    const exportTotalSemData = (opts: {
+      diaristaId: string;
+      diaristaNome: string;
+      total: number | null;
+    }) => {
+      const { diaristaId, diaristaNome, total } = opts;
+      if (!diaristaId || total === null) {
+        toast.error("Selecione o diarista para exportar.");
+        return;
+      }
+      const diariasSelecionadas = filterDiariasParaTotalSemData(diaristaId);
+      if (diariasSelecionadas.length === 0) {
+        toast.info("Nenhuma diaria encontrada para exportar.");
+        return;
+      }
+
+      const postos = new Set<string>();
+      const unidades = new Set<string>();
+      const clientes = new Set<string>();
+      const statuses = new Set<string>();
+
+      diariasSelecionadas.forEach((diaria) => {
+        const postoInfo =
+          diaria.posto ||
+          (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+        const unidadeNome = toTrimOrNull(diaria.unidade) || postoInfo?.unidade?.nome || "";
+        if (diaria.posto_servico) postos.add(diaria.posto_servico);
+        if (postoInfo?.nome) postos.add(postoInfo.nome);
+        if (unidadeNome) unidades.add(unidadeNome);
+        const contratoInfo = getContratoInfoFromPosto(postoInfo);
+        const clienteNomeDiaria =
+          (typeof diaria.cliente_id === "number" && clienteMap.get(diaria.cliente_id)) ||
+          contratoInfo?.clienteNome ||
+          "";
+        if (clienteNomeDiaria) clientes.add(clienteNomeDiaria);
+        if (contratoInfo?.clienteNome) clientes.add(contratoInfo.clienteNome);
+        statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
+      });
+
+      const diaristaInfo = diaristaMap.get(diaristaId || "");
+      const tituloBase = `Valor a receber de ${diaristaNome} (todas as diarias do status ${
+        STATUS_LABELS[statusKey] || statusKey
+      })`;
+
+      const rows = uppercaseRows([
+        {
+          Titulo: tituloBase,
+          Diarista: diaristaNome || "-",
+          "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
+          Banco: diaristaInfo?.banco || "-",
+          Agencia: diaristaInfo?.agencia || "-",
+          "Numero da conta": diaristaInfo?.numero_conta || "-",
+          "Tipo de conta": diaristaInfo?.tipo_conta || "-",
+          Pix: diaristaInfo?.pix || "-",
+          "Pix pertence diarista": formatPixPertence(diaristaInfo?.pix_pertence_beneficiario),
+          Status: Array.from(statuses).join(", ") || "-",
+          Cliente: Array.from(clientes).join(", ") || "-",
+          Posto: Array.from(postos).join(", ") || "-",
+          Unidade: Array.from(unidades).join(", ") || "-",
+          "Valor total (R$)": total ?? 0,
+        },
+      ]);
+
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, "Total");
+      const fileName = `total-temp-diarista-${normalizeStatus(statusKey)}-${Date.now()}.xlsx`;
       XLSX.writeFile(wb, fileName);
       toast.success("Planilha de total gerada.");
     };
@@ -1143,10 +1680,16 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
       const cpfs = new Set<string>();
       const statuses = new Set<string>();
+      const unidades = new Set<string>();
       selecionadas.forEach((diaria) => {
         const diaristaInfo = diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
-        if (diaristaInfo?.cpf) cpfs.add(diaristaInfo.cpf);
+        if (diaristaInfo?.cpf) cpfs.add(formatCpf(diaristaInfo.cpf));
         statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
+        const postoInfo =
+          diaria.posto ||
+          (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+        const unidadeNome = toTrimOrNull(diaria.unidade) || postoInfo?.unidade?.nome || "";
+        if (unidadeNome) unidades.add(unidadeNome);
       });
       const clienteNome = clienteFilterOptions.find((c) => c.id === clienteId)?.nome || "";
       const titulo = `Valor a receber do cliente ${clienteNome || "(sem nome)"} entre ${startDate} e ${endDate}`;
@@ -1156,6 +1699,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           Cliente: clienteNome || "-",
           "CPFs diaristas": Array.from(cpfs).join(", ") || "-",
           "Status das diarias": Array.from(statuses).join(", ") || "-",
+          Unidade: Array.from(unidades).join(", ") || "-",
           "Data inicial": startDate,
           "Data final": endDate,
           "Valor total (R$)": clienteTotal ?? 0,
@@ -1171,6 +1715,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
     const handleClearFilters = () =>
       setFilters({
+        diariaId: "",
         diaristaId: "",
         motivo: "",
         clienteId: "",
@@ -1178,20 +1723,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         endDate: "",
         criadoPorId: "",
         statusResponsavelId: "",
+        okPagamentoPorId: "",
         statusDateStart: "",
         statusDateEnd: "",
+        okPagamento: "",
       });
-
-    const fallbackMonth = useMemo(() => {
-      for (const diaria of diariasDoStatusFull) {
-        const monthValue = getMonthValue(diaria.data_diaria);
-        if (monthValue) return monthValue;
-      }
-      return null;
-    }, [diariasDoStatusFull]);
-
-    const hasHiddenData =
-      diariasDoStatus.length === 0 && diariasDoStatusFull.length > 0 && Boolean(fallbackMonth);
 
     const requiresReasonForStatus = (status: string) => {
       const normalized = normalizeStatus(status);
@@ -1211,9 +1747,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
       if (normalized === normalizeStatus(STATUS.lancada)) {
         return "Deseja lancar esta diaria para pagamento?";
-      }
-      if (normalized === normalizeStatus(STATUS.aprovadaPagamento)) {
-        return "Deseja aprovar esta diaria para pagamento?";
       }
       if (normalized === normalizeStatus(STATUS.reprovada)) {
         return "Deseja reprovar esta diaria?";
@@ -1269,28 +1802,237 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
     };
 
+    const handleOkPagamento = async (id: string) => {
+      if (typeof window !== "undefined") {
+        const confirmed = window.confirm("Marcar OK de pagamento para esta diaria?");
+        if (!confirmed) return;
+      }
+      setUpdatingId(id);
+      try {
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update({ ok_pagamento: true, status: STATUS.paga })
+          .eq("id", id);
+        if (error) throw error;
+        toast.success("OK de pagamento registrado.");
+        await refetchDiarias();
+      } catch (error: any) {
+        toast.error(error.message || "Erro ao registrar OK de pagamento.");
+      } finally {
+        setUpdatingId(null);
+      }
+    };
+
+    const openNaoOkDialog = (diaria: DiariaTemporaria) => {
+      setNaoOkTarget({ type: "single", diaria });
+      setNaoOkObservacao(normalizeObservacaoPagamento(diaria.observacao_pagamento));
+      setNaoOkOutroMotivo(toTrimOrNull(diaria.outros_motivos_reprovacao_pagamento) || "");
+      setNaoOkWantsOutroMotivo(null);
+      setNaoOkDialogOpen(true);
+    };
+
+    const openNaoOkGroupDialog = (group: {
+      key: string;
+      ids: Array<string | number>;
+      diaristaId: string | null;
+      diaristaNome: string;
+      count: number;
+      totalValor: number;
+    }) => {
+      const groupIds = new Set(group.ids.map((id) => id.toString()));
+      const groupDiarias = diariasFiltradas.filter((diaria) =>
+        groupIds.has(diaria.id.toString()),
+      );
+      const firstKey = getObservacaoPagamentoKey(groupDiarias[0]?.observacao_pagamento);
+      const allEqual = groupDiarias.every(
+        (diaria) => getObservacaoPagamentoKey(diaria.observacao_pagamento) === firstKey,
+      );
+      const firstOutroMotivo = toTrimOrNull(
+        groupDiarias[0]?.outros_motivos_reprovacao_pagamento,
+      );
+      const allEqualOutroMotivo = groupDiarias.every(
+        (diaria) =>
+          toTrimOrNull(diaria.outros_motivos_reprovacao_pagamento) === firstOutroMotivo,
+      );
+      const initialObservacoes =
+        allEqual && firstKey
+          ? normalizeObservacaoPagamento(groupDiarias[0]?.observacao_pagamento)
+          : [];
+      const initialOutroMotivo = allEqualOutroMotivo ? firstOutroMotivo || "" : "";
+      setNaoOkTarget({
+        type: "group",
+        key: group.key,
+        ids: group.ids,
+        diaristaId: group.diaristaId,
+        diaristaNome: group.diaristaNome,
+        count: group.count,
+        totalValor: group.totalValor,
+      });
+      setNaoOkObservacao(initialObservacoes);
+      setNaoOkOutroMotivo(initialOutroMotivo);
+      setNaoOkWantsOutroMotivo(null);
+      setNaoOkDialogOpen(true);
+    };
+
+    const closeNaoOkDialog = () => {
+      setNaoOkDialogOpen(false);
+      setNaoOkTarget(null);
+      setNaoOkObservacao([]);
+      setNaoOkOutroMotivo("");
+      setNaoOkWantsOutroMotivo(null);
+    };
+
+    const handleNaoOkPagamento = async (withOutroMotivo: boolean) => {
+      if (!naoOkTarget) return;
+      if (naoOkObservacao.length === 0) {
+        toast.error("Selecione ao menos um motivo para a reprovacao do pagamento.");
+        return;
+      }
+      const outroMotivoValue = withOutroMotivo ? toTrimOrNull(naoOkOutroMotivo) : null;
+      const targetIds =
+        naoOkTarget.type === "single" ? [naoOkTarget.diaria.id] : naoOkTarget.ids;
+      if (targetIds.length === 0) {
+        toast.error("Nenhuma diaria encontrada para atualizar.");
+        return;
+      }
+      setNaoOkSaving(true);
+      try {
+        const updatePayload: Record<string, unknown> = {
+          ok_pagamento: false,
+          status: STATUS.aprovada,
+          observacao_pagamento: naoOkObservacao.length > 0 ? naoOkObservacao : null,
+        };
+        if (withOutroMotivo) {
+          updatePayload.outros_motivos_reprovacao_pagamento = outroMotivoValue;
+        }
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update(updatePayload)
+          .in("id", targetIds);
+        if (error) throw error;
+        toast.success("Reprovacao de pagamento registrada.");
+        await refetchDiarias();
+        closeNaoOkDialog();
+      } catch (error: any) {
+        toast.error(error.message || "Erro ao registrar reprovacao do pagamento.");
+      } finally {
+        setNaoOkSaving(false);
+      }
+    };
+
+    const toggleNaoOkObservacao = (value: string) => {
+      setNaoOkObservacao((prev) =>
+        prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value],
+      );
+      setNaoOkWantsOutroMotivo(null);
+      setNaoOkOutroMotivo("");
+    };
+
+    const handleGroupedOkPagamento = async (group: {
+      key: string;
+      diaristaNome: string;
+      pendingOkIds: Array<string | number>;
+    }) => {
+      if (group.pendingOkIds.length === 0) {
+        toast.info("Todas as diarias deste grupo ja estao com OK.");
+        return;
+      }
+      const message = `Marcar OK de pagamento para ${group.pendingOkIds.length} diaria(s) de ${group.diaristaNome}?`;
+      if (typeof window !== "undefined" && !window.confirm(message)) return;
+
+      setGroupOkSavingKey(group.key);
+      try {
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update({ ok_pagamento: true, status: STATUS.paga })
+          .in("id", group.pendingOkIds);
+        if (error) throw error;
+        toast.success("OK de pagamento registrado para o grupo.");
+        await refetchDiarias();
+      } catch (error: any) {
+        toast.error(error.message || "Erro ao registrar OK de pagamento em massa.");
+      } finally {
+        setGroupOkSavingKey(null);
+      }
+    };
+
+    const handleGroupedLancarPagamento = async (group: {
+      key: string;
+      diaristaNome: string;
+      ids: Array<string | number>;
+    }) => {
+      if (group.ids.length === 0) {
+        toast.info("Nenhuma diaria para lancar.");
+        return;
+      }
+      const message = `Deseja lancar ${group.ids.length} diaria(s) para pagamento de ${group.diaristaNome}?`;
+      if (typeof window !== "undefined" && !window.confirm(message)) return;
+
+      setGroupLancarSavingKey(group.key);
+      try {
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update({ status: STATUS.lancada })
+          .in("id", group.ids);
+        if (error) throw error;
+        toast.success("Diarias lancadas para pagamento.");
+        await refetchDiarias();
+      } catch (error: any) {
+        toast.error(error.message || "Erro ao lancar diarias para pagamento.");
+      } finally {
+        setGroupLancarSavingKey(null);
+      }
+    };
+
     const openReasonDialog = (id: string, status: string) => {
       setReasonDialog({ open: true, diariaId: id, targetStatus: status });
       setReasonText("");
+      setMotivoReprovacao("");
+      setMotivoReprovacaoObservacao("");
     };
 
     const closeReasonDialog = () => {
       setReasonDialog({ open: false, diariaId: null, targetStatus: null });
       setReasonText("");
+      setMotivoReprovacao("");
+      setMotivoReprovacaoObservacao("");
     };
 
     const handleReasonSubmit = async () => {
       if (!reasonDialog.diariaId || !reasonDialog.targetStatus) return;
-      if (!reasonText.trim()) {
-        toast.error("Informe o motivo.");
-        return;
-      }
-      const trimmed = reasonText.trim();
       const normalizedStatus = normalizeStatus(reasonDialog.targetStatus);
-      const extra =
-        normalizedStatus === normalizeStatus(STATUS.reprovada)
-          ? { motivo_reprovacao: trimmed, motivo_cancelamento: null }
-          : { motivo_cancelamento: trimmed, motivo_reprovacao: null };
+      const isReprovada = normalizedStatus === normalizedReprovadaStatus;
+      const useEnumMotivoReprovacao = isConfirmadaPage && isReprovada;
+      let extra: Record<string, unknown>;
+      if (useEnumMotivoReprovacao) {
+        if (!motivoReprovacao) {
+          toast.error("Selecione o motivo da reprovacao.");
+          return;
+        }
+        const observacaoValue = toTrimOrNull(motivoReprovacaoObservacao);
+        extra = {
+          motivo_reprovacao: motivoReprovacao,
+          motivo_reprovacao_observacao: observacaoValue,
+          motivo_cancelamento: null,
+        };
+      } else {
+        if (!reasonText.trim()) {
+          toast.error("Informe o motivo.");
+          return;
+        }
+        const trimmed = reasonText.trim();
+        extra = isReprovada
+          ? {
+              motivo_reprovacao: trimmed,
+              motivo_reprovacao_observacao: null,
+              motivo_cancelamento: null,
+            }
+          : {
+              motivo_cancelamento: trimmed,
+              motivo_reprovacao: null,
+              motivo_reprovacao_observacao: null,
+            };
+      }
       if (!confirmStatusChange(reasonDialog.targetStatus)) return;
       await handleUpdateStatus(reasonDialog.diariaId, reasonDialog.targetStatus, extra);
       setCustomStatusSelection((prev) => ({ ...prev, [reasonDialog.diariaId!]: "" }));
@@ -1306,18 +2048,55 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
     };
 
-    const renderAction = (diariaId: string, status: string) => {
-      const action = NEXT_STATUS_ACTIONS[normalizeStatus(status)];
+    const renderAction = (diaria: DiariaTemporaria) => {
+      const normalizedStatus = normalizeStatus(diaria.status);
+      if (normalizedStatus === normalizeStatus(STATUS.lancada)) {
+        const isNaoOkSaving =
+          naoOkSaving && naoOkTarget?.type === "single" && naoOkTarget.diaria.id === diaria.id;
+        const naoOkButtonClass =
+          diaria.ok_pagamento === false
+            ? "bg-white text-red-400 hover:bg-white/90"
+            : "border-rose-200 text-rose-700 hover:bg-rose-50";
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="default"
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              disabled={updatingId === diaria.id.toString() || diaria.ok_pagamento === true}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleOkPagamento(diaria.id.toString());
+              }}
+            >
+              {diaria.ok_pagamento ? "OK registrado" : "Marcar OK"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className={naoOkButtonClass}
+              disabled={isNaoOkSaving}
+              onClick={(event) => {
+                event.stopPropagation();
+                openNaoOkDialog(diaria);
+              }}
+            >
+              Não ok
+            </Button>
+          </div>
+        );
+      }
+      const action = NEXT_STATUS_ACTIONS[normalizedStatus];
       if (!action) return null;
       return (
         <Button
           size="sm"
           variant="default"
           className="bg-emerald-600 text-white hover:bg-emerald-700"
-          disabled={updatingId === diariaId}
+          disabled={updatingId === diaria.id.toString()}
           onClick={(event) => {
             event.stopPropagation();
-            requestStatusChange(diariaId, action.nextStatus);
+            requestStatusChange(diaria.id.toString(), action.nextStatus);
           }}
         >
           {action.label}
@@ -1345,7 +2124,21 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       setDetailsDialogOpen(true);
     };
 
+    const openGroupDetailsDialog = (groupKey: string) => {
+      setSelectedGroupKey(groupKey);
+      setGroupDetailsDialogOpen(true);
+    };
+
+    const closeGroupDetailsDialog = () => {
+      setGroupDetailsDialogOpen(false);
+      setSelectedGroupKey(null);
+    };
+
     const openEditDialog = (diaria: DiariaTemporaria) => {
+      const postoInfo =
+        diaria.posto ||
+        (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
+      setOriginalDiaristaId(diaria.diarista_id || null);
       setEditingDiariaId(diaria.id.toString());
       setEditForm({
         dataDiaria: diaria.data_diaria || "",
@@ -1354,6 +2147,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         intervalo: diaria.intervalo !== null && diaria.intervalo !== undefined ? String(diaria.intervalo) : "",
         motivoVago: diaria.motivo_vago || "",
         postoServicoId: diaria.posto_servico_id ? diaria.posto_servico_id.toString() : "",
+        unidade: diaria.unidade || postoInfo?.unidade?.nome || "",
         clienteId: diaria.cliente_id ? diaria.cliente_id.toString() : "",
         valorDiaria: diaria.valor_diaria !== null && diaria.valor_diaria !== undefined ? String(diaria.valor_diaria) : "",
         diaristaId: diaria.diarista_id || "",
@@ -1364,6 +2158,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         licencaNojo: typeof diaria.licenca_nojo === "boolean" ? diaria.licenca_nojo : null,
         novoPosto: typeof diaria.novo_posto === "boolean" ? diaria.novo_posto : null,
         observacao: diaria.observacao || "",
+        pixAlternativo: diaria.pix_alternativo || "",
+        beneficiarioAlternativo: diaria.beneficiario_alternativo || "",
       });
       setEditDialogOpen(true);
     };
@@ -1371,6 +2167,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const closeEditDialog = () => {
       setEditDialogOpen(false);
       setEditingDiariaId(null);
+      setOriginalDiaristaId(null);
     };
 
     const handleEditSubmit = async () => {
@@ -1385,6 +2182,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
       if (!editForm.valorDiaria || !editForm.diaristaId || !editForm.motivoVago) {
         toast.error("Preencha diarista, valor e motivo.");
+        return;
+      }
+      const blacklistEntry = blacklistMap.get(editForm.diaristaId);
+      const diaristaChanged = editForm.diaristaId !== (originalDiaristaId || "");
+      if (blacklistEntry && diaristaChanged) {
+        const motivo = blacklistEntry.motivo ? `: ${blacklistEntry.motivo}` : "";
+        toast.error(`Diarista esta na blacklist${motivo}`);
         return;
       }
 
@@ -1437,6 +2241,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
       const colaboradorNomeUpper = toUpperOrNull(editForm.colaboradorNome);
       const postoSelecionado = postosOptions.find((p) => p.id === editForm.postoServicoId);
+      const postoInfo = editForm.postoServicoId ? postoMap.get(editForm.postoServicoId) : null;
+        const unidadeValue =
+          toUpperOrNull(editForm.unidade) ||
+          toUpperOrNull(postoSelecionado?.unidade ?? postoInfo?.unidade?.nome);
       const postoServicoIdValue = editForm.postoServicoId || null;
       const motivoVagoValue = (editForm.motivoVago || "").toUpperCase();
       const demissaoValue = isMotivoVaga ? editForm.demissao : null;
@@ -1453,6 +2261,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const colaboradorDemitidoNomeValue =
         isMotivoVaga && demissaoValue === true ? toUpperOrNull(editForm.colaboradorDemitidoNome) : null;
       const observacaoValue = toUpperOrNull(editForm.observacao);
+      const pixAlternativoValue = toTrimOrNull(editForm.pixAlternativo);
+      const beneficiarioAlternativoValue = toUpperOrNull(editForm.beneficiarioAlternativo);
 
       setEditingSaving(true);
       try {
@@ -1468,6 +2278,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             motivo_vago: motivoVagoValue || null,
             posto_servico_id: postoServicoIdValue,
             posto_servico: postoSelecionado?.nome ? toUpperOrNull(postoSelecionado.nome) : null,
+            unidade: unidadeValue,
             cliente_id: clienteIdNumber,
             colaborador_ausente: null,
             colaborador_ausente_nome: colaboradorAusenteNomeValue,
@@ -1478,6 +2289,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             licenca_nojo: licencaNojoValue,
             novo_posto: novoPostoValue,
             observacao: observacaoValue,
+            pix_alternativo: pixAlternativoValue,
+            beneficiario_alternativo: beneficiarioAlternativoValue,
           })
           .eq("id", editingDiariaId);
         if (error) throw error;
@@ -1597,9 +2410,62 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
     };
 
+    const closeBulkPixDialog = () => {
+      setBulkPixDialogOpen(false);
+      setBulkPixForm({ pixAlternativo: "", beneficiarioAlternativo: "" });
+    };
+
+    const handleBulkPixApply = async () => {
+      const pixAlternativoValue = toTrimOrNull(bulkPixForm.pixAlternativo);
+      const beneficiarioAlternativoValue = toUpperOrNull(bulkPixForm.beneficiarioAlternativo);
+      const ids = Array.from(selectedIds);
+
+      if (ids.length === 0) {
+        toast.info("Nenhuma diaria selecionada.");
+        return;
+      }
+      if (!pixAlternativoValue && !beneficiarioAlternativoValue) {
+        toast.error("Informe o Pix alternativo ou o beneficiario alternativo.");
+        return;
+      }
+      if (!selectedDiaristaId) {
+        toast.error("Selecione apenas diarias do mesmo diarista para aplicar.");
+        return;
+      }
+
+      const updatePayload: Record<string, string | null> = {};
+      if (pixAlternativoValue) updatePayload.pix_alternativo = pixAlternativoValue;
+      if (beneficiarioAlternativoValue) {
+        updatePayload.beneficiario_alternativo = beneficiarioAlternativoValue;
+      }
+
+      const diaristaLabel = selectedDiaristaNome || "diarista selecionado";
+      const message = `Aplicar dados de pagamento alternativo em ${ids.length} diaria(s) de ${diaristaLabel}?`;
+      if (typeof window !== "undefined" && !window.confirm(message)) return;
+
+      setBulkPixSaving(true);
+      try {
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update(updatePayload)
+          .in("id", ids);
+        if (error) throw error;
+        toast.success("Dados de pagamento alternativo atualizados.");
+        clearSelection();
+        closeBulkPixDialog();
+        await refetchDiarias();
+      } catch (error: any) {
+        toast.error(error.message || "Erro ao atualizar dados de pagamento.");
+      } finally {
+        setBulkPixSaving(false);
+      }
+    };
+
     useEffect(() => {
       clearSelection();
-    }, [selectedMonth, normalizedKey]);
+      closeBulkPixDialog();
+      setGroupOkSavingKey(null);
+    }, [normalizedKey]);
 
     const closeDetailsDialog = () => {
       setDetailsDialogOpen(false);
@@ -1626,23 +2492,32 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const selectedColaboradorFalecido = selectedDiaria?.colaborador_falecido?.trim() || "-";
     const selectedColaboradorDemitidoNome = selectedDiaria?.colaborador_demitido_nome?.trim() || "";
     const selectedPostoNome = selectedDiaria?.posto_servico?.trim() || selectedPostoInfo?.nome || "-";
+    const selectedUnidadeNome =
+      toTrimOrNull(selectedDiaria?.unidade) || selectedPostoInfo?.unidade?.nome || "-";
     const motivoVagaEmAbertoSelecionado = isVagaEmAberto(selectedDiaria?.motivo_vago);
     const motivoLicencaNojoSelecionado = isLicencaNojo(selectedDiaria?.motivo_vago);
     const selectedLicencaNojoFlag = selectedDiaria?.licenca_nojo === true;
     const selectedNovoPostoFlag = selectedDiaria?.novo_posto === true;
     const criadoPorNome = getUsuarioNome(selectedDiaria?.criado_por);
     const confirmadaPorNome = getUsuarioNome(selectedDiaria?.confirmada_por);
-    const aprovadaPorNome = getUsuarioNome(selectedDiaria?.aprovada_por);
     const lancadaPorNome = getUsuarioNome(selectedDiaria?.lancada_por);
-    const aprovadaParaPgtoPorNome = getUsuarioNome(selectedDiaria?.aprovado_para_pgto_por);
+    const okPagamentoPorNome = getUsuarioNome(selectedDiaria?.ok_pagamento_por);
     const pagaPorNome = getUsuarioNome(selectedDiaria?.paga_por);
     const statusResponsavelInfo = selectedDiaria ? getStatusResponsavel(selectedDiaria) : { id: null, label: "" };
     const statusResponsavelNome = statusResponsavelInfo.id ? getUsuarioNome(statusResponsavelInfo.id) : "";
-    const statusDates = (STATUS_DATE_LABELS.map(({ field, label }) => {
-      const value = selectedDiaria ? (selectedDiaria as any)[field] : null;
-      if (!value) return null;
-      return { label, value: formatDate(value) };
-    }).filter(Boolean) as { label: string; value: string }[]) || [];
+    const statusDates = useMemo(() => {
+      const items = STATUS_DATE_LABELS.map(({ field, label }) => {
+        if (isPagaPage && field === "aprovada_em") {
+          const okValue = selectedDiaria?.ok_pagamento_em;
+          if (!okValue) return null;
+          return { label: "OK pagamento em", value: formatDate(okValue) };
+        }
+        const value = selectedDiaria ? (selectedDiaria as any)[field] : null;
+        if (!value) return null;
+        return { label, value: formatDate(value) };
+      }).filter(Boolean) as { label: string; value: string }[];
+      return items;
+    }, [isPagaPage, selectedDiaria]);
 
     const statusDatesWithCreated = useMemo(() => {
       const items = [...statusDates];
@@ -1654,65 +2529,86 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
     const showReasonColumn =
       normalizedKey === normalizedCancelStatus || normalizedKey === normalizedReprovadaStatus;
+    const showEnumMotivoReprovacao =
+      isConfirmadaPage &&
+      normalizeStatus(reasonDialog.targetStatus || "") === normalizedReprovadaStatus;
+    const bulkPixHasValues =
+      Boolean(toTrimOrNull(bulkPixForm.pixAlternativo)) ||
+      Boolean(toTrimOrNull(bulkPixForm.beneficiarioAlternativo));
+    const bulkPixApplyDisabled =
+      bulkPixSaving || selectedIds.size === 0 || !selectedDiaristaId || !bulkPixHasValues;
+    const showGroupedLancadas =
+      (isLancadaPage || isAprovadaPage || isPagaPage) && lancadasView === "agrupadas";
 
     return (
       <DashboardLayout>
         <div className="space-y-6 p-4 md:p-6">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm text-muted-foreground uppercase tracking-wide">Diarias temporarias</p>
+              <p className="text-sm text-muted-foreground uppercase tracking-wide">Diarias</p>
               <h1 className="text-3xl font-bold">{title}</h1>
               <p className="text-sm text-muted-foreground">{description}</p>
             </div>
-            <Input
-              type="month"
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-              className="w-auto"
-            />
           </div>
-
-          {hasHiddenData && fallbackMonth && (
-            <Card className="shadow-lg">
-              <CardContent className="flex items-center justify-between py-4">
-                <p className="text-sm text-muted-foreground">
-                  Existem diarias neste status fora do mes selecionado.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-red-600 text-white hover:bg-red-700"
-                  onClick={() => setSelectedMonth(fallbackMonth)}
-                >
-                  Ver mes com registros
-                </Button>
-              </CardContent>
-            </Card>
-          )}
 
           <Card className="shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-lg">{STATUS_LABELS[statusKey]}</CardTitle>
-                <CardDescription>Periodo selecionado: {selectedMonth}</CardDescription>
               </div>
-              <div className="flex items-center gap-3">
-                {showStatusNotice && (
-                  <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800">
-                    <Bell className="h-4 w-4" />
-                    <span className="text-sm font-medium">
-                      {statusNoticeCount} {statusNoticeCount === 1 ? "diaria" : "diarias"} {statusNoticeLabel}
-                    </span>
+              <div className="flex flex-col items-end gap-2">
+                {(isLancadaPage || isAprovadaPage || isPagaPage) && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={lancadasView === "lista" ? "default" : "outline"}
+                      onClick={() => setLancadasView("lista")}
+                    >
+                      Lista completa
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={lancadasView === "agrupadas" ? "default" : "outline"}
+                      onClick={() => setLancadasView("agrupadas")}
+                    >
+                      Agrupadas
+                    </Button>
                   </div>
                 )}
-                <Badge variant={STATUS_BADGE[statusKey] || "outline"}>
-                  {diariasDoStatusFull.length} diaria(s)
-                </Badge>
+                <div className="flex items-center gap-3">
+                  {showStatusNotice && (
+                    <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800">
+                      <Bell className="h-4 w-4" />
+                      <span className="text-sm font-medium">
+                        {statusNoticeCount} {statusNoticeCount === 1 ? "diaria" : "diarias"} {statusNoticeLabel}
+                      </span>
+                    </div>
+                  )}
+                  <Badge variant={STATUS_BADGE[statusKey] || "outline"}>
+                    {diariasDoStatusFull.length} diaria(s)
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col gap-3">
                 <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="space-y-1">
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-id-${statusKey}`}
+                      label="ID da diaria"
+                      tooltip="Filtra pelo identificador da diaria temporaria."
+                    />
+                    <Input
+                      id={`filtro-temp-id-${statusKey}`}
+                      type="number"
+                      value={filters.diariaId}
+                      onChange={(event) =>
+                        setFilters((prev) => ({ ...prev, diariaId: event.target.value }))
+                      }
+                      placeholder="Ex: 123"
+                    />
+                  </div>
                   <div className="space-y-1">
                     <TooltipLabel
                       htmlFor={`filtro-temp-diarista-${statusKey}`}
@@ -1857,6 +2753,62 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       </Select>
                     </div>
                   )}
+                  {isPagaPage && (
+                    <div className="space-y-1">
+                      <TooltipLabel
+                        htmlFor={`filtro-temp-ok-por-${statusKey}`}
+                        label="OK pagamento por"
+                        tooltip="Filtra pelo usuario que marcou o OK do pagamento."
+                      />
+                      <Select
+                        value={filters.okPagamentoPorId || selectAllValue}
+                        onValueChange={(value) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            okPagamentoPorId: value === selectAllValue ? "" : value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger id={`filtro-temp-ok-por-${statusKey}`}>
+                          <SelectValue placeholder="Todos os responsaveis do OK" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={selectAllValue}>Todos os responsaveis do OK</SelectItem>
+                          {okPagamentoPorOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {isAprovadaPage && (
+                    <div className="space-y-1">
+                      <TooltipLabel
+                        htmlFor={`filtro-temp-ok-${statusKey}`}
+                        label="Nao ok pagamento"
+                        tooltip="Filtra diarias aprovadas com pagamento marcado como nao."
+                      />
+                      <Select
+                        value={filters.okPagamento || selectAllValue}
+                        onValueChange={(value) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            okPagamento: value === selectAllValue ? "" : value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger id={`filtro-temp-ok-${statusKey}`}>
+                          <SelectValue placeholder="Todos os pagamentos" />
+                        </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Todos</SelectItem>
+                        <SelectItem value="false">Nao ok</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  )}
                   <div className="space-y-1">
                     <TooltipLabel
                       htmlFor={`filtro-temp-data-inicio-${statusKey}`}
@@ -1930,6 +2882,178 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   </div>
                 )}
               </div>
+              <AnimatePresence mode="wait">
+                {showGroupedLancadas ? (
+                  <motion.div
+                    key="agrupadas"
+                    className="space-y-4"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="flex justify-end">
+                      <Button variant="outline" onClick={handleExportGroupedXlsx}>
+                        Exportar XLSX agrupadas
+                      </Button>
+                    </div>
+                    <div className="overflow-x-auto">
+                      {lancadasAgrupadas.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-6">
+                          Nenhuma diaria encontrada para agrupamento.
+                        </p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Diarista</TableHead>
+                              <TableHead>Cliente</TableHead>
+                              <TableHead className="hidden md:table-cell">Pix do diarista</TableHead>
+                              <TableHead className="hidden md:table-cell">Pix alternativo</TableHead>
+                              <TableHead className="hidden md:table-cell">
+                                Beneficiario alternativo
+                              </TableHead>
+                              <TableHead className="hidden md:table-cell">Qtd</TableHead>
+                              <TableHead className="hidden md:table-cell">Total</TableHead>
+                              {(isLancadaPage || isAprovadaPage) && (
+                                <TableHead className="text-right">Acoes</TableHead>
+                              )}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {lancadasAgrupadas.map((group) => {
+                              const pendingCount = group.pendingOkIds.length;
+                              const lancarCount = group.ids.length;
+                              const isOkSaving = groupOkSavingKey === group.key;
+                              const isLancarSaving = groupLancarSavingKey === group.key;
+                              const hasNaoOk = group.ids.some(
+                                (id) => okPagamentoById.get(id.toString()) === false,
+                              );
+                              const groupRowClasses = getPagamentoRowClasses(
+                                hasNaoOk ? false : null,
+                                "cursor-pointer transition",
+                              );
+                              const groupRowStyle = getPagamentoRowStyle(hasNaoOk ? false : null);
+                              return (
+                                <TableRow
+                                  key={group.key}
+                                  className={groupRowClasses}
+                                  style={groupRowStyle}
+                                  onClick={() => openGroupDetailsDialog(group.key)}
+                                >
+                                  <TableCell>
+                                    <div className="flex flex-col gap-1">
+                                      <span>{group.diaristaNome}</span>
+                                      <span className="text-xs text-muted-foreground md:hidden">
+                                        Cliente: {group.clienteLabel}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground md:hidden">
+                                        Pix do diarista: {group.diaristaPix || "-"}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground md:hidden">
+                                        Pix alternativo: {group.pixAlternativo || "-"}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground md:hidden">
+                                        Beneficiario alternativo:{" "}
+                                        {group.beneficiarioAlternativo || "-"}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground md:hidden">
+                                        Qtd: {group.count} | Total:{" "}
+                                        {currencyFormatter.format(group.totalValor)}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {group.clienteLabel}
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {group.diaristaPix || "-"}
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {group.pixAlternativo || "-"}
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {group.beneficiarioAlternativo || "-"}
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">{group.count}</TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {currencyFormatter.format(group.totalValor)}
+                                  </TableCell>
+                                  {isLancadaPage && (
+                                    <TableCell className="text-right">
+                                      <div className="flex justify-end gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                          disabled={isOkSaving || pendingCount === 0}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleGroupedOkPagamento(group);
+                                          }}
+                                        >
+                                          {isOkSaving
+                                            ? "Marcando..."
+                                            : pendingCount === 0
+                                              ? "OK registrado"
+                                              : `Marcar OK (${pendingCount})`}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="border-rose-200 text-rose-700 hover:bg-rose-50"
+                                          disabled={
+                                            naoOkSaving &&
+                                            naoOkTarget?.type === "group" &&
+                                            naoOkTarget.key === group.key
+                                          }
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            openNaoOkGroupDialog(group);
+                                          }}
+                                        >
+                                          Não ok
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  )}
+                                  {isAprovadaPage && (
+                                    <TableCell className="text-right">
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                        disabled={isLancarSaving || lancarCount === 0}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleGroupedLancarPagamento(group);
+                                        }}
+                                      >
+                                        {isLancarSaving
+                                          ? "Lancando..."
+                                          : lancarCount === 0
+                                            ? "Sem diarias"
+                                            : `Lancar (${lancarCount})`}
+                                      </Button>
+                                    </TableCell>
+                                  )}
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="lista"
+                    className="space-y-4"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                  >
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={handleExportXlsx}>
                   Exportar XLSX
@@ -1937,6 +3061,15 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 <Button variant="outline" onClick={() => setTotalDialogOpen(true)}>
                   Filtragem Avançada
                 </Button>
+                {allowBulkPixUpdate && (
+                  <Button
+                    variant="outline"
+                    disabled={selectedIds.size === 0}
+                    onClick={() => setBulkPixDialogOpen(true)}
+                  >
+                    Insira Pix alternativo
+                  </Button>
+                )}
                 <Button
                   variant="default"
                   className="bg-emerald-600 text-white hover:bg-emerald-700"
@@ -1994,12 +3127,12 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             onCheckedChange={toggleSelectAllVisible}
                           />
                         </TableHead>
+                        <TableHead className="whitespace-nowrap">ID</TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead className="hidden md:table-cell">Colaborador</TableHead>
-                        <TableHead className="hidden md:table-cell">Posto</TableHead>
                         <TableHead className="hidden md:table-cell">Cliente</TableHead>
-                        <TableHead className="hidden md:table-cell">CPF diarista</TableHead>
                         <TableHead>Diarista</TableHead>
+                        <TableHead className="hidden md:table-cell">Beneficiario alternativo</TableHead>
                         <TableHead className="hidden md:table-cell">Motivo</TableHead>
                         <TableHead className="hidden md:table-cell">Valor</TableHead>
                         <TableHead className="hidden md:table-cell">Pix do diarista</TableHead>
@@ -2039,11 +3172,21 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         }
                         const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
                         const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
-                        const actionElement = renderAction(diaria.id.toString(), diaria.status);
+                        const actionElement = renderAction(diaria);
+                        const rowClasses = getPagamentoRowClasses(
+                          diaria.ok_pagamento,
+                          "cursor-pointer transition",
+                        );
+                        const rowStyle = getPagamentoRowStyle(diaria.ok_pagamento);
+                        const checkboxClass =
+                          diaria.ok_pagamento === false
+                            ? "!border-black !text-black hover:!border-black hover:!text-black data-[state=checked]:!bg-black data-[state=checked]:!text-white"
+                            : "";
                         return (
                           <TableRow
                             key={diaria.id}
-                            className="cursor-pointer transition hover:bg-muted/90"
+                            className={rowClasses}
+                            style={rowStyle}
                             onClick={() => handleRowClick(diaria)}
                           >
                             <TableCell onClick={(event) => event.stopPropagation()}>
@@ -2051,97 +3194,101 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                 aria-label="Selecionar diaria"
                                 checked={selectedIds.has(diaria.id.toString())}
                                 onCheckedChange={() => toggleSelect(diaria.id.toString())}
+                                className={checkboxClass}
                               />
                             </TableCell>
+                            <TableCell className="whitespace-nowrap">{diaria.id}</TableCell>
                             <TableCell>{formatDate(diaria.data_diaria)}</TableCell>
                             <TableCell className="hidden md:table-cell">{colaboradorDisplay}</TableCell>
-                            <TableCell className="hidden md:table-cell">{postoNome}</TableCell>
                             <TableCell className="hidden md:table-cell">{clienteNome}</TableCell>
-                            <TableCell className="hidden md:table-cell">{diaristaInfo?.cpf || "-"}</TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-2">
                                 <span>{diaristaInfo?.nome_completo || "-"}</span>
-                              <span className="text-xs text-muted-foreground md:hidden">
-                                CPF: {diaristaInfo?.cpf || "-"}
-                              </span>
-                              <div
-                                className="md:hidden flex flex-col gap-2 pt-2"
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                <div className="flex flex-wrap gap-2">
-                                  {statusKey === STATUS.confirmada && (
+                                <span className="text-xs text-muted-foreground md:hidden">
+                                  Beneficiario alternativo:{" "}
+                                  {diaria.beneficiario_alternativo || "-"}
+                                </span>
+                                <div
+                                  className="md:hidden flex flex-col gap-2 pt-2"
+                                  onClick={(event) => event.stopPropagation()}
+                                >
+                                  <div className="flex flex-wrap gap-2">
+                                    {statusKey === STATUS.confirmada && (
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        disabled={updatingId === diaria.id.toString()}
+                                        onClick={() => openReasonDialog(diaria.id.toString(), STATUS.reprovada)}
+                                      >
+                                        Reprovar
+                                      </Button>
+                                    )}
                                     <Button
                                       size="sm"
-                                      variant="destructive"
-                                      disabled={updatingId === diaria.id.toString()}
-                                      onClick={() => openReasonDialog(diaria.id.toString(), STATUS.reprovada)}
+                                      variant="default"
+                                      className="bg-amber-400 text-black hover:bg-amber-500"
+                                      onClick={() => {
+                                        openEditDialog(diaria);
+                                      }}
                                     >
-                                      Reprovar
+                                      Editar
                                     </Button>
-                                  )}
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    className="bg-amber-400 text-black hover:bg-amber-500"
-                                    onClick={() => {
-                                      openEditDialog(diaria);
-                                    }}
-                                  >
-                                    Editar
-                                  </Button>
-                                  {allowDelete && (
+                                    {allowDelete && (
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="text-destructive"
+                                        disabled={deletingId === diaria.id.toString()}
+                                        onClick={() => handleDeleteDiaria(diaria.id.toString())}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="sr-only">Excluir diaria</span>
+                                      </Button>
+                                    )}
+                                  </div>
+                                  {actionElement && <div>{actionElement}</div>}
+                                  <div className="flex flex-col gap-2">
+                                    <Select
+                                      value={customStatusSelection[diaria.id.toString()] || ""}
+                                      onValueChange={(value) =>
+                                        setCustomStatusSelection((prev) => ({
+                                          ...prev,
+                                          [diaria.id.toString()]: value,
+                                        }))
+                                      }
+                                    >
+                                      <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Alterar status" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {statusOptions.map((statusOption) => (
+                                          <SelectItem key={statusOption} value={statusOption}>
+                                            {STATUS_LABELS[statusOption]}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                     <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="text-destructive"
-                                      disabled={deletingId === diaria.id.toString()}
-                                      onClick={() => handleDeleteDiaria(diaria.id.toString())}
+                                      size="sm"
+                                      variant="default"
+                                      className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                      disabled={
+                                        updatingId === diaria.id.toString() ||
+                                        !customStatusSelection[diaria.id.toString()] ||
+                                        customStatusSelection[diaria.id.toString()] === diaria.status
+                                      }
+                                      onClick={() => handleCustomStatusApply(diaria.id.toString())}
                                     >
-                                      <Trash2 className="h-4 w-4" />
-                                      <span className="sr-only">Excluir diaria</span>
+                                      Aplicar
                                     </Button>
-                                  )}
-                                </div>
-                                {actionElement && <div>{actionElement}</div>}
-                                <div className="flex flex-col gap-2">
-                                  <Select
-                                    value={customStatusSelection[diaria.id.toString()] || ""}
-                                    onValueChange={(value) =>
-                                      setCustomStatusSelection((prev) => ({
-                                        ...prev,
-                                        [diaria.id.toString()]: value,
-                                      }))
-                                    }
-                                  >
-                                    <SelectTrigger className="w-full">
-                                      <SelectValue placeholder="Alterar status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {statusOptions.map((statusOption) => (
-                                        <SelectItem key={statusOption} value={statusOption}>
-                                          {STATUS_LABELS[statusOption]}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    className="bg-emerald-600 text-white hover:bg-emerald-700"
-                                    disabled={
-                                      updatingId === diaria.id.toString() ||
-                                      !customStatusSelection[diaria.id.toString()] ||
-                                      customStatusSelection[diaria.id.toString()] === diaria.status
-                                    }
-                                    onClick={() => handleCustomStatusApply(diaria.id.toString())}
-                                  >
-                                    Aplicar
-                                  </Button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">{diaria.motivo_vago || "-"}</TableCell>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {diaria.beneficiario_alternativo || "-"}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">{diaria.motivo_vago || "-"}</TableCell>
                           <TableCell className="hidden md:table-cell">
                             {currencyFormatter.format(diaria.valor_diaria || 0)}
                           </TableCell>
@@ -2241,6 +3388,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   </Table>
                 )}
               </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </CardContent>
           </Card>
 
@@ -2258,19 +3408,55 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   : "Cancelar diaria"}
               </DialogTitle>
               <DialogDescription>
-                Informe o motivo para esta alteracao de status.
+                {showEnumMotivoReprovacao
+                  ? "Selecione o motivo da reprovacao. A observacao e opcional."
+                  : "Informe o motivo para esta alteracao de status."}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-2">
-              <Label htmlFor="motivo-diaria-temp">Motivo</Label>
-              <Textarea
-                id="motivo-diaria-temp"
-                value={reasonText}
-                onChange={(event) => setReasonText(event.target.value)}
-                placeholder="Descreva o motivo"
-                rows={4}
-              />
-            </div>
+            {showEnumMotivoReprovacao ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="motivo-reprovacao-diaria-temp">Motivo da reprovacao</Label>
+                  <Select value={motivoReprovacao} onValueChange={setMotivoReprovacao}>
+                    <SelectTrigger id="motivo-reprovacao-diaria-temp">
+                      <SelectValue placeholder="Selecione o motivo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {motivoReprovacaoOptions.map((motivo) => (
+                        <SelectItem key={motivo} value={motivo}>
+                          {motivo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {motivoReprovacao && (
+                  <div className="space-y-2">
+                    <Label htmlFor="motivo-reprovacao-observacao-diaria-temp">
+                      Observacao (opcional)
+                    </Label>
+                    <Textarea
+                      id="motivo-reprovacao-observacao-diaria-temp"
+                      value={motivoReprovacaoObservacao}
+                      onChange={(event) => setMotivoReprovacaoObservacao(event.target.value)}
+                      placeholder="Detalhes adicionais (opcional)"
+                      rows={3}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="motivo-diaria-temp">Motivo</Label>
+                <Textarea
+                  id="motivo-diaria-temp"
+                  value={reasonText}
+                  onChange={(event) => setReasonText(event.target.value)}
+                  placeholder="Descreva o motivo"
+                  rows={4}
+                />
+              </div>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeReasonDialog}>
                 Fechar
@@ -2279,7 +3465,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 type="button"
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
                 onClick={handleReasonSubmit}
-                disabled={!reasonText.trim() || updatingId === reasonDialog.diariaId}
+                disabled={
+                  updatingId === reasonDialog.diariaId ||
+                  (showEnumMotivoReprovacao ? !motivoReprovacao : !reasonText.trim())
+                }
               >
                 {updatingId === reasonDialog.diariaId ? "Salvando..." : "Confirmar"}
               </Button>
@@ -2292,10 +3481,61 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             <DialogHeader>
               <DialogTitle>Filtragem</DialogTitle>
               <DialogDescription>
-                Consulte totais das diarias neste status. A primeira sessao considera apenas diarista e datas; a segunda inclui o cliente vinculado ao posto de servico.
+                Consulte totais das diarias neste status. Existem opcoes por diarista com e sem datas, alem de totais que consideram o cliente vinculado ao posto de servico.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+                <p className="text-sm font-semibold text-muted-foreground">Total por diarista (sem data)</p>
+                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-diarista-all-${statusKey}`}>Diarista</Label>
+                    <Select
+                      value={totalRangeDiaristaAll.diaristaId || selectAllValue}
+                      onValueChange={(value) =>
+                        setTotalRangeDiaristaAll((prev) => ({
+                          ...prev,
+                          diaristaId: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`total-diarista-all-${statusKey}`}>
+                        <SelectValue placeholder="Selecione o diarista" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Selecione o diarista</SelectItem>
+                        {diaristaOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="rounded-md border bg-background/80 p-3">
+                  <p className="text-sm text-muted-foreground">Total geral</p>
+                  <p className="text-2xl font-semibold">
+                    {diaristaTotalAll !== null ? currencyFormatter.format(diaristaTotalAll) : "--"}
+                  </p>
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        exportTotalSemData({
+                          diaristaId: totalRangeDiaristaAll.diaristaId,
+                          diaristaNome:
+                            diaristaMap.get(totalRangeDiaristaAll.diaristaId || "")?.nome_completo || "",
+                          total: diaristaTotalAll,
+                        })
+                      }
+                    >
+                      Exportar total
+                    </Button>
+                  </div>
+                </div>
+              </div>
               <div className="space-y-2 rounded-md border bg-muted/30 p-4">
                 <p className="text-sm font-semibold text-muted-foreground">Total por diarista</p>
                 <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
@@ -2550,6 +3790,344 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           </DialogContent>
         </Dialog>
 
+        <Dialog
+          open={bulkPixDialogOpen}
+          onOpenChange={(open) => (open ? setBulkPixDialogOpen(true) : closeBulkPixDialog())}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Insira pix alternativo</DialogTitle>
+              <DialogDescription>
+                Atualize o Pix alternativo e beneficiario alternativo para as diarias selecionadas.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="rounded-md border px-3 py-2 text-sm">
+                <p>
+                  <span className="font-semibold">Selecionadas:</span> {selectedIds.size} diaria(s)
+                </p>
+                <p>
+                  <span className="font-semibold">Diarista:</span>{" "}
+                  {selectedDiaristaNome || "Selecione um unico diarista"}
+                </p>
+              </div>
+              {!selectedDiaristaId && selectedIds.size > 0 && (
+                <p className="text-sm text-destructive">
+                  Selecione apenas diarias do mesmo diarista para aplicar.
+                </p>
+              )}
+              <div className="space-y-1">
+                <TooltipLabel
+                  htmlFor="bulk-pix-alternativo"
+                  label="Pix alternativo (opcional)"
+                  tooltip="Chave Pix alternativa para pagamento."
+                />
+                <Input
+                  id="bulk-pix-alternativo"
+                  value={bulkPixForm.pixAlternativo}
+                  onChange={(event) =>
+                    setBulkPixForm((prev) => ({ ...prev, pixAlternativo: event.target.value }))
+                  }
+                  placeholder="Opcional"
+                />
+              </div>
+              <div className="space-y-1">
+                <TooltipLabel
+                  htmlFor="bulk-beneficiario-alternativo"
+                  label="Beneficiario alternativo (opcional)"
+                  tooltip="Nome do beneficiario quando o Pix nao for do diarista."
+                />
+                <Input
+                  id="bulk-beneficiario-alternativo"
+                  value={bulkPixForm.beneficiarioAlternativo}
+                  onChange={(event) =>
+                    setBulkPixForm((prev) => ({
+                      ...prev,
+                      beneficiarioAlternativo: event.target.value.toUpperCase(),
+                    }))
+                  }
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeBulkPixDialog}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={handleBulkPixApply} disabled={bulkPixApplyDisabled}>
+                {bulkPixSaving ? "Aplicando..." : "Aplicar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={groupDetailsDialogOpen}
+          onOpenChange={(open) => (open ? null : closeGroupDetailsDialog())}
+        >
+          <DialogContent className="max-w-4xl w-full">
+            <DialogHeader>
+              <DialogTitle>Detalhes do agrupamento</DialogTitle>
+              <DialogDescription>Informacoes completas das diarias deste grupo.</DialogDescription>
+            </DialogHeader>
+            {selectedGroup ? (
+              <div className="space-y-6 text-sm">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">
+                    Resumo do grupo
+                  </p>
+                  <div className="mt-2 grid gap-3 md:grid-cols-2">
+                    <div>
+                      <p className="text-muted-foreground text-xs">Diarista</p>
+                      <p className="font-medium">{selectedGroup.diaristaNome || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Cliente</p>
+                      <p className="font-medium">{selectedGroup.clienteLabel || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Pix do diarista</p>
+                      <p className="font-medium break-all">
+                        {selectedGroup.diaristaPix || selectedGroupDiaristaInfo?.pix || "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Pix alternativo</p>
+                      <p className="font-medium break-all">{selectedGroup.pixAlternativo || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Beneficiario alternativo</p>
+                      <p className="font-medium">{selectedGroup.beneficiarioAlternativo || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Qtd</p>
+                      <p className="font-medium">{selectedGroup.count}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Total</p>
+                      <p className="font-medium">
+                        {currencyFormatter.format(selectedGroup.totalValor)}
+                      </p>
+                    </div>
+                    {selectedGroupDiaristaInfo?.cpf && (
+                      <div>
+                        <p className="text-muted-foreground text-xs">CPF diarista</p>
+                        <p className="font-medium">{selectedGroupDiaristaInfo.cpf}</p>
+                      </div>
+                    )}
+                    {groupObservacaoPagamento && (
+                      <div className="md:col-span-2">
+                        <p className="text-muted-foreground text-xs">Observacao pagamento</p>
+                        <p className="font-medium whitespace-pre-line">
+                          {groupObservacaoPagamento}
+                        </p>
+                      </div>
+                    )}
+                    {groupOutrosMotivos && (
+                      <div className="md:col-span-2">
+                        <p className="text-muted-foreground text-xs">
+                          Outros motivos reprovacao pagamento
+                        </p>
+                        <p className="font-medium whitespace-pre-line">{groupOutrosMotivos}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">
+                    Diarias do grupo
+                  </p>
+                  <div className="mt-2 overflow-x-auto">
+                    {selectedGroupDiarias.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-4">
+                        Nenhuma diaria encontrada para este grupo.
+                      </p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Data</TableHead>
+                            <TableHead>Motivo</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead className="hidden md:table-cell">Unidade</TableHead>
+                            <TableHead className="hidden md:table-cell">Aprovada por</TableHead>
+                            <TableHead className="text-right">Valor</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedGroupDiarias.map((diaria) => {
+                            const postoInfo =
+                              diaria.posto ||
+                              (diaria.posto_servico_id
+                                ? postoMap.get(diaria.posto_servico_id)
+                                : null);
+                            const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
+                            const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
+                            const unidadeNome =
+                              toTrimOrNull(diaria.unidade) || postoInfo?.unidade?.nome || "-";
+                            const valor =
+                              typeof diaria.valor_diaria === "number"
+                                ? diaria.valor_diaria
+                                : Number(diaria.valor_diaria) || 0;
+                            const aprovadaPorNome = getUsuarioNome(diaria.aprovada_por);
+                            const rowClasses = getPagamentoRowClasses(diaria.ok_pagamento);
+                            const rowStyle = getPagamentoRowStyle(diaria.ok_pagamento);
+                            return (
+                              <TableRow key={diaria.id} className={rowClasses} style={rowStyle}>
+                                <TableCell>{formatDate(diaria.data_diaria)}</TableCell>
+                                <TableCell>{diaria.motivo_vago || "-"}</TableCell>
+                                <TableCell>{clienteNome}</TableCell>
+                                <TableCell className="hidden md:table-cell">{unidadeNome}</TableCell>
+                                <TableCell className="hidden md:table-cell">
+                                  {aprovadaPorNome || "-"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {currencyFormatter.format(valor)}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Grupo nao encontrado.</p>
+            )}
+            <DialogFooter>
+              <Button type="button" onClick={closeGroupDetailsDialog}>
+                Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={naoOkDialogOpen}
+          onOpenChange={(open) => (open ? null : closeNaoOkDialog())}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Reprovar pagamento</DialogTitle>
+              <DialogDescription>
+                Selecione o motivo e, se necessario, registre outro motivo para a reprovacao.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-md border px-3 py-2 text-sm">
+                <p>
+                  <span className="font-semibold">Diarista:</span>{" "}
+                  {naoOkDiaristaNome}
+                </p>
+                {naoOkTarget?.type === "single" ? (
+                  <>
+                    <p>
+                      <span className="font-semibold">Data:</span>{" "}
+                      {formatDate(naoOkTarget.diaria.data_diaria)}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Valor:</span>{" "}
+                      {currencyFormatter.format(naoOkTarget.diaria.valor_diaria || 0)}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      <span className="font-semibold">Quantidade:</span>{" "}
+                      {naoOkTarget?.type === "group" ? naoOkTarget.count : "-"}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Total:</span>{" "}
+                      {naoOkTarget?.type === "group"
+                        ? currencyFormatter.format(naoOkTarget.totalValor)
+                        : "-"}
+                    </p>
+                  </>
+                )}
+              </div>
+              <div className="space-y-1">
+                <TooltipLabel
+                  htmlFor="nao-ok-observacao"
+                  label="Motivos da reprovação"
+                  tooltip="Selecione um ou mais motivos para a reprovacao do pagamento."
+                />
+                <div className="space-y-2 rounded-md border p-3">
+                  {observacaoPagamentoOptions.map((option) => (
+                    <label key={option} className="flex items-start gap-2 text-sm">
+                      <Checkbox
+                        checked={naoOkObservacao.includes(option)}
+                        onCheckedChange={() => toggleNaoOkObservacao(option)}
+                      />
+                      <span>{option}</span>
+                    </label>
+                  ))}
+                  {observacaoPagamentoOptions.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum motivo disponivel no momento.
+                    </p>
+                  )}
+                </div>
+              </div>
+              {naoOkObservacao.length > 0 && naoOkWantsOutroMotivo !== true && (
+                <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+                  <p className="text-sm font-medium">
+                    Deseja registrar outro motivo para a reprovacao?
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={naoOkSaving}
+                      onClick={() => handleNaoOkPagamento(false)}
+                    >
+                      Nao
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      disabled={naoOkSaving}
+                      onClick={() => setNaoOkWantsOutroMotivo(true)}
+                    >
+                      Sim
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {naoOkWantsOutroMotivo && (
+                <div className="space-y-1">
+                  <TooltipLabel
+                    htmlFor="nao-ok-outro-motivo"
+                    label="Outro motivo"
+                    tooltip="Descreva outro motivo para a reprovacao do pagamento."
+                  />
+                  <Textarea
+                    id="nao-ok-outro-motivo"
+                    value={naoOkOutroMotivo}
+                    onChange={(event) => setNaoOkOutroMotivo(event.target.value)}
+                    placeholder="Descreva o motivo adicional"
+                  />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeNaoOkDialog}>
+                Cancelar
+              </Button>
+              {naoOkWantsOutroMotivo && (
+                <Button
+                  type="button"
+                  onClick={() => handleNaoOkPagamento(true)}
+                  disabled={naoOkSaving}
+                >
+                  {naoOkSaving ? "Salvando..." : "Salvar"}
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={detailsDialogOpen} onOpenChange={(open) => (open ? null : closeDetailsDialog())}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -2580,12 +4158,38 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="font-medium">{selectedPostoNome}</p>
                     </div>
                     <div>
+                      <p className="text-muted-foreground text-xs">Unidade</p>
+                      <p className="font-medium">{selectedUnidadeNome}</p>
+                    </div>
+                    <div>
                       <p className="text-muted-foreground text-xs">Cliente</p>
                       <p className="font-medium">{selectedClienteNome}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Valor</p>
                       <p className="font-medium">{currencyFormatter.format(selectedDiaria.valor_diaria || 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">OK pagamento</p>
+                      <p className="font-medium">
+                        {selectedDiaria.ok_pagamento === true
+                          ? "Sim"
+                          : selectedDiaria.ok_pagamento === false
+                            ? "Nao"
+                            : "-"}
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <p className="text-muted-foreground text-xs">Observacao pagamento</p>
+                      <p className="font-medium whitespace-pre-line">
+                        {formatObservacaoPagamento(selectedDiaria.observacao_pagamento) || "-"}
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <p className="text-muted-foreground text-xs">Outros motivos reprovacao pagamento</p>
+                      <p className="font-medium whitespace-pre-line">
+                        {selectedDiaria.outros_motivos_reprovacao_pagamento || "-"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Criada em</p>
@@ -2615,16 +4219,12 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                           <p className="font-medium">{confirmadaPorNome || "-"}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground text-xs">Aprovada por</p>
-                          <p className="font-medium">{aprovadaPorNome || "-"}</p>
+                          <p className="text-muted-foreground text-xs">OK pagamento por</p>
+                          <p className="font-medium">{okPagamentoPorNome || "-"}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground text-xs">Lancada por</p>
                           <p className="font-medium">{lancadaPorNome || "-"}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground text-xs">Aprovada para pagamento por</p>
-                          <p className="font-medium">{aprovadaParaPgtoPorNome || "-"}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground text-xs">Paga por</p>
@@ -2662,10 +4262,18 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                           <p className="font-medium">{selectedNovoPostoFlag ? "Sim" : "Não"}</p>
                         </div>
                       )}
-                    {selectedDiaria.motivo_reprovacao && (
+                    {isReprovadaPage && selectedDiaria.motivo_reprovacao && (
                       <div className="sm:col-span-2">
                         <p className="text-muted-foreground text-xs">Motivo reprovacao</p>
                         <p className="font-medium whitespace-pre-line">{selectedDiaria.motivo_reprovacao}</p>
+                      </div>
+                    )}
+                    {isReprovadaPage && toTrimOrNull(selectedDiaria.motivo_reprovacao_observacao) && (
+                      <div className="sm:col-span-2">
+                        <p className="text-muted-foreground text-xs">Observacao reprovacao</p>
+                        <p className="font-medium whitespace-pre-line">
+                          {toTrimOrNull(selectedDiaria.motivo_reprovacao_observacao)}
+                        </p>
                       </div>
                     )}
                     {selectedDiaria.motivo_cancelamento && (
@@ -2774,6 +4382,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="font-medium">
                         {formatPixPertence(selectedDiaristaInfo?.pix_pertence_beneficiario)}
                       </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Pix alternativo</p>
+                      <p className="font-medium break-all">{selectedDiaria?.pix_alternativo ?? ""}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Beneficiario alternativo</p>
+                      <p className="font-medium">{selectedDiaria?.beneficiario_alternativo ?? ""}</p>
                     </div>
                   </div>
                 </div>
@@ -3036,16 +4652,56 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 </Select>
               </div>
 
+              <div className="space-y-1">
+                <TooltipLabel
+                  label="Unidade (opcional)"
+                  tooltip="Informe a unidade se desejar registrar esse dado."
+                />
+                <Input
+                  value={editForm.unidade}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, unidade: e.target.value }))}
+                  placeholder="Nome da unidade (opcional)"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <TooltipLabel
+                  label="Pix alternativo (opcional)"
+                  tooltip="Informe uma chave Pix alternativa, se necessario."
+                />
+                <Input
+                  value={editForm.pixAlternativo}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, pixAlternativo: e.target.value }))}
+                  placeholder="Opcional"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <TooltipLabel
+                  label="Beneficiario alternativo (opcional)"
+                  tooltip="Nome do beneficiario quando o Pix nao for do diarista."
+                />
+                <Input
+                  value={editForm.beneficiarioAlternativo}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, beneficiarioAlternativo: e.target.value }))}
+                  placeholder="Opcional"
+                />
+              </div>
+
               <div className="space-y-1 md:col-span-2">
                 <TooltipLabel label="Posto" tooltip=" Posto onde o diarista vai atuar nesta diaria." />
                 <Select
                   value={editForm.postoServicoId || OPTIONAL_VALUE}
-                  onValueChange={(value) =>
+                  onValueChange={(value) => {
+                    const postoId = value === OPTIONAL_VALUE ? "" : value;
+                    const postoInfo = postoId ? postoMap.get(postoId) : null;
+                    const unidadeFromPosto = postoInfo?.unidade?.nome || "";
                     setEditForm((prev) => ({
                       ...prev,
-                      postoServicoId: value === OPTIONAL_VALUE ? "" : value,
-                    }))
-                  }
+                      postoServicoId: postoId,
+                      unidade: toTrimOrNull(prev.unidade) ? prev.unidade : unidadeFromPosto,
+                    }));
+                  }}
                   disabled={!editForm.clienteId}
                 >
                   <SelectTrigger>
@@ -3098,12 +4754,28 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o diarista" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
-                    {diaristaOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.nome}
-                      </SelectItem>
-                    ))}
+                <SelectContent className="max-h-72 overflow-y-auto">
+                    {diaristaOptionsAll.map((option) => {
+                      const isBlacklisted = blacklistMap.has(option.id);
+                      const isRestrito = diaristaStatusMap.get(option.id) === "restrito";
+                      const isCurrent = option.id === editForm.diaristaId;
+                      const labels = [
+                        isBlacklisted ? "Blacklist" : null,
+                        isRestrito ? "Restrito" : null,
+                      ].filter(Boolean);
+                      const statusSuffix =
+                        labels.length > 0 ? ` (${labels.join(" / ")})` : "";
+                      return (
+                        <SelectItem
+                          key={option.id}
+                          value={option.id}
+                          disabled={isRestrito || (isBlacklisted && !isCurrent)}
+                        >
+                          {option.nome}
+                          {statusSuffix}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -3140,7 +4812,6 @@ export const Diarias2AguardandoPage = createStatusPage(STATUS_CONFIGS[0]);
 export const Diarias2ConfirmadasPage = createStatusPage(STATUS_CONFIGS[1]);
 export const Diarias2AprovadasPage = createStatusPage(STATUS_CONFIGS[2]);
 export const Diarias2LancadasPage = createStatusPage(STATUS_CONFIGS[3]);
-export const Diarias2AprovadasPagamentoPage = createStatusPage(STATUS_CONFIGS[4]);
-export const Diarias2ReprovadasPage = createStatusPage(STATUS_CONFIGS[5]);
-export const Diarias2CanceladasPage = createStatusPage(STATUS_CONFIGS[6]);
-export const Diarias2PagasPage = createStatusPage(STATUS_CONFIGS[7]);
+export const Diarias2ReprovadasPage = createStatusPage(STATUS_CONFIGS[4]);
+export const Diarias2CanceladasPage = createStatusPage(STATUS_CONFIGS[5]);
+export const Diarias2PagasPage = createStatusPage(STATUS_CONFIGS[6]);

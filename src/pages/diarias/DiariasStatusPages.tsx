@@ -81,12 +81,7 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
   {
     statusKey: STATUS.lancada,
     title: "Diárias lançadas para pagamento",
-    description: "Diárias lançadas aguardando aprovação de pagamento.",
-  },
-  {
-    statusKey: STATUS.aprovadaPagamento,
-    title: "Diárias aprovadas para pagamento",
-    description: "Acompanhe as diárias aprovadas que estão em fase final de pagamento.",
+    description: "Diárias lançadas aguardando pagamento.",
   },
   {
     statusKey: STATUS.reprovada,
@@ -643,10 +638,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         return "Deseja aprovar esta diária?";
       }
       if (normalized === normalizeStatus(STATUS.lancada)) {
-        return "Deseja lan\u00e7ar esta diária para pagamento?";
-      }
-      if (normalized === normalizeStatus(STATUS.aprovadaPagamento)) {
-        return "Deseja aprovar esta diária para pagamento?";
+        return "Deseja lançar esta diária para pagamento?";
       }
       if (normalized === normalizeStatus(STATUS.reprovada)) {
         return "Deseja reprovar esta diária?";
@@ -1623,9 +1615,8 @@ export const DiariasAguardandoPage = createStatusPage(STATUS_CONFIGS[0]);
 export const DiariasConfirmadasPage = createStatusPage(STATUS_CONFIGS[1]);
 export const DiariasAprovadasPage = createStatusPage(STATUS_CONFIGS[2]);
 export const DiariasLancadasPage = createStatusPage(STATUS_CONFIGS[3]);
-export const DiariasAprovadasPagamentoPage = createStatusPage(STATUS_CONFIGS[4]);
-export const DiariasReprovadasPage = createStatusPage(STATUS_CONFIGS[5]);
-export const DiariasCanceladasPage = createStatusPage(STATUS_CONFIGS[6]);
-export const DiariasPagasPage = createStatusPage(STATUS_CONFIGS[7]);
+export const DiariasReprovadasPage = createStatusPage(STATUS_CONFIGS[4]);
+export const DiariasCanceladasPage = createStatusPage(STATUS_CONFIGS[5]);
+export const DiariasPagasPage = createStatusPage(STATUS_CONFIGS[6]);
 
 
