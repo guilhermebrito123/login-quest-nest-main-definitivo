@@ -464,30 +464,74 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
       return;
     }
 
+    const payload = {
+      ...formData,
+      cpf: stripNonDigits(formData.cpf),
+      cep: stripNonDigits(formData.cep),
+      telefone: stripNonDigits(formData.telefone),
+    };
+    const hasSpecificAttachmentChanges = Object.values(specificFiles).some((file) => Boolean(file));
+    const hasNewFiles = newFiles.length > 0;
+    const hasFieldChanges = diarista
+      ? (diarista.nome_completo || "") !== payload.nome_completo ||
+        stripNonDigits(String(diarista.cpf ?? "")) !== payload.cpf ||
+        stripNonDigits(String(diarista.cep ?? "")) !== payload.cep ||
+        (diarista.endereco || "") !== payload.endereco ||
+        (diarista.cidade || "") !== payload.cidade ||
+        stripNonDigits(String(diarista.telefone ?? "")) !== payload.telefone ||
+        (diarista.email || "") !== payload.email ||
+        Boolean(diarista.possui_antecedente) !== payload.possui_antecedente ||
+        (diarista.status || "ativo") !== payload.status ||
+        (diarista.banco || "") !== payload.banco ||
+        (diarista.agencia || "") !== payload.agencia ||
+        (diarista.tipo_conta || "conta corrente") !== payload.tipo_conta ||
+        (diarista.numero_conta || "") !== payload.numero_conta ||
+        (diarista.pix || "") !== payload.pix ||
+        (diarista.pix_pertence_beneficiario ?? null) !== payload.pix_pertence_beneficiario
+      : false;
+    const hasUpdateChanges = hasFieldChanges || hasSpecificAttachmentChanges;
+
+    let motivoAlteracao: string | null = null;
+    if (diarista) {
+      if (!hasUpdateChanges && !hasNewFiles) {
+        toast.info("Nenhuma alteracao para salvar.");
+        return;
+      }
+      if (hasUpdateChanges) {
+        if (typeof window === "undefined") return;
+        const motivo = window.prompt("Informe o motivo da alteracao do diarista.");
+        const trimmed = (motivo ?? "").trim();
+        if (!trimmed) {
+          toast.error("Motivo da alteracao obrigatorio.");
+          return;
+        }
+        motivoAlteracao = trimmed;
+      }
+    }
+
     setLoading(true);
 
     try {
       const diaristaId = diarista?.id ?? crypto.randomUUID();
-      const payload = {
-        ...formData,
-        cpf: stripNonDigits(formData.cpf),
-        cep: stripNonDigits(formData.cep),
-        telefone: stripNonDigits(formData.telefone),
-      };
-
-      const finalSpecificPaths = await uploadSpecificAttachments(diaristaId);
+      let updatedDiarista = false;
 
       if (diarista) {
-        const { error } = await supabase
-          .from("diaristas")
-          .update({
-            ...payload,
-            ...finalSpecificPaths,
-          })
-          .eq("id", diaristaId);
-        if (error) throw error;
-        toast.success("Diarista atualizado com sucesso");
+        if (hasUpdateChanges) {
+          const finalSpecificPaths = await uploadSpecificAttachments(diaristaId);
+          const { error } = await supabase
+            .from("diaristas")
+            .update({
+              ...payload,
+              ...finalSpecificPaths,
+              motivo_alteracao: motivoAlteracao,
+            })
+            .eq("id", diaristaId);
+          if (error) throw error;
+          updatedDiarista = true;
+          toast.success("Diarista atualizado com sucesso");
+        }
       } else {
+        const finalSpecificPaths = await uploadSpecificAttachments(diaristaId);
         const { error } = await supabase.from("diaristas").insert([
           {
             id: diaristaId,
@@ -496,10 +540,14 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
           },
         ]);
         if (error) throw error;
+        updatedDiarista = true;
         toast.success("Diarista cadastrado com sucesso");
       }
 
       await uploadAttachments(diaristaId);
+      if (diarista && !updatedDiarista && hasNewFiles) {
+        toast.success("Anexos atualizados.");
+      }
 
       onSuccess();
     } catch (error: any) {

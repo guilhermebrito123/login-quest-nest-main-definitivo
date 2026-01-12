@@ -766,7 +766,6 @@ export type Database = {
           aprovada_para_pagamento_em: string | null
           aprovada_por: string | null
           aprovado_para_pgto_por: string | null
-          beneficiario_alternativo: string | null
           cancelada_em: string | null
           cancelada_por: string | null
           cliente_id: number
@@ -807,13 +806,12 @@ export type Database = {
           outros_motivos_reprovacao_pagamento: string | null
           paga_em: string | null
           paga_por: string | null
-          pix_alternativo: string | null
           posto_servico: string | null
           posto_servico_id: string | null
           reprovada_em: string | null
           reprovada_por: string | null
           status: Database["public"]["Enums"]["status_diaria"]
-          unidade: string | null
+          unidade: string
           updated_at: string
           valor_diaria: number
         }
@@ -822,7 +820,6 @@ export type Database = {
           aprovada_para_pagamento_em?: string | null
           aprovada_por?: string | null
           aprovado_para_pgto_por?: string | null
-          beneficiario_alternativo?: string | null
           cancelada_em?: string | null
           cancelada_por?: string | null
           cliente_id: number
@@ -863,13 +860,12 @@ export type Database = {
           outros_motivos_reprovacao_pagamento?: string | null
           paga_em?: string | null
           paga_por?: string | null
-          pix_alternativo?: string | null
           posto_servico?: string | null
           posto_servico_id?: string | null
           reprovada_em?: string | null
           reprovada_por?: string | null
           status?: Database["public"]["Enums"]["status_diaria"]
-          unidade?: string | null
+          unidade: string
           updated_at?: string
           valor_diaria: number
         }
@@ -878,7 +874,6 @@ export type Database = {
           aprovada_para_pagamento_em?: string | null
           aprovada_por?: string | null
           aprovado_para_pgto_por?: string | null
-          beneficiario_alternativo?: string | null
           cancelada_em?: string | null
           cancelada_por?: string | null
           cliente_id?: number
@@ -919,13 +914,12 @@ export type Database = {
           outros_motivos_reprovacao_pagamento?: string | null
           paga_em?: string | null
           paga_por?: string | null
-          pix_alternativo?: string | null
           posto_servico?: string | null
           posto_servico_id?: string | null
           reprovada_em?: string | null
           reprovada_por?: string | null
           status?: Database["public"]["Enums"]["status_diaria"]
-          unidade?: string | null
+          unidade?: string
           updated_at?: string
           valor_diaria?: number
         }
@@ -1126,6 +1120,7 @@ export type Database = {
           email: string | null
           endereco: string | null
           id: string
+          motivo_alteracao: string | null
           motivo_restricao: string | null
           nome_completo: string
           numero_conta: string | null
@@ -1151,6 +1146,7 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           id?: string
+          motivo_alteracao?: string | null
           motivo_restricao?: string | null
           nome_completo: string
           numero_conta?: string | null
@@ -1176,6 +1172,7 @@ export type Database = {
           email?: string | null
           endereco?: string | null
           id?: string
+          motivo_alteracao?: string | null
           motivo_restricao?: string | null
           nome_completo?: string
           numero_conta?: string | null
@@ -1223,6 +1220,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "diaristas_anexos_diarista_id_fkey"
+            columns: ["diarista_id"]
+            isOneToOne: false
+            referencedRelation: "diaristas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diaristas_historico: {
+        Row: {
+          alterado_em: string | null
+          campo_alterado: string
+          diarista_id: string
+          id: string
+          motivo: string
+          valor_anterior: string | null
+          valor_novo: string | null
+        }
+        Insert: {
+          alterado_em?: string | null
+          campo_alterado: string
+          diarista_id: string
+          id?: string
+          motivo: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Update: {
+          alterado_em?: string | null
+          campo_alterado?: string
+          diarista_id?: string
+          id?: string
+          motivo?: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diaristas_historico_diarista_id_fkey"
             columns: ["diarista_id"]
             isOneToOne: false
             referencedRelation: "diaristas"

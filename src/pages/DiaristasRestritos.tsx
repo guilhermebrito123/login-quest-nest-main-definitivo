@@ -32,6 +32,7 @@ type DiaristaRestritoRow = {
   anexo_comprovante_endereco?: string | null;
   anexo_dados_bancarios?: string | null;
   anexo_possui_antecedente?: string | null;
+  motivo_restricao?: string | null;
   status: string | null;
 };
 
@@ -269,6 +270,14 @@ export default function DiaristasRestritos() {
                   <p className="text-xs text-muted-foreground">Status</p>
                   <p className="font-medium break-words">{diaristaDetalhe.status || "-"}</p>
                 </div>
+                {diaristaDetalhe.status === "restrito" && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-muted-foreground">Motivo restricao</p>
+                    <p className="font-medium break-words">
+                      {diaristaDetalhe.motivo_restricao || "-"}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-muted-foreground">Banco</p>
                   <p className="font-medium break-words">{diaristaDetalhe.banco || "-"}</p>

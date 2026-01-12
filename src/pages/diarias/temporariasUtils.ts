@@ -90,8 +90,6 @@ export type DiariaTemporaria = {
   ok_pagamento_por?: string | null;
   observacao_pagamento?: string[] | null;
   outros_motivos_reprovacao_pagamento?: string | null;
-  pix_alternativo?: string | null;
-  beneficiario_alternativo?: string | null;
   diarista?: Diarista | null;
   colaborador?: ColaboradorAlocado | null;
   posto?: PostoServicoResumo | null;

@@ -20,6 +20,7 @@ import Ativos from "./pages/Ativos";
 import Estoque from "./pages/Estoque";
 import Diaristas from "./pages/Diaristas";
 import DiaristasRestritos from "./pages/DiaristasRestritos";
+import DiaristasLogs from "./pages/DiaristasLogs";
 import {
   DiariasAguardandoPage,
   DiariasConfirmadasPage,
@@ -81,6 +82,7 @@ const App = () => (
           <Route path="/estoque" element={<ProtectedRoute><Estoque /></ProtectedRoute>} />
           <Route path="/diaristas" element={<ProtectedRoute><Diaristas /></ProtectedRoute>} />
           <Route path="/diaristas-restritos" element={<ProtectedRoute><DiaristasRestritos /></ProtectedRoute>} />
+          <Route path="/diaristas/logs" element={<ProtectedRoute><DiaristasLogs /></ProtectedRoute>} />
           <Route path="/diarias/aguardando" element={<ProtectedRoute><DiariasAguardandoPage /></ProtectedRoute>} />
           <Route path="/diarias/confirmadas" element={<ProtectedRoute><DiariasConfirmadasPage /></ProtectedRoute>} />
           <Route path="/diarias/aprovadas" element={<ProtectedRoute><DiariasAprovadasPage /></ProtectedRoute>} />

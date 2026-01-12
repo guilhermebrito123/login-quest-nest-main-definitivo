@@ -93,8 +93,6 @@ const TooltipLabel = ({
   licencaNojo: null as boolean | null,
   colaboradorDemitidoNome: "",
   observacao: "",
-  pixAlternativo: "",
-  beneficiarioAlternativo: "",
 };
 
 const Diarias2 = () => {
@@ -255,6 +253,21 @@ const Diarias2 = () => {
         toast.error("Informe se e licenca nojo.");
         return;
       }
+      if (
+        formState.demissao === true &&
+        !toTrimOrNull(formState.colaboradorDemitidoNome)
+      ) {
+        toast.error("Informe o colaborador demitido.");
+        return;
+      }
+      if (
+        formState.demissao === false &&
+        formState.licencaNojo === true &&
+        !toTrimOrNull(formState.colaboradorNome)
+      ) {
+        toast.error("Informe o colaborador falecido.");
+        return;
+      }
     }
 
     const valorNumber = Number(formState.valorDiaria);
@@ -272,7 +285,10 @@ const Diarias2 = () => {
     const postoInfo = formState.postoServicoId ? postoMap.get(formState.postoServicoId) : null;
     const unidadeValue =
       toUpperOrNull(formState.unidade) || toUpperOrNull(postoInfo?.unidade?.nome);
-    const colaboradorAusente = null;
+    if (!unidadeValue) {
+      toast.error("Informe a unidade.");
+      return;
+    }
     const colaboradorNomeUpper = toUpperOrNull(formState.colaboradorNome);
     const clienteIdValue = clienteIdNumber;
     const demissaoValue = isMotivoVagaEmAberto ? formState.demissao : null;
@@ -290,14 +306,11 @@ const Diarias2 = () => {
         : null;
     const colaboradorAusenteNome =
       isMotivoVagaEmAberto || isMotivoLicencaNojo ? null : colaboradorNomeUpper;
-    const colaboradorDemitidoValue = null;
     const colaboradorDemitidoNomeValue =
       isMotivoVagaEmAberto && demissaoValue === true
         ? toUpperOrNull(formState.colaboradorDemitidoNome)
         : null;
     const observacaoValue = toUpperOrNull(formState.observacao);
-    const pixAlternativoValue = toTrimOrNull(formState.pixAlternativo);
-    const beneficiarioAlternativoValue = toUpperOrNull(formState.beneficiarioAlternativo);
     const motivoVagoValue = (formState.motivoVago || "").toUpperCase();
 
     const diaristaOcupado = diarias.some(
@@ -323,11 +336,9 @@ const Diarias2 = () => {
         horario_inicio: formState.horarioInicio,
         horario_fim: formState.horarioFim,
         intervalo: intervaloNumber,
-        colaborador_ausente: colaboradorAusente,
         colaborador_ausente_nome: colaboradorAusenteNome,
         colaborador_falecido: colaboradorFalecido,
         posto_servico_id: formState.postoServicoId || null,
-        posto_servico: null,
         unidade: unidadeValue,
         cliente_id: clienteIdValue,
         valor_diaria: valorNumber,
@@ -336,11 +347,8 @@ const Diarias2 = () => {
         demissao: demissaoValue,
         licenca_nojo: licencaNojoValue,
         novo_posto: novoPostoValue,
-        colaborador_demitido: colaboradorDemitidoValue,
         colaborador_demitido_nome: colaboradorDemitidoNomeValue,
         observacao: observacaoValue,
-        pix_alternativo: pixAlternativoValue,
-        beneficiario_alternativo: beneficiarioAlternativoValue,
         criado_por: userId,
       });
       if (error) throw error;
@@ -568,10 +576,11 @@ const Diarias2 = () => {
                   {formState.demissao === false && formState.licencaNojo === true && (
                     <div className="space-y-2">
                       <TooltipLabel
-                        label="Colaborador falecido (opcional)"
-                        tooltip="Informe o colaborador falecido, se quiser registrar."
+                        label="Colaborador falecido"
+                        tooltip="Obrigatorio quando for licenca nojo."
                       />
                       <Input
+                        required
                         value={formState.colaboradorNome}
                         onChange={(event) => handleColaboradorNomeChange(event.target.value)}
                         placeholder="Nome do colaborador falecido"
@@ -582,10 +591,11 @@ const Diarias2 = () => {
                   {formState.demissao === true && (
                     <div className="space-y-2">
                       <TooltipLabel
-                        label="Colaborador demitido (opcional)"
-                        tooltip="Use para registrar quem foi demitido (CASO NÃO SAIBA, NÃO PRECISA PREENCHER)."
+                        label="Colaborador demitido"
+                        tooltip="Obrigatorio quando for demissao."
                       />
                       <Input
+                        required
                         value={formState.colaboradorDemitidoNome}
                         onChange={(event) =>
                           setFormState((prev) => ({
@@ -672,15 +682,16 @@ const Diarias2 = () => {
 
               <div className="space-y-2">
                 <TooltipLabel
-                  label="Unidade (opcional)"
-                  tooltip="Informe a unidade em que a diária será realizada."
+                  label="Unidade"
+                  tooltip="Informe a unidade em que a diaria sera realizada."
                 />
                 <Input
+                  required
                   value={formState.unidade}
                   onChange={(event) =>
                     setFormState((prev) => ({ ...prev, unidade: event.target.value }))
                   }
-                  placeholder="Nome da unidade (opcional)"
+                  placeholder="Nome da unidade"
                 />
               </div>
 
@@ -751,32 +762,6 @@ const Diarias2 = () => {
                     })}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <TooltipLabel
-                  label="Pix alternativo (opcional)"
-                  tooltip="Informe uma chave Pix alternativa, se o pagamento nao for para o diarista."
-                />
-                <Input
-                  value={formState.pixAlternativo}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, pixAlternativo: event.target.value }))}
-                  placeholder="Opcional"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <TooltipLabel
-                  label="Beneficiario alternativo (opcional)"
-                  tooltip="Nome do beneficiario alternativo quando o Pix nao for do diarista."
-                />
-                <Input
-                  value={formState.beneficiarioAlternativo}
-                  onChange={(event) =>
-                    setFormState((prev) => ({ ...prev, beneficiarioAlternativo: event.target.value }))
-                  }
-                  placeholder="Opcional"
-                />
               </div>
 
               <div className="space-y-2 md:col-span-2">

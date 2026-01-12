@@ -187,12 +187,34 @@ export default function Diaristas() {
         `Confirmar alteracao de status para "${nextStatus}"?`,
       );
       if (!confirmed) return;
+    } else {
+      return;
+    }
+    let motivoRestricao: string | null = null;
+    if (nextStatus === "restrito") {
+      const motivo = window.prompt("Informe o motivo da restricao para este diarista.");
+      const trimmed = (motivo ?? "").trim();
+      if (!trimmed) {
+        toast.error("Motivo de restricao obrigatorio para status restrito.");
+        return;
+      }
+      motivoRestricao = trimmed;
+    }
+    const motivoAlteracaoPrompt = window.prompt("Informe o motivo da alteracao do diarista.");
+    const motivoAlteracao = (motivoAlteracaoPrompt ?? "").trim();
+    if (!motivoAlteracao) {
+      toast.error("Motivo da alteracao obrigatorio.");
+      return;
     }
     setStatusUpdatingId(diaristaId);
     try {
       const { error } = await supabase
         .from("diaristas")
-        .update({ status: nextStatus })
+        .update({
+          status: nextStatus,
+          motivo_alteracao: motivoAlteracao,
+          ...(motivoRestricao ? { motivo_restricao: motivoRestricao } : {}),
+        })
         .eq("id", diaristaId);
       if (error) throw error;
       toast.success("Status do diarista atualizado.");
@@ -511,6 +533,14 @@ export default function Diaristas() {
                   <p className="text-xs text-muted-foreground">Status</p>
                   <p className="font-medium break-words">{diaristaDetalhe.status}</p>
                 </div>
+                {diaristaDetalhe.status === "restrito" && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-muted-foreground">Motivo restricao</p>
+                    <p className="font-medium break-words">
+                      {diaristaDetalhe.motivo_restricao || "-"}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-muted-foreground">Banco</p>
                   <p className="font-medium break-words">{diaristaDetalhe.banco || "-"}</p>

@@ -284,12 +284,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [bulkStatusSelection, setBulkStatusSelection] = useState("");
-    const [bulkPixDialogOpen, setBulkPixDialogOpen] = useState(false);
-    const [bulkPixForm, setBulkPixForm] = useState({
-      pixAlternativo: "",
-      beneficiarioAlternativo: "",
-    });
-    const [bulkPixSaving, setBulkPixSaving] = useState(false);
     const [groupOkSavingKey, setGroupOkSavingKey] = useState<string | null>(null);
     const [groupLancarSavingKey, setGroupLancarSavingKey] = useState<string | null>(null);
     const [groupDetailsDialogOpen, setGroupDetailsDialogOpen] = useState(false);
@@ -327,8 +321,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       licencaNojo: null as boolean | null,
       novoPosto: null as boolean | null,
       observacao: "",
-      pixAlternativo: "",
-      beneficiarioAlternativo: "",
     });
     const [filters, setFilters] = useState({
       diariaId: "",
@@ -372,7 +364,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const [extraUserMap, setExtraUserMap] = useState<Map<string, string>>(new Map());
 
     const normalizedKey = normalizeStatus(statusKey);
-    const isAguardandoPage = normalizedKey === normalizeStatus(STATUS.aguardando);
+    const normalizedAguardandoStatus = normalizeStatus(STATUS.aguardando);
+    const isAguardandoPage = normalizedKey === normalizedAguardandoStatus;
     const isConfirmadaPage = normalizedKey === normalizeStatus(STATUS.confirmada);
     const normalizedCancelStatus = normalizeStatus(STATUS.cancelada);
     const normalizedReprovadaStatus = normalizeStatus(STATUS.reprovada);
@@ -382,7 +375,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const isPagaPage = normalizedKey === normalizeStatus(STATUS.paga);
     const isLancadaPage = normalizedKey === normalizeStatus(STATUS.lancada);
     const isAprovadaPage = normalizedKey === normalizeStatus(STATUS.aprovada);
-    const allowBulkPixUpdate = !isPagaPage && !isReprovadaPage && !isCancelPage;
+    const canEditDiaria = (diaria?: DiariaTemporaria | null) =>
+      normalizeStatus(diaria?.status || "") === normalizedAguardandoStatus;
     const statusResponsavelField = useMemo(() => {
       const map = new Map<string, keyof DiariaTemporaria>([
         [normalizeStatus(STATUS.confirmada), "confirmada_por"],
@@ -464,6 +458,24 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const [hour = "", minute = ""] = value.split(":");
       if (!hour && !minute) return value;
       return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+    };
+
+    const getDateKeyFromValue = (value?: string | null) => {
+      if (!value) return "";
+      const trimmed = value.trim();
+      if (!trimmed) return "";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+      const normalized = trimmed.replace(" ", "T");
+      const hasTimezone = /([+-]\d{2}:?\d{2}|Z)$/i.test(normalized);
+      const iso = hasTimezone ? normalized : `${normalized}Z`;
+      const parsed = new Date(iso);
+      if (Number.isNaN(parsed.getTime())) return "";
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(parsed);
     };
 
     const formatJornadaValue = (value?: number | null) => {
@@ -631,22 +643,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       () => diariasDoStatusFull.filter((diaria) => selectedIds.has(diaria.id.toString())),
       [diariasDoStatusFull, selectedIds],
     );
-
-    const selectedDiaristaId = useMemo(() => {
-      let diaristaId: string | null = null;
-      for (const diaria of selectedDiarias) {
-        if (!diaria.diarista_id) return null;
-        if (diaristaId && diaristaId !== diaria.diarista_id) return null;
-        diaristaId = diaria.diarista_id;
-      }
-      return diaristaId;
-    }, [selectedDiarias]);
-
-    const selectedDiaristaNome = useMemo(() => {
-      if (!selectedDiaristaId) return "";
-      const diaristaInfo = diaristaMap.get(selectedDiaristaId);
-      return diaristaInfo?.nome_completo || "Diarista";
-    }, [selectedDiaristaId, diaristaMap]);
 
     const diariasDoStatus = useMemo(
       () => filteredDiarias.filter((diaria) => normalizeStatus(diaria.status) === normalizedKey),
@@ -970,19 +966,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         }
 
         if (statusDateConfig && (filters.statusDateStart || filters.statusDateEnd)) {
-          if (!statusDateValue) return false;
-          const statusDate = new Date(statusDateValue);
-          if (Number.isNaN(statusDate.getTime())) return false;
-          if (filters.statusDateStart) {
-            const statusStart = new Date(filters.statusDateStart);
-            if (Number.isNaN(statusStart.getTime()) || statusDate < statusStart) return false;
-          }
-          if (filters.statusDateEnd) {
-            const statusEnd = new Date(filters.statusDateEnd);
-            if (Number.isNaN(statusEnd.getTime())) return false;
-            statusEnd.setHours(23, 59, 59, 999);
-            if (statusDate > statusEnd) return false;
-          }
+          const statusDateKey = getDateKeyFromValue(statusDateValue);
+          if (!statusDateKey) return false;
+          if (filters.statusDateStart && statusDateKey < filters.statusDateStart) return false;
+          if (filters.statusDateEnd && statusDateKey > filters.statusDateEnd) return false;
         }
 
         if (filters.diaristaId && filters.diaristaId !== diaristaId) {
@@ -1051,8 +1038,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             diaristaNome: string;
             diaristaCpf: string | null;
             diaristaPix: string | null;
-            pixAlternativo: string | null;
-            beneficiarioAlternativo: string | null;
             totalValor: number;
             count: number;
             ids: Array<string | number>;
@@ -1066,12 +1051,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const postoInfo =
           diaria.posto || (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
         const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
-        const pixAlternativo = toTrimOrNull(diaria.pix_alternativo);
-        const beneficiarioAlternativo = toTrimOrNull(diaria.beneficiario_alternativo);
         const diaristaKey = diaristaId || `no-diarista-${diaria.id}`;
         const diaristaInfo = diaristaId ? diaristaMap.get(diaristaId) : null;
         const diaristaCpfKey = diaristaInfo?.cpf ? stripNonDigits(diaristaInfo.cpf) : "";
-        const key = `${diaristaKey}||${diaristaCpfKey}||${pixAlternativo ?? ""}||${beneficiarioAlternativo ?? ""}`;
+        const key = `${diaristaKey}||${diaristaCpfKey}`;
         const group =
           groups.get(key) ||
           {
@@ -1080,8 +1063,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             diaristaNome: diaristaInfo?.nome_completo || "-",
             diaristaCpf: diaristaInfo?.cpf ?? null,
             diaristaPix: diaristaInfo?.pix ?? null,
-            pixAlternativo,
-            beneficiarioAlternativo,
             totalValor: 0,
             count: 0,
             ids: [],
@@ -1213,22 +1194,20 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         "Tipo de conta": diaristaInfo?.tipo_conta || "-",
         Pix: diaristaInfo?.pix || "-",
         "Pix pertence diarista": formatPixPertence(diaristaInfo?.pix_pertence_beneficiario),
-        "Pix alternativo": diaria.pix_alternativo ?? "",
-        "Beneficiario alternativo": diaria.beneficiario_alternativo ?? "",
         Observacao: diaria.observacao?.trim() || "",
         "Criado por": criadoPorNome,
         "Criada em": formatDate(diaria.created_at),
       };
-      baseRow["Confirmada em"] = formatDate(diaria.confirmada_em);
+      baseRow["Confirmada em"] = formatDateTime(diaria.confirmada_em);
       if (isPagaPage) {
-        baseRow["OK pagamento em"] = formatDate(diaria.ok_pagamento_em);
+        baseRow["OK pagamento em"] = formatDateTime(diaria.ok_pagamento_em);
       } else {
-        baseRow["Aprovada em"] = formatDate(diaria.aprovada_em);
+        baseRow["Aprovada em"] = formatDateTime(diaria.aprovada_em);
       }
-      baseRow["Lancada em"] = formatDate(diaria.lancada_em);
-      baseRow["Paga em"] = formatDate(diaria.paga_em);
-      baseRow["Cancelada em"] = formatDate(diaria.cancelada_em);
-      baseRow["Reprovada em"] = formatDate(diaria.reprovada_em);
+      baseRow["Lancada em"] = formatDateTime(diaria.lancada_em);
+      baseRow["Paga em"] = formatDateTime(diaria.paga_em);
+      baseRow["Cancelada em"] = formatDateTime(diaria.cancelada_em);
+      baseRow["Reprovada em"] = formatDateTime(diaria.reprovada_em);
       baseRow["OK pagamento?"] =
         diaria.ok_pagamento === true ? "Sim" : diaria.ok_pagamento === false ? "Nao" : "-";
       baseRow["Observacao pagamento"] = formatObservacaoPagamento(diaria.observacao_pagamento);
@@ -1287,12 +1266,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           (a.data_diaria || "").localeCompare(b.data_diaria || ""),
         );
         const groupIdsLabel = sortedGroupDiarias.map((diaria) => diaria.id).join(", ");
-        const hasAlternativo = Boolean(group.pixAlternativo) || Boolean(group.beneficiarioAlternativo);
-        const beneficiario = hasAlternativo
-          ? group.beneficiarioAlternativo
-            ? `${group.beneficiarioAlternativo} (${group.diaristaNome})`
-            : group.diaristaNome
-          : group.diaristaNome;
+        const beneficiario = group.diaristaNome;
         const aprovacao =
           groupDiarias.length > 0 && groupDiarias.every((diaria) => diaria.ok_pagamento === true)
             ? "OK"
@@ -2130,6 +2104,13 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     };
 
     const openEditDialog = (diaria: DiariaTemporaria) => {
+      if (!canEditDiaria(diaria)) {
+        const statusLabel = diaria.status || "-";
+        toast.error(
+          `Diaria nao pode ser editada quando o status e "${statusLabel}". Apenas diarias com status "Aguardando confirmacao" podem ser editadas.`,
+        );
+        return;
+      }
       const postoInfo =
         diaria.posto ||
         (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
@@ -2154,8 +2135,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         licencaNojo: typeof diaria.licenca_nojo === "boolean" ? diaria.licenca_nojo : null,
         novoPosto: typeof diaria.novo_posto === "boolean" ? diaria.novo_posto : null,
         observacao: diaria.observacao || "",
-        pixAlternativo: diaria.pix_alternativo || "",
-        beneficiarioAlternativo: diaria.beneficiario_alternativo || "",
       });
       setEditDialogOpen(true);
     };
@@ -2168,6 +2147,18 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
     const handleEditSubmit = async () => {
       if (!editingDiariaId) return;
+      const editingDiaria = diarias.find((item) => item.id.toString() === editingDiariaId);
+      if (!editingDiaria) {
+        toast.error("Nao foi possivel validar o status da diaria. Atualize e tente novamente.");
+        return;
+      }
+      if (!canEditDiaria(editingDiaria)) {
+        const statusLabel = editingDiaria.status || "-";
+        toast.error(
+          `Diaria nao pode ser editada quando o status e "${statusLabel}". Apenas diarias com status "Aguardando confirmacao" podem ser editadas.`,
+        );
+        return;
+      }
       const isMotivoVaga = isVagaEmAberto(editForm.motivoVago);
       const isMotivoLicenca = isLicencaNojo(editForm.motivoVago);
 
@@ -2212,6 +2203,18 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           toast.error("Informe se e licenca nojo.");
           return;
         }
+        if (editForm.demissao === true && !toTrimOrNull(editForm.colaboradorDemitidoNome)) {
+          toast.error("Informe o colaborador demitido.");
+          return;
+        }
+        if (
+          editForm.demissao === false &&
+          editForm.licencaNojo === true &&
+          !toTrimOrNull(editForm.colaboradorNome)
+        ) {
+          toast.error("Informe o colaborador falecido.");
+          return;
+        }
       }
 
       const valorNumber = Number(editForm.valorDiaria);
@@ -2241,6 +2244,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         const unidadeValue =
           toUpperOrNull(editForm.unidade) ||
           toUpperOrNull(postoSelecionado?.unidade ?? postoInfo?.unidade?.nome);
+      if (!unidadeValue) {
+        toast.error("Informe a unidade.");
+        return;
+      }
       const postoServicoIdValue = editForm.postoServicoId || null;
       const motivoVagoValue = (editForm.motivoVago || "").toUpperCase();
       const demissaoValue = isMotivoVaga ? editForm.demissao : null;
@@ -2257,8 +2264,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const colaboradorDemitidoNomeValue =
         isMotivoVaga && demissaoValue === true ? toUpperOrNull(editForm.colaboradorDemitidoNome) : null;
       const observacaoValue = toUpperOrNull(editForm.observacao);
-      const pixAlternativoValue = toTrimOrNull(editForm.pixAlternativo);
-      const beneficiarioAlternativoValue = toUpperOrNull(editForm.beneficiarioAlternativo);
 
       setEditingSaving(true);
       try {
@@ -2273,20 +2278,15 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             diarista_id: editForm.diaristaId,
             motivo_vago: motivoVagoValue || null,
             posto_servico_id: postoServicoIdValue,
-            posto_servico: postoSelecionado?.nome ? toUpperOrNull(postoSelecionado.nome) : null,
             unidade: unidadeValue,
             cliente_id: clienteIdNumber,
-            colaborador_ausente: null,
             colaborador_ausente_nome: colaboradorAusenteNomeValue,
             colaborador_falecido: colaboradorFalecidoValue,
-            colaborador_demitido: null,
             colaborador_demitido_nome: colaboradorDemitidoNomeValue,
             demissao: demissaoValue,
             licenca_nojo: licencaNojoValue,
             novo_posto: novoPostoValue,
             observacao: observacaoValue,
-            pix_alternativo: pixAlternativoValue,
-            beneficiario_alternativo: beneficiarioAlternativoValue,
           })
           .eq("id", editingDiariaId);
         if (error) throw error;
@@ -2409,60 +2409,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
     };
 
-    const closeBulkPixDialog = () => {
-      setBulkPixDialogOpen(false);
-      setBulkPixForm({ pixAlternativo: "", beneficiarioAlternativo: "" });
-    };
-
-    const handleBulkPixApply = async () => {
-      const pixAlternativoValue = toTrimOrNull(bulkPixForm.pixAlternativo);
-      const beneficiarioAlternativoValue = toUpperOrNull(bulkPixForm.beneficiarioAlternativo);
-      const ids = Array.from(selectedIds);
-
-      if (ids.length === 0) {
-        toast.info("Nenhuma diaria selecionada.");
-        return;
-      }
-      if (!pixAlternativoValue && !beneficiarioAlternativoValue) {
-        toast.error("Informe o Pix alternativo ou o beneficiario alternativo.");
-        return;
-      }
-      if (!selectedDiaristaId) {
-        toast.error("Selecione apenas diarias do mesmo diarista para aplicar.");
-        return;
-      }
-
-      const updatePayload: Record<string, string | null> = {};
-      if (pixAlternativoValue) updatePayload.pix_alternativo = pixAlternativoValue;
-      if (beneficiarioAlternativoValue) {
-        updatePayload.beneficiario_alternativo = beneficiarioAlternativoValue;
-      }
-
-      const diaristaLabel = selectedDiaristaNome || "diarista selecionado";
-      const message = `Aplicar dados de pagamento alternativo em ${ids.length} diaria(s) de ${diaristaLabel}?`;
-      if (typeof window !== "undefined" && !window.confirm(message)) return;
-
-      setBulkPixSaving(true);
-      try {
-        const { error } = await supabase
-          .from("diarias_temporarias")
-          .update(updatePayload)
-          .in("id", ids);
-        if (error) throw error;
-        toast.success("Dados de pagamento alternativo atualizados.");
-        clearSelection();
-        closeBulkPixDialog();
-        await refetchDiarias();
-      } catch (error: any) {
-        toast.error(error.message || "Erro ao atualizar dados de pagamento.");
-      } finally {
-        setBulkPixSaving(false);
-      }
-    };
-
     useEffect(() => {
       clearSelection();
-      closeBulkPixDialog();
       setGroupOkSavingKey(null);
     }, [normalizedKey]);
 
@@ -2509,11 +2457,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         if (isPagaPage && field === "aprovada_em") {
           const okValue = selectedDiaria?.ok_pagamento_em;
           if (!okValue) return null;
-          return { label: "OK pagamento em", value: formatDate(okValue) };
+          return { label: "OK pagamento em", value: formatDateTime(okValue) };
         }
         const value = selectedDiaria ? (selectedDiaria as any)[field] : null;
         if (!value) return null;
-        return { label, value: formatDate(value) };
+        return { label, value: formatDateTime(value) };
       }).filter(Boolean) as { label: string; value: string }[];
       return items;
     }, [isPagaPage, selectedDiaria]);
@@ -2531,11 +2479,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const showEnumMotivoReprovacao =
       isConfirmadaPage &&
       normalizeStatus(reasonDialog.targetStatus || "") === normalizedReprovadaStatus;
-    const bulkPixHasValues =
-      Boolean(toTrimOrNull(bulkPixForm.pixAlternativo)) ||
-      Boolean(toTrimOrNull(bulkPixForm.beneficiarioAlternativo));
-    const bulkPixApplyDisabled =
-      bulkPixSaving || selectedIds.size === 0 || !selectedDiaristaId || !bulkPixHasValues;
     const showGroupedLancadas =
       (isLancadaPage || isAprovadaPage || isPagaPage) && lancadasView === "agrupadas";
 
@@ -2908,10 +2851,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                               <TableHead>Diarista</TableHead>
                               <TableHead>Cliente</TableHead>
                               <TableHead className="hidden md:table-cell">Pix do diarista</TableHead>
-                              <TableHead className="hidden md:table-cell">Pix alternativo</TableHead>
-                              <TableHead className="hidden md:table-cell">
-                                Beneficiario alternativo
-                              </TableHead>
                               <TableHead className="hidden md:table-cell">Qtd</TableHead>
                               <TableHead className="hidden md:table-cell">Total</TableHead>
                               {(isLancadaPage || isAprovadaPage) && (
@@ -2950,13 +2889,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                         Pix do diarista: {group.diaristaPix || "-"}
                                       </span>
                                       <span className="text-xs text-muted-foreground md:hidden">
-                                        Pix alternativo: {group.pixAlternativo || "-"}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground md:hidden">
-                                        Beneficiario alternativo:{" "}
-                                        {group.beneficiarioAlternativo || "-"}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground md:hidden">
                                         Qtd: {group.count} | Total:{" "}
                                         {currencyFormatter.format(group.totalValor)}
                                       </span>
@@ -2967,12 +2899,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                   </TableCell>
                                   <TableCell className="hidden md:table-cell">
                                     {group.diaristaPix || "-"}
-                                  </TableCell>
-                                  <TableCell className="hidden md:table-cell">
-                                    {group.pixAlternativo || "-"}
-                                  </TableCell>
-                                  <TableCell className="hidden md:table-cell">
-                                    {group.beneficiarioAlternativo || "-"}
                                   </TableCell>
                                   <TableCell className="hidden md:table-cell">{group.count}</TableCell>
                                   <TableCell className="hidden md:table-cell">
@@ -3060,15 +2986,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 <Button variant="outline" onClick={() => setTotalDialogOpen(true)}>
                   Filtragem Avançada
                 </Button>
-                {allowBulkPixUpdate && (
-                  <Button
-                    variant="outline"
-                    disabled={selectedIds.size === 0}
-                    onClick={() => setBulkPixDialogOpen(true)}
-                  >
-                    Insira Pix alternativo
-                  </Button>
-                )}
                 <Button
                   variant="default"
                   className="bg-emerald-600 text-white hover:bg-emerald-700"
@@ -3131,7 +3048,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         <TableHead className="hidden md:table-cell">Colaborador</TableHead>
                         <TableHead className="hidden md:table-cell">Cliente</TableHead>
                         <TableHead>Diarista</TableHead>
-                        <TableHead className="hidden md:table-cell">Beneficiario alternativo</TableHead>
                         <TableHead className="hidden md:table-cell">Motivo</TableHead>
                         <TableHead className="hidden md:table-cell">Valor</TableHead>
                         <TableHead className="hidden md:table-cell">Pix do diarista</TableHead>
@@ -3203,10 +3119,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             <TableCell>
                               <div className="flex flex-col gap-2">
                                 <span>{diaristaInfo?.nome_completo || "-"}</span>
-                                <span className="text-xs text-muted-foreground md:hidden">
-                                  Beneficiario alternativo:{" "}
-                                  {diaria.beneficiario_alternativo || "-"}
-                                </span>
                                 <div
                                   className="md:hidden flex flex-col gap-2 pt-2"
                                   onClick={(event) => event.stopPropagation()}
@@ -3226,6 +3138,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                       size="sm"
                                       variant="default"
                                       className="bg-amber-400 text-black hover:bg-amber-500"
+                                      disabled={!canEditDiaria(diaria)}
                                       onClick={() => {
                                         openEditDialog(diaria);
                                       }}
@@ -3284,9 +3197,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              {diaria.beneficiario_alternativo || "-"}
-                            </TableCell>
                             <TableCell className="hidden md:table-cell">{diaria.motivo_vago || "-"}</TableCell>
                           <TableCell className="hidden md:table-cell">
                             {currencyFormatter.format(diaria.valor_diaria || 0)}
@@ -3314,6 +3224,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                       size="sm"
                                       variant="default"
                                       className="bg-amber-400 text-black hover:bg-amber-500"
+                                      disabled={!canEditDiaria(diaria)}
                                       onClick={(event) => {
                                         event.stopPropagation();
                                         openEditDialog(diaria);
@@ -3790,77 +3701,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         </Dialog>
 
         <Dialog
-          open={bulkPixDialogOpen}
-          onOpenChange={(open) => (open ? setBulkPixDialogOpen(true) : closeBulkPixDialog())}
-        >
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Insira pix alternativo</DialogTitle>
-              <DialogDescription>
-                Atualize o Pix alternativo e beneficiario alternativo para as diarias selecionadas.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div className="rounded-md border px-3 py-2 text-sm">
-                <p>
-                  <span className="font-semibold">Selecionadas:</span> {selectedIds.size} diaria(s)
-                </p>
-                <p>
-                  <span className="font-semibold">Diarista:</span>{" "}
-                  {selectedDiaristaNome || "Selecione um unico diarista"}
-                </p>
-              </div>
-              {!selectedDiaristaId && selectedIds.size > 0 && (
-                <p className="text-sm text-destructive">
-                  Selecione apenas diarias do mesmo diarista para aplicar.
-                </p>
-              )}
-              <div className="space-y-1">
-                <TooltipLabel
-                  htmlFor="bulk-pix-alternativo"
-                  label="Pix alternativo (opcional)"
-                  tooltip="Chave Pix alternativa para pagamento."
-                />
-                <Input
-                  id="bulk-pix-alternativo"
-                  value={bulkPixForm.pixAlternativo}
-                  onChange={(event) =>
-                    setBulkPixForm((prev) => ({ ...prev, pixAlternativo: event.target.value }))
-                  }
-                  placeholder="Opcional"
-                />
-              </div>
-              <div className="space-y-1">
-                <TooltipLabel
-                  htmlFor="bulk-beneficiario-alternativo"
-                  label="Beneficiario alternativo (opcional)"
-                  tooltip="Nome do beneficiario quando o Pix nao for do diarista."
-                />
-                <Input
-                  id="bulk-beneficiario-alternativo"
-                  value={bulkPixForm.beneficiarioAlternativo}
-                  onChange={(event) =>
-                    setBulkPixForm((prev) => ({
-                      ...prev,
-                      beneficiarioAlternativo: event.target.value.toUpperCase(),
-                    }))
-                  }
-                  placeholder="Opcional"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeBulkPixDialog}>
-                Cancelar
-              </Button>
-              <Button type="button" onClick={handleBulkPixApply} disabled={bulkPixApplyDisabled}>
-                {bulkPixSaving ? "Aplicando..." : "Aplicar"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
           open={groupDetailsDialogOpen}
           onOpenChange={(open) => (open ? null : closeGroupDetailsDialog())}
         >
@@ -3889,14 +3729,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       <p className="font-medium break-all">
                         {selectedGroup.diaristaPix || selectedGroupDiaristaInfo?.pix || "-"}
                       </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Pix alternativo</p>
-                      <p className="font-medium break-all">{selectedGroup.pixAlternativo || "-"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Beneficiario alternativo</p>
-                      <p className="font-medium">{selectedGroup.beneficiarioAlternativo || "-"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Qtd</p>
@@ -4404,14 +4236,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         {formatPixPertence(selectedDiaristaInfo?.pix_pertence_beneficiario)}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Pix alternativo</p>
-                      <p className="font-medium break-all">{selectedDiaria?.pix_alternativo ?? ""}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Beneficiario alternativo</p>
-                      <p className="font-medium">{selectedDiaria?.beneficiario_alternativo ?? ""}</p>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -4422,6 +4246,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   type="button"
                   variant="default"
                   className="bg-amber-400 text-black hover:bg-amber-500"
+                  disabled={!canEditDiaria(selectedDiaria)}
                   onClick={() => {
                     openEditDialog(selectedDiaria);
                     closeDetailsDialog();
@@ -4617,10 +4442,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   {editForm.demissao === true && (
                     <div className="space-y-1 md:col-span-2">
                       <TooltipLabel
-                        label="Colaborador demitido (opcional)"
-                        tooltip="Informe quem foi demitido, se quiser registrar."
+                        label="Colaborador demitido"
+                        tooltip="Obrigatorio quando for demissao."
                       />
                       <Input
+                        required
                         value={editForm.colaboradorDemitidoNome}
                         onChange={(e) =>
                           setEditForm((prev) => ({ ...prev, colaboradorDemitidoNome: e.target.value }))
@@ -4633,10 +4459,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   {editForm.demissao === false && editForm.licencaNojo === true && (
                     <div className="space-y-1 md:col-span-2">
                       <TooltipLabel
-                        label="Colaborador falecido (opcional)"
-                        tooltip="Informe o colaborador falecido, se quiser registrar."
+                        label="Colaborador falecido"
+                        tooltip="Obrigatorio quando for licenca nojo."
                       />
                       <Input
+                        required
                         value={editForm.colaboradorNome}
                         onChange={(e) => setEditForm((prev) => ({ ...prev, colaboradorNome: e.target.value }))}
                         placeholder="Nome do colaborador falecido"
@@ -4676,37 +4503,14 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
               <div className="space-y-1">
                 <TooltipLabel
-                  label="Unidade (opcional)"
-                  tooltip="Informe a unidade se desejar registrar esse dado."
+                  label="Unidade"
+                  tooltip="Informe a unidade."
                 />
                 <Input
+                  required
                   value={editForm.unidade}
                   onChange={(e) => setEditForm((prev) => ({ ...prev, unidade: e.target.value }))}
-                  placeholder="Nome da unidade (opcional)"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <TooltipLabel
-                  label="Pix alternativo (opcional)"
-                  tooltip="Informe uma chave Pix alternativa, se necessario."
-                />
-                <Input
-                  value={editForm.pixAlternativo}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, pixAlternativo: e.target.value }))}
-                  placeholder="Opcional"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <TooltipLabel
-                  label="Beneficiario alternativo (opcional)"
-                  tooltip="Nome do beneficiario quando o Pix nao for do diarista."
-                />
-                <Input
-                  value={editForm.beneficiarioAlternativo}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, beneficiarioAlternativo: e.target.value }))}
-                  placeholder="Opcional"
+                  placeholder="Nome da unidade"
                 />
               </div>
 

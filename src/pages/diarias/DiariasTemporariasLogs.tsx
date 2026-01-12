@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { STATUS_LABELS, currencyFormatter } from "./utils";
 
 type LogRow = {
   id: string;
@@ -38,11 +39,150 @@ const getUsuarioNome = (log: LogRow) => {
 
 const getLogTimestamp = (log: LogRow) => log.operacao_em ?? log.criado_em ?? null;
 
-const formatLogDateTime = (value?: string | null) => {
+const LOG_FIELD_LABELS: Record<string, string> = {
+  registro_criado: "Registro criado",
+  id: "ID",
+  valor_diaria: "Valor da diaria",
+  diarista_id: "Diarista (id)",
+  status: "Status",
+  data_diaria: "Data da diaria",
+  posto_servico_id: "Posto (id)",
+  cliente_id: "Cliente (id)",
+  colaborador_ausente: "Colaborador ausente (id)",
+  colaborador_ausente_nome: "Colaborador ausente (nome)",
+  colaborador_demitido: "Colaborador demitido (id)",
+  colaborador_demitido_nome: "Colaborador demitido",
+  colaborador_falecido: "Colaborador falecido",
+  motivo_vago: "Motivo",
+  motivo_reprovacao: "Motivo reprovacao",
+  motivo_reprovacao_observacao: "Observacao reprovacao",
+  motivo_cancelamento: "Motivo cancelamento",
+  unidade: "Unidade",
+  posto_servico: "Posto",
+  observacao: "Observacao",
+  horario_inicio: "Horario inicio",
+  horario_fim: "Horario fim",
+  intervalo: "Intervalo (min)",
+  jornada_diaria: "Jornada diaria (h)",
+  demissao: "Demissao",
+  licenca_nojo: "Licenca nojo",
+  novo_posto: "Novo posto",
+  ok_pagamento: "OK pagamento",
+  observacao_pagamento: "Observacao pagamento",
+  outros_motivos_reprovacao_pagamento: "Outros motivos reprovacao pagamento",
+  criado_por: "Criado por",
+  confirmada_por: "Confirmada por",
+  confirmada_em: "Confirmada em",
+  aprovada_por: "Aprovada por",
+  aprovada_em: "Aprovada em",
+  lancada_por: "Lancada por",
+  lancada_em: "Lancada em",
+  aprovada_para_pagamento_em: "Aprovada para pagamento em",
+  aprovado_para_pgto_por: "Aprovado para pagamento por",
+  paga_por: "Paga por",
+  paga_em: "Paga em",
+  cancelada_por: "Cancelada por",
+  cancelada_em: "Cancelada em",
+  reprovada_por: "Reprovada por",
+  reprovada_em: "Reprovada em",
+  ok_pagamento_por: "OK pagamento por",
+  ok_pagamento_em: "OK pagamento em",
+};
+
+const BOOLEAN_FIELDS = new Set(["demissao", "licenca_nojo", "novo_posto", "ok_pagamento"]);
+const DATE_ONLY_FIELDS = new Set(["data_diaria"]);
+const DATE_TIME_FIELDS = new Set([
+  "confirmada_em",
+  "aprovada_em",
+  "lancada_em",
+  "aprovada_para_pagamento_em",
+  "paga_em",
+  "cancelada_em",
+  "reprovada_em",
+  "ok_pagamento_em",
+]);
+const TIME_FIELDS = new Set(["horario_inicio", "horario_fim"]);
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const getCampoLabel = (campo?: string | null) =>
+  (campo && LOG_FIELD_LABELS[campo]) || campo || "-";
+
+const formatBooleanValue = (value?: string | null) => {
+  if (value === "true") return "Sim";
+  if (value === "false") return "Nao";
+  return value ?? "-";
+};
+
+const formatDateOnly = (value?: string | null) => {
   if (!value) return "-";
+  if (DATE_ONLY_REGEX.test(value)) {
+    const [year, month, day] = value.split("-");
+    if (year && month && day) return `${day}/${month}/${year}`;
+  }
   const hasTimezone = /([+-]\d{2}:?\d{2}|Z)$/i.test(value);
   const normalized = hasTimezone ? value : `${value}Z`;
   const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+};
+
+const formatTimeValue = (value?: string | null) => {
+  if (!value) return "-";
+  const [hour = "", minute = ""] = value.split(":");
+  if (!hour && !minute) return value;
+  return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+};
+
+const formatObservacaoPagamentoValue = (value?: string | null) => {
+  if (!value) return "-";
+  const trimmed = value.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    const inner = trimmed.slice(1, -1).trim();
+    if (!inner) return "-";
+    return inner.split(",").map((item) => item.trim()).join(", ");
+  }
+  return value;
+};
+
+const formatNumericValue = (value?: string | null, suffix?: string) => {
+  if (value === null || value === undefined || value === "") return "-";
+  const parsed = Number(value);
+  if (Number.isNaN(parsed)) return value ?? "-";
+  if (!suffix) return parsed.toString();
+  return `${parsed}${suffix}`;
+};
+
+const formatLogValue = (campo?: string | null, value?: string | null) => {
+  if (!campo) return value ?? "-";
+  if (campo === "status") return STATUS_LABELS[value || ""] || value || "-";
+  if (campo === "valor_diaria") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? value ?? "-" : currencyFormatter.format(parsed);
+  }
+  if (BOOLEAN_FIELDS.has(campo)) return formatBooleanValue(value);
+  if (DATE_ONLY_FIELDS.has(campo)) return formatDateOnly(value);
+  if (DATE_TIME_FIELDS.has(campo)) return formatLogDateTime(value);
+  if (TIME_FIELDS.has(campo)) return formatTimeValue(value);
+  if (campo === "intervalo") return formatNumericValue(value, " min");
+  if (campo === "jornada_diaria") return formatNumericValue(value, " h");
+  if (campo === "observacao_pagamento") return formatObservacaoPagamentoValue(value);
+  return value ?? "-";
+};
+
+const formatLogDateTime = (value?: string | null) => {
+  if (!value) return "-";
+  const trimmed = value.trim();
+  if (!trimmed) return "-";
+  if (DATE_ONLY_REGEX.test(trimmed)) return formatDateOnly(trimmed);
+  const normalized = trimmed.replace(" ", "T");
+  const hasTimezone = /([+-]\d{2}:?\d{2}|Z)$/i.test(normalized);
+  const iso = hasTimezone ? normalized : `${normalized}Z`;
+  const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("pt-BR", {
     timeZone: "America/Sao_Paulo",
@@ -103,9 +243,13 @@ export const DiariasTemporariasLogs = () => {
 
   const formatLogDate = (value?: string | null) => {
     if (!value) return "";
-    const hasTimezone = /([+-]\d{2}:?\d{2}|Z)$/i.test(value);
-    const normalized = hasTimezone ? value : `${value}Z`;
-    const date = new Date(normalized);
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (DATE_ONLY_REGEX.test(trimmed)) return trimmed;
+    const normalized = trimmed.replace(" ", "T");
+    const hasTimezone = /([+-]\d{2}:?\d{2}|Z)$/i.test(normalized);
+    const iso = hasTimezone ? normalized : `${normalized}Z`;
+    const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return "";
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Sao_Paulo",
@@ -120,7 +264,9 @@ export const DiariasTemporariasLogs = () => {
     diariaLogs.forEach((log) => {
       if (log.campo) set.add(log.campo);
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    return Array.from(set)
+      .map((campo) => ({ value: campo, label: getCampoLabel(campo) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [diariaLogs]);
 
   const valorAnteriorOptions = useMemo(() => {
@@ -170,8 +316,9 @@ export const DiariasTemporariasLogs = () => {
       if (!term) return true;
       const values = [
         log.campo,
-        log.valor_antigo,
-        log.valor_novo,
+        getCampoLabel(log.campo),
+        formatLogValue(log.campo, log.valor_antigo),
+        formatLogValue(log.campo, log.valor_novo),
         log.usuario_responsavel,
         log.operacao,
         log.diaria_id?.toString(),
@@ -280,16 +427,16 @@ export const DiariasTemporariasLogs = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_OPTION}>Todos</SelectItem>
+                  <SelectContent>
+                    <SelectItem value={ALL_OPTION}>Todos</SelectItem>
                   {campoOptions.map((campo) => (
-                    <SelectItem key={campo} value={campo}>
-                      {campo}
+                    <SelectItem key={campo.value} value={campo.value}>
+                      {campo.label}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
+                  </SelectContent>
+                </Select>
+              </div>
             <div className="space-y-1">
               <span className="text-xs font-medium text-muted-foreground">Valor antigo</span>
               <Select
@@ -361,9 +508,13 @@ export const DiariasTemporariasLogs = () => {
                   <TableRow key={log.id}>
                     <TableCell>{formatLogDateTime(getLogTimestamp(log))}</TableCell>
                     <TableCell>{log.diaria_id}</TableCell>
-                      <TableCell>{log.campo}</TableCell>
-                      <TableCell className="whitespace-pre-line">{log.valor_antigo ?? "-"}</TableCell>
-                      <TableCell className="whitespace-pre-line">{log.valor_novo ?? "-"}</TableCell>
+                      <TableCell>{getCampoLabel(log.campo)}</TableCell>
+                      <TableCell className="whitespace-pre-line">
+                        {formatLogValue(log.campo, log.valor_antigo)}
+                      </TableCell>
+                      <TableCell className="whitespace-pre-line">
+                        {formatLogValue(log.campo, log.valor_novo)}
+                      </TableCell>
                       <TableCell>{getUsuarioNome(log)}</TableCell>
                     </TableRow>
                   ))}

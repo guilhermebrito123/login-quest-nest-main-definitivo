@@ -74,6 +74,8 @@ export const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
 export const formatDate = (value?: string | null) => {
   if (!value) return "-";
   try {
@@ -85,12 +87,25 @@ export const formatDate = (value?: string | null) => {
 
 export const formatDateTime = (value?: string | null) => {
   if (!value) return "-";
+  const trimmed = value.trim();
+  if (!trimmed) return "-";
+  if (DATE_ONLY_REGEX.test(trimmed)) {
+    return formatDate(trimmed);
+  }
   try {
-    // Treat timestamp as wall-clock in Brazil (server stores sem timezone or already in BRT).
-    const normalized = value.replace(" ", "T").replace(/([+-]\d{2}:?\d{2}|Z)$/i, "");
-    const parsed = new Date(normalized);
+    const normalized = trimmed.replace(" ", "T");
+    const hasTimezone = /([+-]\d{2}:?\d{2}|Z)$/i.test(normalized);
+    const iso = hasTimezone ? normalized : `${normalized}Z`;
+    const parsed = new Date(iso);
     if (Number.isNaN(parsed.getTime())) return value;
-    return format(parsed, "dd/MM/yyyy HH:mm", { locale: ptBR });
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(parsed);
   } catch {
     return value;
   }

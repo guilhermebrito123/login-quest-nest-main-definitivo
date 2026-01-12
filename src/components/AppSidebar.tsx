@@ -95,6 +95,7 @@ const menuItems: MenuItem[] = [
   { title: "Colaboradores", url: "/colaboradores", icon: UserCheck },
   { title: "Diaristas✅", url: "/diaristas", icon: UserCircle },
   { title: "Diaristas🔒", url: "/diaristas-restritos", icon: Lock },
+  { title: "Diaristas logs", url: "/diaristas/logs", icon: FileText },
   //{ title: "Diarias (versão futura)", url: "/diarias", icon: Calendar, children: diariasChildren, statusCountsKey: "diarias" },
   {
     title: "Diarias (versão 1.0.0)",
