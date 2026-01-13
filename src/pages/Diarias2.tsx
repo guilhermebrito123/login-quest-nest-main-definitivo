@@ -90,7 +90,6 @@ const TooltipLabel = ({
   diaristaId: "",
   motivoVago: MOTIVO_VAGO_OPTIONS[0],
   demissao: null as boolean | null,
-  licencaNojo: null as boolean | null,
   colaboradorDemitidoNome: "",
   observacao: "",
 };
@@ -150,8 +149,6 @@ const Diarias2 = () => {
 
   const isMotivoVagaEmAberto =
     formState.motivoVago.toUpperCase() === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
-  const isMotivoLicencaNojo =
-    formState.motivoVago.toUpperCase() === MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO.toUpperCase();
   const normalizedCancelada = normalizeStatus(STATUS.cancelada);
   const normalizedReprovada = normalizeStatus(STATUS.reprovada);
   const normalizedPaga = normalizeStatus(STATUS.paga);
@@ -234,7 +231,7 @@ const Diarias2 = () => {
       return;
     }
 
-    if (!isMotivoVagaEmAberto && !isMotivoLicencaNojo && !formState.colaboradorNome) {
+    if (!isMotivoVagaEmAberto && !formState.colaboradorNome) {
       toast.error("Informe o colaborador ausente.");
       return;
     }
@@ -249,23 +246,11 @@ const Diarias2 = () => {
         toast.error("Informe se e demissao.");
         return;
       }
-      if (formState.demissao === false && formState.licencaNojo === null) {
-        toast.error("Informe se e licenca nojo.");
-        return;
-      }
       if (
         formState.demissao === true &&
         !toTrimOrNull(formState.colaboradorDemitidoNome)
       ) {
         toast.error("Informe o colaborador demitido.");
-        return;
-      }
-      if (
-        formState.demissao === false &&
-        formState.licencaNojo === true &&
-        !toTrimOrNull(formState.colaboradorNome)
-      ) {
-        toast.error("Informe o colaborador falecido.");
         return;
       }
     }
@@ -292,20 +277,12 @@ const Diarias2 = () => {
     const colaboradorNomeUpper = toUpperOrNull(formState.colaboradorNome);
     const clienteIdValue = clienteIdNumber;
     const demissaoValue = isMotivoVagaEmAberto ? formState.demissao : null;
-    const licencaNojoValue =
-      isMotivoVagaEmAberto && demissaoValue === false ? formState.licencaNojo === true : false;
-    const novoPostoValue =
-      isMotivoVagaEmAberto && demissaoValue === false
-        ? !(formState.licencaNojo === true)
-        : isMotivoVagaEmAberto
-          ? false
-          : false;
-    const colaboradorFalecido =
-      (isMotivoLicencaNojo || (isMotivoVagaEmAberto && licencaNojoValue)) && colaboradorNomeUpper
-        ? colaboradorNomeUpper
-        : null;
-    const colaboradorAusenteNome =
-      isMotivoVagaEmAberto || isMotivoLicencaNojo ? null : colaboradorNomeUpper;
+    const novoPostoValue = isMotivoVagaEmAberto
+      ? demissaoValue
+        ? false
+        : true
+      : null;
+    const colaboradorAusenteNome = isMotivoVagaEmAberto ? null : colaboradorNomeUpper;
     const colaboradorDemitidoNomeValue =
       isMotivoVagaEmAberto && demissaoValue === true
         ? toUpperOrNull(formState.colaboradorDemitidoNome)
@@ -337,7 +314,6 @@ const Diarias2 = () => {
         horario_fim: formState.horarioFim,
         intervalo: intervaloNumber,
         colaborador_ausente_nome: colaboradorAusenteNome,
-        colaborador_falecido: colaboradorFalecido,
         posto_servico_id: formState.postoServicoId || null,
         unidade: unidadeValue,
         cliente_id: clienteIdValue,
@@ -345,7 +321,6 @@ const Diarias2 = () => {
         diarista_id: formState.diaristaId,
         motivo_vago: motivoVagoValue,
         demissao: demissaoValue,
-        licenca_nojo: licencaNojoValue,
         novo_posto: novoPostoValue,
         colaborador_demitido_nome: colaboradorDemitidoNomeValue,
         observacao: observacaoValue,
@@ -452,14 +427,11 @@ const Diarias2 = () => {
                   value={formState.motivoVago}
                   onValueChange={(value) => {
                     const isVagaAberto = value.toUpperCase() === MOTIVO_VAGO_VAGA_EM_ABERTO;
-                    const isLicencaNojo =
-                      value.toUpperCase() === MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO.toUpperCase();
                     setFormState((prev) => ({
                       ...prev,
                       motivoVago: value,
-                      colaboradorNome: isVagaAberto || isLicencaNojo ? "" : prev.colaboradorNome,
+                      colaboradorNome: isVagaAberto ? "" : prev.colaboradorNome,
                       demissao: null,
-                      licencaNojo: null,
                       colaboradorDemitidoNome: "",
                     }));
                   }}
@@ -477,7 +449,7 @@ const Diarias2 = () => {
                 </Select>
               </div>
 
-              {!isMotivoVagaEmAberto && !isMotivoLicencaNojo && (
+              {!isMotivoVagaEmAberto && (
                 <div className="space-y-2">
                   <TooltipLabel
                     label="Colaborador ausente"
@@ -492,25 +464,11 @@ const Diarias2 = () => {
                 </div>
               )}
 
-              {isMotivoLicencaNojo && (
-                <div className="space-y-2">
-                  <TooltipLabel
-                    label="Colaborador falecido (opcional)"
-                    tooltip="Informe o colaborador falecido, se quiser registrar."
-                  />
-                  <Input
-                    value={formState.colaboradorNome}
-                    onChange={(event) => handleColaboradorNomeChange(event.target.value)}
-                    placeholder="Nome do colaborador falecido"
-                  />
-                </div>
-              )}
-
               {isMotivoVagaEmAberto && (
                 <>
                   <div className="space-y-2">
                     <TooltipLabel
-                      label="E demissao?"
+                      label="É demissao?"
                       tooltip="Indique se a vaga em aberto ocorreu por demissao."
                     />
                     <Select
@@ -522,10 +480,8 @@ const Diarias2 = () => {
                         setFormState((prev) => ({
                           ...prev,
                           demissao: value === "" ? null : value === "true",
-                          licencaNojo: value === "true" ? null : prev.licencaNojo,
                           colaboradorDemitidoNome: value === "true" ? prev.colaboradorDemitidoNome : "",
-                          colaboradorNome:
-                            value === "true" ? "" : prev.colaboradorNome,
+                          colaboradorNome: "",
                         }))
                       }
                     >
@@ -539,54 +495,7 @@ const Diarias2 = () => {
                     </Select>
                   </div>
 
-                  {formState.demissao === false && (
-                    <div className="space-y-2">
-                      <TooltipLabel
-                        label="E licenca nojo?"
-                        tooltip="Marque se o afastamento e licenca nojo."
-                      />
-                      <Select
-                        required
-                        value={
-                          formState.licencaNojo === null
-                            ? ""
-                            : formState.licencaNojo
-                              ? "true"
-                              : "false"
-                        }
-                        onValueChange={(value) =>
-                          setFormState((prev) => ({
-                            ...prev,
-                            licencaNojo: value === "" ? null : value === "true",
-                            colaboradorNome: value === "true" ? prev.colaboradorNome : "",
-                          }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione uma opcao" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true">Sim</SelectItem>
-                          <SelectItem value="false">Nao</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
 
-                  {formState.demissao === false && formState.licencaNojo === true && (
-                    <div className="space-y-2">
-                      <TooltipLabel
-                        label="Colaborador falecido"
-                        tooltip="Obrigatorio quando for licenca nojo."
-                      />
-                      <Input
-                        required
-                        value={formState.colaboradorNome}
-                        onChange={(event) => handleColaboradorNomeChange(event.target.value)}
-                        placeholder="Nome do colaborador falecido"
-                      />
-                    </div>
-                  )}
 
                   {formState.demissao === true && (
                     <div className="space-y-2">
