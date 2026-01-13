@@ -190,8 +190,11 @@ export default function Diaristas() {
     } else {
       return;
     }
+    const isRestrito = nextStatus === "restrito";
     let motivoRestricao: string | null = null;
-    if (nextStatus === "restrito") {
+    let motivoAlteracao: string | null = null;
+
+    if (isRestrito) {
       const motivo = window.prompt("Informe o motivo da restricao para este diarista.");
       const trimmed = (motivo ?? "").trim();
       if (!trimmed) {
@@ -199,22 +202,29 @@ export default function Diaristas() {
         return;
       }
       motivoRestricao = trimmed;
-    }
-    const motivoAlteracaoPrompt = window.prompt("Informe o motivo da alteracao do diarista.");
-    const motivoAlteracao = (motivoAlteracaoPrompt ?? "").trim();
-    if (!motivoAlteracao) {
-      toast.error("Motivo da alteracao obrigatorio.");
-      return;
+    } else {
+      const motivoAlteracaoPrompt = window.prompt("Informe o motivo da alteracao do diarista.");
+      const trimmed = (motivoAlteracaoPrompt ?? "").trim();
+      if (!trimmed) {
+        toast.error("Motivo da alteracao obrigatorio.");
+        return;
+      }
+      motivoAlteracao = trimmed;
     }
     setStatusUpdatingId(diaristaId);
     try {
+      const updatePayload: Record<string, unknown> = {
+        status: nextStatus,
+      };
+      if (isRestrito) {
+        updatePayload.motivo_restricao = motivoRestricao;
+        updatePayload.motivo_alteracao = null;
+      } else {
+        updatePayload.motivo_alteracao = motivoAlteracao;
+      }
       const { error } = await supabase
         .from("diaristas")
-        .update({
-          status: nextStatus,
-          motivo_alteracao: motivoAlteracao,
-          ...(motivoRestricao ? { motivo_restricao: motivoRestricao } : {}),
-        })
+        .update(updatePayload)
         .eq("id", diaristaId);
       if (error) throw error;
       toast.success("Status do diarista atualizado.");
