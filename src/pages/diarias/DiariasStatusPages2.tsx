@@ -269,7 +269,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       return map;
     }, [blacklist]);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
-    const [customStatusSelection, setCustomStatusSelection] = useState<Record<string, string>>({});
     const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
     const [selectedDiaria, setSelectedDiaria] = useState<DiariaTemporaria | null>(null);
     const [reasonDialog, setReasonDialog] = useState<{
@@ -282,7 +281,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const [motivoReprovacaoObservacao, setMotivoReprovacaoObservacao] = useState("");
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [bulkStatusSelection, setBulkStatusSelection] = useState("");
     const [groupOkSavingKey, setGroupOkSavingKey] = useState<string | null>(null);
     const [groupLancarSavingKey, setGroupLancarSavingKey] = useState<string | null>(null);
     const [groupDetailsDialogOpen, setGroupDetailsDialogOpen] = useState(false);
@@ -290,6 +288,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     const [naoOkDialogOpen, setNaoOkDialogOpen] = useState(false);
     const [naoOkSaving, setNaoOkSaving] = useState(false);
     const [naoOkTarget, setNaoOkTarget] = useState<NaoOkTarget | null>(null);
+    const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const [naoOkObservacao, setNaoOkObservacao] = useState<string[]>([]);
     const [naoOkOutroMotivo, setNaoOkOutroMotivo] = useState("");
     const [naoOkWantsOutroMotivo, setNaoOkWantsOutroMotivo] = useState<boolean | null>(null);
@@ -354,10 +353,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     });
     const [totalDialogOpen, setTotalDialogOpen] = useState(false);
     const selectAllValue = "__all__";
-    const statusOptions = useMemo(
-      () => Object.values(STATUS).filter((status) => status !== STATUS.reprovada),
-      [],
-    );
     const [extraUserMap, setExtraUserMap] = useState<Map<string, string>>(new Map());
 
     const normalizedKey = normalizeStatus(statusKey);
@@ -1991,7 +1986,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
       if (!confirmStatusChange(reasonDialog.targetStatus)) return;
       await handleUpdateStatus(reasonDialog.diariaId, reasonDialog.targetStatus, extra);
-      setCustomStatusSelection((prev) => ({ ...prev, [reasonDialog.diariaId!]: "" }));
       closeReasonDialog();
     };
 
@@ -2004,7 +1998,11 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
     };
 
-    const renderAction = (diaria: DiariaTemporaria) => {
+    const renderAction = (
+      diaria: DiariaTemporaria,
+      options?: { onBeforeAction?: () => void },
+    ) => {
+      const beforeAction = options?.onBeforeAction;
       const normalizedStatus = normalizeStatus(diaria.status);
       if (normalizedStatus === normalizeStatus(STATUS.lancada)) {
         const isNaoOkSaving =
@@ -2022,6 +2020,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               disabled={updatingId === diaria.id.toString() || diaria.ok_pagamento === true}
               onClick={(event) => {
                 event.stopPropagation();
+                beforeAction?.();
                 handleOkPagamento(diaria.id.toString());
               }}
             >
@@ -2034,6 +2033,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               disabled={isNaoOkSaving}
               onClick={(event) => {
                 event.stopPropagation();
+                beforeAction?.();
                 openNaoOkDialog(diaria);
               }}
             >
@@ -2050,29 +2050,15 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           variant="default"
           className="bg-emerald-600 text-white hover:bg-emerald-700"
           disabled={updatingId === diaria.id.toString()}
-          onClick={(event) => {
-            event.stopPropagation();
-            requestStatusChange(diaria.id.toString(), action.nextStatus);
-          }}
+        onClick={(event) => {
+          event.stopPropagation();
+          beforeAction?.();
+          requestStatusChange(diaria.id.toString(), action.nextStatus);
+        }}
         >
           {action.label}
         </Button>
       );
-    };
-
-    const handleCustomStatusApply = async (id: string) => {
-      const selectedStatus = customStatusSelection[id];
-      if (!selectedStatus) {
-        toast.error("Selecione um status para atualizar.");
-        return;
-      }
-      if (requiresReasonForStatus(selectedStatus)) {
-        openReasonDialog(id, selectedStatus);
-        return;
-      }
-      if (!confirmStatusChange(selectedStatus)) return;
-      await handleUpdateStatus(id, selectedStatus);
-      setCustomStatusSelection((prev) => ({ ...prev, [id]: "" }));
     };
 
     const handleRowClick = (diaria: DiariaTemporaria) => {
@@ -2296,11 +2282,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
     const clearSelection = () => setSelectedIds(new Set());
 
-    const bulkAvailableStatuses = useMemo(
-      () => statusOptions.filter((status) => !requiresReasonForStatus(status)),
-      [statusOptions],
-    );
-
     const handleBulkStatusApply = async (status: string) => {
       if (!status) {
         toast.error("Selecione um status para aplicar.");
@@ -2427,6 +2408,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       }
       return items;
     }, [isPagaPage, selectedDiaria?.created_at, statusDates]);
+    const detailsActionElement = selectedDiaria
+      ? renderAction(selectedDiaria, { onBeforeAction: closeDetailsDialog })
+      : null;
 
     const showReasonColumn =
       normalizedKey === normalizedCancelStatus || normalizedKey === normalizedReprovadaStatus;
@@ -2487,7 +2471,22 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-col gap-3">
+              <div className="md:hidden sticky top-2 z-10">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between"
+                  aria-expanded={mobileFiltersOpen}
+                  aria-controls={`filters-panel-${normalizedKey}`}
+                  onClick={() => setMobileFiltersOpen((prev) => !prev)}
+                >
+                  {mobileFiltersOpen ? "Ocultar filtros" : "Filtrar"}
+                </Button>
+              </div>
+              <div
+                id={`filters-panel-${normalizedKey}`}
+                className={`${mobileFiltersOpen ? "flex" : "hidden"} flex-col gap-3 md:flex`}
+              >
                 <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-1">
                     <TooltipLabel
@@ -2948,27 +2947,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 >
                   {pageDefaultAction ? `${pageDefaultAction.label} (selecionadas)` : "Ação em massa"}
                 </Button>
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={bulkStatusSelection}
-                    onValueChange={(value) => {
-                      setBulkStatusSelection(value);
-                      handleBulkStatusApply(value);
-                      setBulkStatusSelection("");
-                    }}
-                  >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Status em massa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {bulkAvailableStatuses.map((statusOption) => (
-                        <SelectItem key={statusOption} value={statusOption}>
-                          {STATUS_LABELS[statusOption]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 {allowDelete && (
                   <Button
                     variant="destructive"
@@ -2990,7 +2968,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-12">
+                        <TableHead className="hidden md:table-cell w-12">
                           <Checkbox
                             aria-label="Selecionar todas"
                             checked={allVisibleSelected}
@@ -3051,7 +3029,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             style={rowStyle}
                             onClick={() => handleRowClick(diaria)}
                           >
-                            <TableCell onClick={(event) => event.stopPropagation()}>
+                            <TableCell
+                              className="hidden md:table-cell"
+                              onClick={(event) => event.stopPropagation()}
+                            >
                               <Checkbox
                                 aria-label="Selecionar diaria"
                                 checked={selectedIds.has(diaria.id.toString())}
@@ -3066,82 +3047,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             <TableCell>
                               <div className="flex flex-col gap-2">
                                 <span>{diaristaInfo?.nome_completo || "-"}</span>
-                                <div
-                                  className="md:hidden flex flex-col gap-2 pt-2"
-                                  onClick={(event) => event.stopPropagation()}
-                                >
-                                  <div className="flex flex-wrap gap-2">
-                                    {statusKey === STATUS.confirmada && (
-                                      <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        disabled={updatingId === diaria.id.toString()}
-                                        onClick={() => openReasonDialog(diaria.id.toString(), STATUS.reprovada)}
-                                      >
-                                        Reprovar
-                                      </Button>
-                                    )}
-                                    <Button
-                                      size="sm"
-                                      variant="default"
-                                      className="bg-amber-400 text-black hover:bg-amber-500"
-                                      disabled={!canEditDiaria(diaria)}
-                                      onClick={() => {
-                                        openEditDialog(diaria);
-                                      }}
-                                    >
-                                      Editar
-                                    </Button>
-                                    {allowDelete && (
-                                      <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className="text-destructive"
-                                        disabled={deletingId === diaria.id.toString()}
-                                        onClick={() => handleDeleteDiaria(diaria.id.toString())}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="sr-only">Excluir diaria</span>
-                                      </Button>
-                                    )}
-                                  </div>
-                                  {actionElement && <div>{actionElement}</div>}
-                                  <div className="flex flex-col gap-2">
-                                    <Select
-                                      value={customStatusSelection[diaria.id.toString()] || ""}
-                                      onValueChange={(value) =>
-                                        setCustomStatusSelection((prev) => ({
-                                          ...prev,
-                                          [diaria.id.toString()]: value,
-                                        }))
-                                      }
-                                    >
-                                      <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Alterar status" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {statusOptions.map((statusOption) => (
-                                          <SelectItem key={statusOption} value={statusOption}>
-                                            {STATUS_LABELS[statusOption]}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <Button
-                                      size="sm"
-                                      variant="default"
-                                      className="bg-emerald-600 text-white hover:bg-emerald-700"
-                                      disabled={
-                                        updatingId === diaria.id.toString() ||
-                                        !customStatusSelection[diaria.id.toString()] ||
-                                        customStatusSelection[diaria.id.toString()] === diaria.status
-                                      }
-                                      onClick={() => handleCustomStatusApply(diaria.id.toString())}
-                                    >
-                                      Aplicar
-                                    </Button>
-                                  </div>
-                                </div>
                               </div>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">{diaria.motivo_vago || "-"}</TableCell>
@@ -3165,6 +3070,19 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                         }}
                                       >
                                         Reprovar
+                                      </Button>
+                                    )}
+                                    {isAguardandoPage && (
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        disabled={updatingId === diaria.id.toString()}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          openReasonDialog(diaria.id.toString(), STATUS.cancelada);
+                                        }}
+                                      >
+                                        Cancelar
                                       </Button>
                                     )}
                                     <Button
@@ -3198,44 +3116,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                                 {actionElement && (
                                   <div onClick={(event) => event.stopPropagation()}>{actionElement}</div>
                                 )}
-                                <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
-                                  <Select
-                                    value={customStatusSelection[diaria.id.toString()] || ""}
-                                    onValueChange={(value) =>
-                                      setCustomStatusSelection((prev) => ({
-                                        ...prev,
-                                        [diaria.id.toString()]: value,
-                                      }))
-                                    }
-                                  >
-                                    <SelectTrigger className="w-[220px]">
-                                      <SelectValue placeholder="Alterar status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {statusOptions.map((statusOption) => (
-                                        <SelectItem key={statusOption} value={statusOption}>
-                                          {STATUS_LABELS[statusOption]}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    className="bg-emerald-600 text-white hover:bg-emerald-700"
-                                    disabled={
-                                      updatingId === diaria.id.toString() ||
-                                      !customStatusSelection[diaria.id.toString()] ||
-                                      customStatusSelection[diaria.id.toString()] === diaria.status
-                                    }
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      handleCustomStatusApply(diaria.id.toString());
-                                    }}
-                                  >
-                                    Aplicar
-                                  </Button>
-                                </div>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -3916,7 +3796,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
               <div className="space-y-6 text-sm">
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Informacoes gerais</p>
-                  <div className="mt-2 grid gap-3 md:grid-cols-2">
+                  <div className="mt-2 flex flex-col gap-3 md:grid md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Data</p>
                       <p className="font-medium">{formatDate(selectedDiaria.data_diaria)}</p>
@@ -3996,7 +3876,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     {statusDatesWithCreated.length > 0 && (
                       <div className="sm:col-span-2">
                         <p className="text-muted-foreground text-xs">Datas dos status</p>
-                        <div className="mt-2 grid gap-2 md:grid-cols-2">
+                        <div className="mt-2 flex flex-col gap-2 md:grid md:grid-cols-2">
                           {statusDatesWithCreated.map((item) => (
                             <div key={item.label}>
                               <p className="text-muted-foreground text-xs">{item.label}</p>
@@ -4077,7 +3957,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Horarios</p>
-                  <div className="mt-2 grid gap-3 md:grid-cols-4">
+                  <div className="mt-2 flex flex-col gap-3 md:grid md:grid-cols-4">
                     <div>
                       <p className="text-muted-foreground text-xs">Horario inicio</p>
                       <p className="font-medium">{formatTimeValue(selectedDiaria.horario_inicio)}</p>
@@ -4100,7 +3980,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 {!motivoVagaEmAbertoSelecionado && (
                   <div>
                     <p className="text-xs font-semibold uppercase text-muted-foreground">Colaborador ausente</p>
-                    <div className="mt-2 grid gap-3 md:grid-cols-2">
+                    <div className="mt-2 flex flex-col gap-3 md:grid md:grid-cols-2">
                       <div>
                         <p className="text-muted-foreground text-xs">Nome</p>
                         <p className="font-medium">{selectedColaboradorNome}</p>
@@ -4111,7 +3991,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Diarista</p>
-                  <div className="mt-2 grid gap-3 md:grid-cols-2">
+                  <div className="mt-2 flex flex-col gap-3 md:grid md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Nome</p>
                       <p className="font-medium">{selectedDiaristaInfo?.nome_completo || "-"}</p>
@@ -4129,7 +4009,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
 
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Dados bancarios</p>
-                  <div className="mt-2 grid gap-3 md:grid-cols-2">
+                  <div className="mt-2 flex flex-col gap-3 md:grid md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Banco</p>
                       <p className="font-medium">{selectedDiaristaInfo?.banco || "-"}</p>
@@ -4158,9 +4038,66 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     </div>
                   </div>
                 </div>
+                <div className="mt-6 flex flex-col gap-2 md:hidden">
+                  {statusKey === STATUS.confirmada && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={updatingId === selectedDiaria.id.toString()}
+                      onClick={() => {
+                        closeDetailsDialog();
+                        openReasonDialog(selectedDiaria.id.toString(), STATUS.reprovada);
+                      }}
+                    >
+                      Reprovar
+                    </Button>
+                  )}
+                  {isAguardandoPage && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={updatingId === selectedDiaria.id.toString()}
+                      onClick={() => {
+                        closeDetailsDialog();
+                        openReasonDialog(selectedDiaria.id.toString(), STATUS.cancelada);
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                  {detailsActionElement && <div>{detailsActionElement}</div>}
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="bg-amber-400 text-black hover:bg-amber-500"
+                    disabled={!canEditDiaria(selectedDiaria)}
+                    onClick={() => {
+                      openEditDialog(selectedDiaria);
+                      closeDetailsDialog();
+                    }}
+                  >
+                    Editar diaria
+                  </Button>
+                  {allowDelete && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={deletingId === selectedDiaria.id.toString()}
+                      onClick={() => {
+                        closeDetailsDialog();
+                        handleDeleteDiaria(selectedDiaria.id.toString());
+                      }}
+                    >
+                      Excluir diaria
+                    </Button>
+                  )}
+                  <Button type="button" variant="outline" onClick={closeDetailsDialog}>
+                    Fechar
+                  </Button>
+                </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="hidden md:flex">
               {selectedDiaria && (
                 <Button
                   type="button"

@@ -202,6 +202,7 @@ export const DiariasTemporariasLogs = () => {
     endDate: "",
     diariaId: "",
     campoAlterado: "",
+    operacao: "",
     valorAnterior: "",
     usuarioResponsavel: "",
   };
@@ -275,6 +276,14 @@ export const DiariasTemporariasLogs = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [diariaLogs]);
 
+  const operacaoOptions = useMemo(() => {
+    const set = new Set<string>();
+    diariaLogs.forEach((log) => {
+      if (log.operacao) set.add(log.operacao);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [diariaLogs]);
+
   const usuarioOptions = useMemo(() => {
     const map = new Map<string, string>();
     diariaLogs.forEach((log) => {
@@ -302,6 +311,7 @@ export const DiariasTemporariasLogs = () => {
 
       if (diariaIdTerm && !log.diaria_id?.toString().includes(diariaIdTerm)) return false;
       if (filters.campoAlterado && log.campo !== filters.campoAlterado) return false;
+      if (filters.operacao && log.operacao !== filters.operacao) return false;
       if (filters.valorAnterior && (log.valor_antigo ?? "") !== filters.valorAnterior) return false;
       if (filters.usuarioResponsavel) {
         if (filters.usuarioResponsavel === SYSTEM_OPTION) {
@@ -340,8 +350,8 @@ export const DiariasTemporariasLogs = () => {
     filters.endDate,
     filters.diariaId,
     filters.campoAlterado,
-    filters.valorAnterior,
     filters.operacao,
+    filters.valorAnterior,
     filters.usuarioResponsavel,
   ]);
 
@@ -437,6 +447,30 @@ export const DiariasTemporariasLogs = () => {
                 </Select>
               </div>
             <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Operacao</span>
+              <Select
+                value={filters.operacao || ALL_OPTION}
+                onValueChange={(value) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    operacao: value === ALL_OPTION ? "" : value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_OPTION}>Todas</SelectItem>
+                  {operacaoOptions.map((operacao) => (
+                    <SelectItem key={operacao} value={operacao}>
+                      {operacao}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
               <span className="text-xs font-medium text-muted-foreground">Valor antigo</span>
               <Select
                 value={filters.valorAnterior || ALL_OPTION}
@@ -497,6 +531,7 @@ export const DiariasTemporariasLogs = () => {
                     <TableHead>Data</TableHead>
                     <TableHead>Diaria</TableHead>
                     <TableHead>Campo alterado</TableHead>
+                    <TableHead>Operacao</TableHead>
                     <TableHead>Valor antigo</TableHead>
                     <TableHead>Valor novo</TableHead>
                     <TableHead>Responsavel</TableHead>
@@ -508,6 +543,7 @@ export const DiariasTemporariasLogs = () => {
                     <TableCell>{formatLogDateTime(getLogTimestamp(log))}</TableCell>
                     <TableCell>{log.diaria_id}</TableCell>
                       <TableCell>{getCampoLabel(log.campo)}</TableCell>
+                      <TableCell>{log.operacao || "-"}</TableCell>
                       <TableCell className="whitespace-pre-line">
                         {formatLogValue(log.campo, log.valor_antigo)}
                       </TableCell>
