@@ -46,7 +46,6 @@ export type DiariaTemporaria = {
   diarista_id: string;
   colaborador_ausente: string | null;
   colaborador_ausente_nome?: string | null;
-  colaborador_falecido?: string | null;
   posto_servico_id: string | null;
   posto_servico?: string | null;
   unidade?: string | null;
@@ -80,7 +79,6 @@ export type DiariaTemporaria = {
   motivo_reprovacao_observacao?: string | null;
   motivo_vago: string;
   demissao?: boolean | null;
-  licenca_nojo?: boolean | null;
   novo_posto?: boolean | null;
   colaborador_demitido?: string | null;
   colaborador_demitido_nome?: string | null;
@@ -93,7 +91,6 @@ export type DiariaTemporaria = {
   diarista?: Diarista | null;
   colaborador?: ColaboradorAlocado | null;
   posto?: PostoServicoResumo | null;
-  colaborador_falecido?: string | null;
 };
 
 export function useDiariasTemporariasData(selectedMonth?: string | null) {

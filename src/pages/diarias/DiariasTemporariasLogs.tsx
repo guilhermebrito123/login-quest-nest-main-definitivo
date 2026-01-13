@@ -52,7 +52,6 @@ const LOG_FIELD_LABELS: Record<string, string> = {
   colaborador_ausente_nome: "Colaborador ausente (nome)",
   colaborador_demitido: "Colaborador demitido (id)",
   colaborador_demitido_nome: "Colaborador demitido",
-  colaborador_falecido: "Colaborador falecido",
   motivo_vago: "Motivo",
   motivo_reprovacao: "Motivo reprovacao",
   motivo_reprovacao_observacao: "Observacao reprovacao",
@@ -65,7 +64,6 @@ const LOG_FIELD_LABELS: Record<string, string> = {
   intervalo: "Intervalo (min)",
   jornada_diaria: "Jornada diaria (h)",
   demissao: "Demissao",
-  licenca_nojo: "Licenca nojo",
   novo_posto: "Novo posto",
   ok_pagamento: "OK pagamento",
   observacao_pagamento: "Observacao pagamento",
@@ -89,7 +87,7 @@ const LOG_FIELD_LABELS: Record<string, string> = {
   ok_pagamento_em: "OK pagamento em",
 };
 
-const BOOLEAN_FIELDS = new Set(["demissao", "licenca_nojo", "novo_posto", "ok_pagamento"]);
+const BOOLEAN_FIELDS = new Set(["demissao", "novo_posto", "ok_pagamento"]);
 const DATE_ONLY_FIELDS = new Set(["data_diaria"]);
 const DATE_TIME_FIELDS = new Set([
   "confirmada_em",
@@ -343,6 +341,7 @@ export const DiariasTemporariasLogs = () => {
     filters.diariaId,
     filters.campoAlterado,
     filters.valorAnterior,
+    filters.operacao,
     filters.usuarioResponsavel,
   ]);
 
