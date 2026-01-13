@@ -2968,7 +2968,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="hidden md:table-cell w-12">
+                        <TableHead className="w-12">
                           <Checkbox
                             aria-label="Selecionar todas"
                             checked={allVisibleSelected}
@@ -3029,10 +3029,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                             style={rowStyle}
                             onClick={() => handleRowClick(diaria)}
                           >
-                            <TableCell
-                              className="hidden md:table-cell"
-                              onClick={(event) => event.stopPropagation()}
-                            >
+                            <TableCell onClick={(event) => event.stopPropagation()}>
                               <Checkbox
                                 aria-label="Selecionar diaria"
                                 checked={selectedIds.has(diaria.id.toString())}
