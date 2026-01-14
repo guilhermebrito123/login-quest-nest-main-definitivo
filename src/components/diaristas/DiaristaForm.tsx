@@ -93,6 +93,8 @@ const formatTelefone = (value: string) => {
   return `(${ddd}) ${first}${second ? `-${second}` : ""}`;
 };
 
+const isBlank = (value: string) => value.trim() === "";
+
 type SpecificAttachmentKey = (typeof SPECIFIC_ATTACHMENT_FIELDS)[number]["key"];
 
 interface DiaristaFormState {
@@ -459,6 +461,32 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const missingFields: string[] = [];
+
+    if (isBlank(formData.nome_completo)) missingFields.push("Nome completo");
+    if (isBlank(formData.cpf)) missingFields.push("CPF");
+    if (isBlank(formData.cep)) missingFields.push("CEP");
+    if (isBlank(formData.endereco)) missingFields.push("Endereco");
+    if (isBlank(formData.cidade)) missingFields.push("Cidade");
+    if (isBlank(formData.telefone)) missingFields.push("Telefone");
+    if (isBlank(formData.email)) missingFields.push("Email");
+    if (isBlank(formData.banco)) missingFields.push("Banco");
+    if (isBlank(formData.agencia)) missingFields.push("Agencia");
+    if (isBlank(formData.numero_conta)) missingFields.push("Numero da conta");
+    if (isBlank(formData.pix)) missingFields.push("Chave PIX");
+    if (formData.pix_pertence_beneficiario === null) missingFields.push("PIX pertence ao diarista");
+
+    SPECIFIC_ATTACHMENT_FIELDS.forEach(({ key, label }) => {
+      if (!specificAttachments[key] && !specificFiles[key]) {
+        missingFields.push(label);
+      }
+    });
+
+    if (missingFields.length > 0) {
+      toast.error(`Preencha os campos obrigatorios: ${missingFields.join(", ")}.`);
+      return;
+    }
+
     if (formData.possui_antecedente) {
       toast.error("Nao e permitido cadastrar diaristas com antecedentes criminais");
       return;
@@ -577,67 +605,73 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cpf">CPF</Label>
+              <Label htmlFor="cpf">CPF *</Label>
               <Input
                 id="cpf"
                 value={formData.cpf}
                 onChange={(e) => setFormData({ ...formData, cpf: formatCpf(e.target.value) })}
                 placeholder="000.000.000-00"
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cep">CEP</Label>
+              <Label htmlFor="cep">CEP *</Label>
               <Input
                 id="cep"
                 value={formData.cep}
                 onChange={(e) => handleCepChange(e.target.value)}
                 placeholder="00000-000"
+                required
               />
               {cepLoading && <p className="text-xs text-muted-foreground">Consultando CEP...</p>}
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="endereco">Endereco</Label>
+              <Label htmlFor="endereco">Endereco *</Label>
               <Input
                 id="endereco"
                 value={formData.endereco}
                 onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cidade">Cidade</Label>
+              <Label htmlFor="cidade">Cidade *</Label>
               <Input
                 id="cidade"
                 value={formData.cidade}
                 onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="telefone">Telefone</Label>
+              <Label htmlFor="telefone">Telefone *</Label>
               <Input
                 id="telefone"
                 type="tel"
                 value={formData.telefone}
                 onChange={(e) => setFormData({ ...formData, telefone: formatTelefone(e.target.value) })}
                 placeholder="(00) 00000-0000"
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email *</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="possui_antecedente">Possui antecedente criminal?</Label>
+              <Label htmlFor="possui_antecedente">Possui antecedente criminal? *</Label>
               <Select
                 value={formData.possui_antecedente ? "true" : "false"}
                 onValueChange={(value) => setFormData({ ...formData, possui_antecedente: value === "true" })}
@@ -653,7 +687,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">Status *</Label>
               <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as DiaristaFormState["status"] })}>
                 <SelectTrigger>
                   <SelectValue />
@@ -671,7 +705,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
             <p className="text-sm font-medium">Dados bancarios</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="banco">Banco</Label>
+                <Label htmlFor="banco">Banco *</Label>
                 <Select
                   value={formData.banco}
                   onValueChange={(value) => setFormData({ ...formData, banco: value })}
@@ -689,15 +723,16 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="agencia">Agencia</Label>
+                <Label htmlFor="agencia">Agencia *</Label>
                 <Input
                   id="agencia"
                   value={formData.agencia}
                   onChange={(e) => setFormData({ ...formData, agencia: e.target.value })}
+                  required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tipo_conta">Tipo de conta</Label>
+                <Label htmlFor="tipo_conta">Tipo de conta *</Label>
                 <Select
                   value={formData.tipo_conta}
                   onValueChange={(value) =>
@@ -715,11 +750,12 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="numero_conta">Numero da conta</Label>
+                <Label htmlFor="numero_conta">Numero da conta *</Label>
                 <Input
                   id="numero_conta"
                   value={formData.numero_conta}
                   onChange={(e) => setFormData({ ...formData, numero_conta: e.target.value })}
+                  required
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
@@ -732,7 +768,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="pix_pertence_beneficiario">PIX pertence ao diarista?</Label>
+                <Label htmlFor="pix_pertence_beneficiario">PIX pertence ao diarista? *</Label>
                 <Select
                   value={
                     formData.pix_pertence_beneficiario === null
@@ -772,7 +808,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 return (
                   <div key={key} className="rounded-md border p-3 space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <Label>{label}</Label>
+                      <Label>{label} *</Label>
                       {currentPath && (
                         <div className="flex flex-wrap gap-2">
                           <Button type="button" variant="outline" size="sm" onClick={() => handleViewSpecificAttachment(key)}>
@@ -784,7 +820,11 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                         </div>
                       )}
                     </div>
-                    <Input type="file" onChange={(e) => handleSpecificFileChange(key, e.target.files)} />
+                    <Input
+                      type="file"
+                      required={!currentPath && !selectedFile}
+                      onChange={(e) => handleSpecificFileChange(key, e.target.files)}
+                    />
                     {selectedFile ? (
                       <div className="flex items-center justify-between text-xs">
                         <span className="truncate">{selectedFile.name}</span>
@@ -812,7 +852,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
           </div>
 
           <div className="space-y-3">
-            <Label>Documentos / anexos adicionais</Label>
+            <Label>Documentos / anexos adicionais (opcional)</Label>
             <Input type="file" multiple onChange={handleFilesSelected} />
 
             {newFiles.length > 0 && (
@@ -834,51 +874,6 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 ))}
               </div>
             )}
-
-            <div className="rounded-md border p-3 space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <p className="font-medium">Anexos existentes</p>
-                {attachmentsLoading && <span className="text-xs text-muted-foreground">Atualizando...</span>}
-              </div>
-              {attachments.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nenhum anexo cadastrado.</p>
-              ) : (
-                attachments.map((attachment) => (
-                  <div key={attachment.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate">{attachment.nome_arquivo}</span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2"
-                        onClick={() => handleViewAttachment(attachment)}
-                      >
-                        Visualizar
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2"
-                        onClick={() => handleDownloadAttachment(attachment)}
-                      >
-                        Baixar
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2"
-                        onClick={() => deleteAttachment(attachment)}
-                      >
-                        Excluir
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
 
           <div className="flex justify-end gap-2">
