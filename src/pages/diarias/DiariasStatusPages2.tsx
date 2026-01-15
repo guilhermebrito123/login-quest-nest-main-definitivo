@@ -560,12 +560,12 @@ const createStatusPage = ({
     const stripNonDigits = (value?: string | number | null) =>
       (value ?? "").toString().replace(/\D/g, "");
 
-    const TEST_DIARISTA_NAME = "guilherme guerra";
+    const TEST_DIARISTA_NAMES = new Set(["guilherme guerra", "james bond", "cris ronaldo"]);
     const TEST_DIARISTA_CPFS = new Set(["01999999999", "01999999998"]);
     const isTestDiarista = (option: { nome?: string; cpf?: string | null }) => {
       const name = (option.nome || "").trim().toLowerCase();
       const cpfDigits = stripNonDigits(option.cpf);
-      return name === TEST_DIARISTA_NAME && TEST_DIARISTA_CPFS.has(cpfDigits);
+      return TEST_DIARISTA_NAMES.has(name) || TEST_DIARISTA_CPFS.has(cpfDigits);
     };
 
     const formatCpf = (value?: string | number | null) => {
