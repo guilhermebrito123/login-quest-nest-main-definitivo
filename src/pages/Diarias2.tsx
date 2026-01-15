@@ -75,22 +75,20 @@ const TooltipLabel = ({
     </Tooltip>
   </div>
 );
-
-
-  const initialFormState = {
-    dataDiaria: "",
-    horarioInicio: "",
-    horarioFim: "",
-    intervalo: "",
-    colaboradorNome: "",
-    postoServicoId: "",
-    unidade: "",
-    clienteId: "",
-    valorDiaria: "",
+const initialFormState = {
+  dataDiaria: "",
+  horarioInicio: "",
+  horarioFim: "",
+  intervalo: "",
+  colaboradorAusenteId: "",
+  postoServicoId: "",
+  unidade: "",
+  clienteId: "",
+  valorDiaria: "",
   diaristaId: "",
   motivoVago: MOTIVO_VAGO_OPTIONS[0],
   demissao: null as boolean | null,
-  colaboradorDemitidoNome: "",
+  colaboradorDemitidoId: "",
   observacao: "",
 };
 
@@ -103,6 +101,8 @@ const Diarias2 = () => {
     diaristas,
     clientes,
     clienteMap,
+    colaboradores,
+    colaboradoresMap,
     filteredDiarias,
     refetchDiarias,
     loadingDiarias,
@@ -153,6 +153,28 @@ const Diarias2 = () => {
   const normalizedReprovada = normalizeStatus(STATUS.reprovada);
   const normalizedPaga = normalizeStatus(STATUS.paga);
 
+  const colaboradoresByCliente = useMemo(() => {
+    if (!formState.clienteId) return colaboradores;
+    const getColaboradorClienteId = (colaborador: any) => {
+      if (colaborador?.cliente_id !== null && colaborador?.cliente_id !== undefined) {
+        return String(colaborador.cliente_id);
+      }
+      if (colaborador?.posto?.cliente_id !== null && colaborador?.posto?.cliente_id !== undefined) {
+        return String(colaborador.posto.cliente_id);
+      }
+      if (
+        colaborador?.posto?.unidade?.contrato?.cliente_id !== null &&
+        colaborador?.posto?.unidade?.contrato?.cliente_id !== undefined
+      ) {
+        return String(colaborador.posto.unidade.contrato.cliente_id);
+      }
+      return "";
+    };
+    return colaboradores.filter(
+      (colaborador) => getColaboradorClienteId(colaborador) === formState.clienteId,
+    );
+  }, [colaboradores, formState.clienteId]);
+
   const { clienteReceberTotals, clienteRecebidosTotals } = useMemo(() => {
     const receber = new Map<string, { nome: string; total: number }>();
     const recebidos = new Map<string, { nome: string; total: number }>();
@@ -195,13 +217,6 @@ const Diarias2 = () => {
     };
   }, [filteredDiarias, normalizedCancelada, normalizedPaga, normalizedReprovada, postoMap, clienteMap]);
 
-  const handleColaboradorNomeChange = (value: string) => {
-    setFormState((prev) => ({
-      ...prev,
-      colaboradorNome: value,
-    }));
-  };
-
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!formState.dataDiaria || !formState.horarioInicio || !formState.horarioFim) {
@@ -231,7 +246,7 @@ const Diarias2 = () => {
       return;
     }
 
-    if (!isMotivoVagaEmAberto && !formState.colaboradorNome) {
+    if (!isMotivoVagaEmAberto && !toTrimOrNull(formState.colaboradorAusenteId)) {
       toast.error("Informe o colaborador ausente.");
       return;
     }
@@ -248,7 +263,7 @@ const Diarias2 = () => {
       }
       if (
         formState.demissao === true &&
-        !toTrimOrNull(formState.colaboradorDemitidoNome)
+        !toTrimOrNull(formState.colaboradorDemitidoId)
       ) {
         toast.error("Informe o colaborador demitido.");
         return;
@@ -274,7 +289,6 @@ const Diarias2 = () => {
       toast.error("Informe a unidade.");
       return;
     }
-    const colaboradorNomeUpper = toUpperOrNull(formState.colaboradorNome);
     const clienteIdValue = clienteIdNumber;
     const demissaoValue = isMotivoVagaEmAberto ? formState.demissao : null;
     const novoPostoValue = isMotivoVagaEmAberto
@@ -282,11 +296,21 @@ const Diarias2 = () => {
         ? false
         : true
       : null;
-    const colaboradorAusenteNome = isMotivoVagaEmAberto ? null : colaboradorNomeUpper;
-    const colaboradorDemitidoNomeValue =
+    const colaboradorAusenteId = !isMotivoVagaEmAberto
+      ? toTrimOrNull(formState.colaboradorAusenteId)
+      : null;
+    const colaboradorDemitidoId =
       isMotivoVagaEmAberto && demissaoValue === true
-        ? toUpperOrNull(formState.colaboradorDemitidoNome)
+        ? toTrimOrNull(formState.colaboradorDemitidoId)
         : null;
+    const colaboradorAusenteInfo = colaboradorAusenteId
+      ? colaboradoresMap.get(colaboradorAusenteId)
+      : null;
+    const colaboradorDemitidoInfo = colaboradorDemitidoId
+      ? colaboradoresMap.get(colaboradorDemitidoId)
+      : null;
+    const colaboradorAusenteNome = toUpperOrNull(colaboradorAusenteInfo?.nome_completo);
+    const colaboradorDemitidoNomeValue = toUpperOrNull(colaboradorDemitidoInfo?.nome_completo);
     const observacaoValue = toUpperOrNull(formState.observacao);
     const motivoVagoValue = (formState.motivoVago || "").toUpperCase();
 
@@ -313,6 +337,7 @@ const Diarias2 = () => {
         horario_inicio: formState.horarioInicio,
         horario_fim: formState.horarioFim,
         intervalo: intervaloNumber,
+        colaborador_ausente: colaboradorAusenteId,
         colaborador_ausente_nome: colaboradorAusenteNome,
         posto_servico_id: formState.postoServicoId || null,
         unidade: unidadeValue,
@@ -322,6 +347,7 @@ const Diarias2 = () => {
         motivo_vago: motivoVagoValue,
         demissao: demissaoValue,
         novo_posto: novoPostoValue,
+        colaborador_demitido: colaboradorDemitidoId,
         colaborador_demitido_nome: colaboradorDemitidoNomeValue,
         observacao: observacaoValue,
         criado_por: userId,
@@ -421,6 +447,34 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2">
+                <TooltipLabel label="Cliente" tooltip="Cliente associado a diaria." />
+                <Select
+                  required
+                  value={formState.clienteId}
+                  onValueChange={(value) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      clienteId: value,
+                      postoServicoId: "",
+                      colaboradorAusenteId: "",
+                      colaboradorDemitidoId: "",
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cliente" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    {clientes.map((cliente) => (
+                      <SelectItem key={cliente.id} value={cliente.id.toString()}>
+                        {cliente.nome_fantasia || cliente.razao_social || cliente.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <TooltipLabel label="Motivo" tooltip="Motivo que levou a necessidade da diária." />
                 <Select
                   required
@@ -430,9 +484,9 @@ const Diarias2 = () => {
                     setFormState((prev) => ({
                       ...prev,
                       motivoVago: value,
-                      colaboradorNome: isVagaAberto ? "" : prev.colaboradorNome,
+                      colaboradorAusenteId: isVagaAberto ? "" : prev.colaboradorAusenteId,
                       demissao: null,
-                      colaboradorDemitidoNome: "",
+                      colaboradorDemitidoId: "",
                     }));
                   }}
                 >
@@ -453,14 +507,31 @@ const Diarias2 = () => {
                 <div className="space-y-2">
                   <TooltipLabel
                     label="Colaborador ausente"
-                    tooltip="Nome do colaborador que sera coberto pela diaria."
+                    tooltip="Colaborador que sera coberto pela diaria."
                   />
-                  <Input
+                  <Select
                     required
-                    value={formState.colaboradorNome}
-                    onChange={(event) => handleColaboradorNomeChange(event.target.value)}
-                    placeholder="Nome do colaborador ausente"
-                  />
+                    value={formState.colaboradorAusenteId}
+                    onValueChange={(value) =>
+                      setFormState((prev) => ({ ...prev, colaboradorAusenteId: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o colaborador" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72 overflow-y-auto">
+                      {colaboradoresByCliente.length === 0 && (
+                        <SelectItem value="none" disabled>
+                          Nenhum colaborador encontrado
+                        </SelectItem>
+                      )}
+                      {colaboradoresByCliente.map((colaborador) => (
+                        <SelectItem key={colaborador.id} value={colaborador.id}>
+                          {colaborador.nome_completo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
@@ -480,8 +551,8 @@ const Diarias2 = () => {
                         setFormState((prev) => ({
                           ...prev,
                           demissao: value === "" ? null : value === "true",
-                          colaboradorDemitidoNome: value === "true" ? prev.colaboradorDemitidoNome : "",
-                          colaboradorNome: "",
+                          colaboradorDemitidoId: value === "true" ? prev.colaboradorDemitidoId : "",
+                          colaboradorAusenteId: "",
                         }))
                       }
                     >
@@ -503,47 +574,36 @@ const Diarias2 = () => {
                         label="Colaborador demitido"
                         tooltip="Obrigatorio quando for demissao."
                       />
-                      <Input
+                      <Select
                         required
-                        value={formState.colaboradorDemitidoNome}
-                        onChange={(event) =>
+                        value={formState.colaboradorDemitidoId}
+                        onValueChange={(value) =>
                           setFormState((prev) => ({
                             ...prev,
-                            colaboradorDemitidoNome: event.target.value,
+                            colaboradorDemitidoId: value,
                           }))
                         }
-                        placeholder="Nome do colaborador demitido"
-                      />
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o colaborador" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72 overflow-y-auto">
+                          {colaboradoresByCliente.length === 0 && (
+                            <SelectItem value="none" disabled>
+                              Nenhum colaborador encontrado
+                            </SelectItem>
+                          )}
+                          {colaboradoresByCliente.map((colaborador) => (
+                            <SelectItem key={colaborador.id} value={colaborador.id}>
+                              {colaborador.nome_completo}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
                 </>
               )}
-
-              <div className="space-y-2">
-                <TooltipLabel label="Cliente" tooltip="Cliente associado a diaria." />
-                <Select
-                  required
-                  value={formState.clienteId}
-                  onValueChange={(value) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      clienteId: value,
-                      postoServicoId: "",
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o cliente" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
-                    {clientes.map((cliente) => (
-                      <SelectItem key={cliente.id} value={cliente.id.toString()}>
-                        {cliente.nome_fantasia || cliente.razao_social || cliente.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
               <div className="space-y-2">
                 <TooltipLabel
@@ -557,12 +617,24 @@ const Diarias2 = () => {
                     const posto = postosOptions.find((p) => p.id === value);
                     const postoInfo = value ? postoMap.get(value) : null;
                     const unidadeFromPosto = postoInfo?.unidade?.nome || "";
-                    setFormState((prev) => ({
-                      ...prev,
-                      postoServicoId: value,
-                      clienteId: posto?.cliente_id ? posto.cliente_id.toString() : prev.clienteId,
-                      unidade: toTrimOrNull(prev.unidade) ? prev.unidade : unidadeFromPosto,
-                    }));
+                    setFormState((prev) => {
+                      const nextClienteId = posto?.cliente_id
+                        ? posto.cliente_id.toString()
+                        : prev.clienteId;
+                      const shouldResetColaboradores = nextClienteId !== prev.clienteId;
+                      return {
+                        ...prev,
+                        postoServicoId: value,
+                        clienteId: nextClienteId,
+                        unidade: toTrimOrNull(prev.unidade) ? prev.unidade : unidadeFromPosto,
+                        colaboradorAusenteId: shouldResetColaboradores
+                          ? ""
+                          : prev.colaboradorAusenteId,
+                        colaboradorDemitidoId: shouldResetColaboradores
+                          ? ""
+                          : prev.colaboradorDemitidoId,
+                      };
+                    });
                   }}
                   disabled={!formState.clienteId}
                 >
