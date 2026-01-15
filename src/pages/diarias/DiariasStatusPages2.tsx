@@ -5128,6 +5128,39 @@ const createStatusPage = ({
 
               <div className="space-y-1 md:col-span-2">
                 <TooltipLabel
+                  label="Cliente"
+                  tooltip="Cliente associado a diaria."
+                />
+                <Select
+                  value={editForm.clienteId || OPTIONAL_VALUE}
+                  onValueChange={(value) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      clienteId: value === OPTIONAL_VALUE ? "" : value,
+                      postoServicoId: "",
+                      colaboradorAusenteId: "",
+                      colaboradorDemitidoId: "",
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cliente" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value={OPTIONAL_VALUE} disabled>
+                      Selecione
+                    </SelectItem>
+                    {clienteOptionsAll.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <TooltipLabel
                   label="Motivo"
                   tooltip="Motivo que levou a necessidade da diária."
                 />
@@ -5267,39 +5300,6 @@ const createStatusPage = ({
                   )}
                 </>
               )}
-
-              <div className="space-y-1 md:col-span-2">
-                <TooltipLabel
-                  label="Cliente"
-                  tooltip="Cliente associado a diaria."
-                />
-                <Select
-                  value={editForm.clienteId || OPTIONAL_VALUE}
-                  onValueChange={(value) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      clienteId: value === OPTIONAL_VALUE ? "" : value,
-                      postoServicoId: "",
-                      colaboradorAusenteId: "",
-                      colaboradorDemitidoId: "",
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o cliente" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
-                    <SelectItem value={OPTIONAL_VALUE} disabled>
-                      Selecione
-                    </SelectItem>
-                    {clienteOptionsAll.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
               <div className="space-y-1">
                 <TooltipLabel label="Unidade" tooltip="Informe a unidade." />
