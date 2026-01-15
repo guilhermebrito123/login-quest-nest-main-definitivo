@@ -244,6 +244,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       clientes,
       diaristas,
       diaristaMap,
+      colaboradores,
       colaboradoresMap,
       postoMap,
       clienteMap,
@@ -312,8 +313,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       clienteId: "",
       valorDiaria: "",
       diaristaId: "",
-      colaboradorNome: "",
-      colaboradorDemitidoNome: "",
+      colaboradorAusenteId: "",
+      colaboradorDemitidoId: "",
       demissao: null as boolean | null,
       novoPosto: null as boolean | null,
       observacao: "",
@@ -598,7 +599,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       baseClasses = "",
     ) => {
       const base = baseClasses ? `${baseClasses} ` : "";
-      if (okPagamento === false) {
+      if (isAprovadaPage && okPagamento === false) {
         return (
           `${base}bg-red-400 text-white hover:bg-red-500 ` +
           "[&_.text-muted-foreground]:text-white/80 " +
@@ -610,7 +611,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
     };
 
     const getPagamentoRowStyle = (okPagamento: boolean | null | undefined) =>
-      okPagamento === false ? { colorScheme: "dark" } : undefined;
+      isAprovadaPage && okPagamento === false ? { colorScheme: "dark" } : undefined;
 
     const uppercaseRows = (rows: Record<string, any>[]) =>
       rows.map((row) => {
@@ -764,6 +765,39 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         }))
         .filter((p) => p.id);
     }, [postoMap]);
+
+    const getColaboradorClienteId = (colaborador: any) => {
+      if (colaborador?.cliente_id !== null && colaborador?.cliente_id !== undefined) {
+        return String(colaborador.cliente_id);
+      }
+      if (colaborador?.posto?.cliente_id !== null && colaborador?.posto?.cliente_id !== undefined) {
+        return String(colaborador.posto.cliente_id);
+      }
+      if (
+        colaborador?.posto?.unidade?.contrato?.cliente_id !== null &&
+        colaborador?.posto?.unidade?.contrato?.cliente_id !== undefined
+      ) {
+        return String(colaborador.posto.unidade.contrato.cliente_id);
+      }
+      return "";
+    };
+
+    const colaboradoresByCliente = useMemo(() => {
+      const base = colaboradores.filter((colaborador) => colaborador?.id);
+      if (!editForm.clienteId) return base;
+      return base.filter((colaborador) => getColaboradorClienteId(colaborador) === editForm.clienteId);
+    }, [colaboradores, editForm.clienteId]);
+
+    const colaboradoresOptionsByCliente = useMemo(
+      () =>
+        colaboradoresByCliente
+          .map((colaborador) => ({
+            id: colaborador.id,
+            nome: colaborador.nome_completo || colaborador.id,
+          }))
+          .sort((a, b) => a.nome.localeCompare(b.nome)),
+      [colaboradoresByCliente],
+    );
 
     const clienteOptionsAll = useMemo(
       () =>
@@ -1139,6 +1173,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const colaboradorInfo =
         diaria.colaborador ||
         (diaria.colaborador_ausente ? colaboradoresMap.get(diaria.colaborador_ausente) : null);
+      const colaboradorDemitidoInfo = diaria.colaborador_demitido
+        ? colaboradoresMap.get(diaria.colaborador_demitido)
+        : null;
       const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
       const unidadeNome = toTrimOrNull(diaria.unidade) || postoInfo?.unidade?.nome || "-";
       const criadoPorNome = getUsuarioNome(diaria.criado_por);
@@ -1148,8 +1185,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const lancadaPorNome = getUsuarioNome(diaria.lancada_por);
       const okPagamentoPorNome = getUsuarioNome(diaria.ok_pagamento_por);
       const pagaPorNome = getUsuarioNome(diaria.paga_por);
-      const colaboradorNome = diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
-      const colaboradorDemitidoNome = diaria.colaborador_demitido_nome || "";
+      const colaboradorNome = colaboradorInfo?.nome_completo || "-";
+      const colaboradorDemitidoNome = colaboradorDemitidoInfo?.nome_completo || "";
       const novoPostoFlag = diaria.novo_posto === true;
       const isMotivoVagaEmAberto = isVagaEmAberto(diaria.motivo_vago);
       const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
@@ -2101,8 +2138,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         clienteId: diaria.cliente_id ? diaria.cliente_id.toString() : "",
         valorDiaria: diaria.valor_diaria !== null && diaria.valor_diaria !== undefined ? String(diaria.valor_diaria) : "",
         diaristaId: diaria.diarista_id || "",
-        colaboradorNome: diaria.colaborador_ausente_nome || "",
-        colaboradorDemitidoNome: diaria.colaborador_demitido_nome || "",
+        colaboradorAusenteId: diaria.colaborador_ausente ? diaria.colaborador_ausente.toString() : "",
+        colaboradorDemitidoId: diaria.colaborador_demitido ? diaria.colaborador_demitido.toString() : "",
         demissao: typeof diaria.demissao === "boolean" ? diaria.demissao : null,
         novoPosto: typeof diaria.novo_posto === "boolean" ? diaria.novo_posto : null,
         observacao: diaria.observacao || "",
@@ -2159,7 +2196,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         return;
       }
 
-      if (!isMotivoVaga && !editForm.colaboradorNome) {
+      if (!isMotivoVaga && !toTrimOrNull(editForm.colaboradorAusenteId)) {
         toast.error("Informe o colaborador ausente.");
         return;
       }
@@ -2169,7 +2206,7 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
           toast.error("Informe se e demissao.");
           return;
         }
-        if (editForm.demissao === true && !toTrimOrNull(editForm.colaboradorDemitidoNome)) {
+        if (editForm.demissao === true && !toTrimOrNull(editForm.colaboradorDemitidoId)) {
           toast.error("Informe o colaborador demitido.");
           return;
         }
@@ -2196,7 +2233,6 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
         return;
       }
 
-      const colaboradorNomeUpper = toUpperOrNull(editForm.colaboradorNome);
       const postoSelecionado = postosOptions.find((p) => p.id === editForm.postoServicoId);
       const postoInfo = editForm.postoServicoId ? postoMap.get(editForm.postoServicoId) : null;
         const unidadeValue =
@@ -2210,9 +2246,21 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       const motivoVagoValue = (editForm.motivoVago || "").toUpperCase();
       const demissaoValue = isMotivoVaga ? editForm.demissao : null;
       const novoPostoValue = isMotivoVaga ? demissaoValue === false : null;
-      const colaboradorAusenteNomeValue = isMotivoVaga ? null : colaboradorNomeUpper;
-      const colaboradorDemitidoNomeValue =
-        isMotivoVaga && demissaoValue === true ? toUpperOrNull(editForm.colaboradorDemitidoNome) : null;
+      const colaboradorAusenteId = !isMotivoVaga
+        ? toTrimOrNull(editForm.colaboradorAusenteId)
+        : null;
+      const colaboradorDemitidoId =
+        isMotivoVaga && demissaoValue === true
+          ? toTrimOrNull(editForm.colaboradorDemitidoId)
+          : null;
+      const colaboradorAusenteInfo = colaboradorAusenteId
+        ? colaboradoresMap.get(colaboradorAusenteId)
+        : null;
+      const colaboradorDemitidoInfo = colaboradorDemitidoId
+        ? colaboradoresMap.get(colaboradorDemitidoId)
+        : null;
+      const colaboradorAusenteNomeValue = toUpperOrNull(colaboradorAusenteInfo?.nome_completo);
+      const colaboradorDemitidoNomeValue = toUpperOrNull(colaboradorDemitidoInfo?.nome_completo);
       const observacaoValue = toUpperOrNull(editForm.observacao);
 
       setEditingSaving(true);
@@ -2230,7 +2278,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
             posto_servico_id: postoServicoIdValue,
             unidade: unidadeValue,
             cliente_id: clienteIdNumber,
+            colaborador_ausente: colaboradorAusenteId,
             colaborador_ausente_nome: colaboradorAusenteNomeValue,
+            colaborador_demitido: colaboradorDemitidoId,
             colaborador_demitido_nome: colaboradorDemitidoNomeValue,
             demissao: demissaoValue,
             novo_posto: novoPostoValue,
@@ -2362,6 +2412,10 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       (selectedDiaria?.colaborador_ausente
         ? colaboradoresMap.get(selectedDiaria.colaborador_ausente)
         : null);
+    const selectedColaboradorDemitidoInfo =
+      selectedDiaria?.colaborador_demitido
+        ? colaboradoresMap.get(selectedDiaria.colaborador_demitido)
+        : null;
     const selectedPostoInfo =
       selectedDiaria?.posto ||
       (selectedDiaria?.posto_servico_id ? postoMap.get(selectedDiaria.posto_servico_id) : null);
@@ -2372,9 +2426,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
       (typeof selectedDiaria?.cliente_id === "number" && clienteMap.get(selectedDiaria.cliente_id)) ||
       selectedContratoInfo?.clienteNome ||
       "-";
-    const selectedColaboradorNome =
-      selectedDiaria?.colaborador_ausente_nome || selectedColaboradorInfo?.nome_completo || "-";
-    const selectedColaboradorDemitidoNome = selectedDiaria?.colaborador_demitido_nome?.trim() || "";
+    const selectedColaboradorNome = selectedColaboradorInfo?.nome_completo || "-";
+    const selectedColaboradorDemitidoNome = selectedColaboradorDemitidoInfo?.nome_completo || "";
     const selectedPostoNome = selectedDiaria?.posto_servico?.trim() || selectedPostoInfo?.nome || "-";
     const selectedUnidadeNome =
       toTrimOrNull(selectedDiaria?.unidade) || selectedPostoInfo?.unidade?.nome || "-";
@@ -2993,19 +3046,21 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                           (diaria.colaborador_ausente
                             ? colaboradoresMap.get(diaria.colaborador_ausente)
                             : null);
+                        const colaboradorDemitidoInfo = diaria.colaborador_demitido
+                          ? colaboradoresMap.get(diaria.colaborador_demitido)
+                          : null;
                         const postoInfo =
                           diaria.posto ||
                           (diaria.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : null);
                         const diaristaInfo =
                           diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
-                        const colaboradorNome =
-                          diaria.colaborador_ausente_nome || colaboradorInfo?.nome_completo || "-";
+                        const colaboradorNome = colaboradorInfo?.nome_completo || "-";
                         const novoPostoFlag = diaria.novo_posto === true;
                         const isVagaAbertoMotivo = isVagaEmAberto(diaria.motivo_vago);
                         let colaboradorDisplay = colaboradorNome;
                         if (isVagaAbertoMotivo) {
                           if (diaria.demissao) {
-                            colaboradorDisplay = diaria.colaborador_demitido_nome?.trim() || "";
+                            colaboradorDisplay = colaboradorDemitidoInfo?.nome_completo || "";
                           } else {
                             colaboradorDisplay = novoPostoFlag ? "Novo posto" : "-";
                           }
@@ -4177,9 +4232,9 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                     setEditForm((prev) => ({
                       ...prev,
                       motivoVago: value,
-                      colaboradorNome: isVagaAberto ? "" : prev.colaboradorNome,
+                      colaboradorAusenteId: isVagaAberto ? "" : prev.colaboradorAusenteId,
                       demissao: null,
-                      colaboradorDemitidoNome: "",
+                      colaboradorDemitidoId: "",
                     }));
                   }}
                 >
@@ -4200,14 +4255,31 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                 <div className="space-y-1 md:col-span-2">
                   <TooltipLabel
                     label="Colaborador ausente"
-                    tooltip="Nome do colaborador que sera coberto pela diaria."
+                    tooltip="Colaborador que sera coberto pela diaria."
                   />
-                  <Input
+                  <Select
                     required
-                    value={editForm.colaboradorNome}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, colaboradorNome: e.target.value }))}
-                    placeholder="Nome do colaborador ausente"
-                  />
+                    value={editForm.colaboradorAusenteId}
+                    onValueChange={(value) =>
+                      setEditForm((prev) => ({ ...prev, colaboradorAusenteId: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o colaborador" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72 overflow-y-auto">
+                      {colaboradoresOptionsByCliente.length === 0 && (
+                        <SelectItem value="none" disabled>
+                          Nenhum colaborador encontrado
+                        </SelectItem>
+                      )}
+                      {colaboradoresOptionsByCliente.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
@@ -4225,8 +4297,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         setEditForm((prev) => ({
                           ...prev,
                           demissao: value === UNSET_BOOL ? null : value === "true",
-                          colaboradorDemitidoNome: value === "true" ? prev.colaboradorDemitidoNome : "",
-                          colaboradorNome: "",
+                          colaboradorDemitidoId: value === "true" ? prev.colaboradorDemitidoId : "",
+                          colaboradorAusenteId: "",
                         }))
                       }
                     >
@@ -4250,14 +4322,29 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                         label="Colaborador demitido"
                         tooltip="Obrigatorio quando for demissao."
                       />
-                      <Input
+                      <Select
                         required
-                        value={editForm.colaboradorDemitidoNome}
-                        onChange={(e) =>
-                          setEditForm((prev) => ({ ...prev, colaboradorDemitidoNome: e.target.value }))
+                        value={editForm.colaboradorDemitidoId}
+                        onValueChange={(value) =>
+                          setEditForm((prev) => ({ ...prev, colaboradorDemitidoId: value }))
                         }
-                        placeholder="Nome do colaborador demitido"
-                      />
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o colaborador" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72 overflow-y-auto">
+                          {colaboradoresOptionsByCliente.length === 0 && (
+                            <SelectItem value="none" disabled>
+                              Nenhum colaborador encontrado
+                            </SelectItem>
+                          )}
+                          {colaboradoresOptionsByCliente.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
 
@@ -4273,6 +4360,8 @@ const createStatusPage = ({ statusKey, title, description, emptyMessage }: Statu
                       ...prev,
                       clienteId: value === OPTIONAL_VALUE ? "" : value,
                       postoServicoId: "",
+                      colaboradorAusenteId: "",
+                      colaboradorDemitidoId: "",
                     }))
                   }
                 >

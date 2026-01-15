@@ -31,6 +31,7 @@ export type ColaboradorAlocado = {
   id: string;
   nome_completo: string;
   cargo: string | null;
+  cliente_id: number | null;
   posto_servico_id: string | null;
   posto?: PostoServicoResumo | null;
 };
@@ -142,12 +143,14 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
           id,
           nome_completo,
           cargo,
+          cliente_id,
           posto_servico_id,
           posto:postos_servico (
             id,
             nome,
             valor_diaria,
             observacoes_especificas,
+            cliente_id,
             unidade:unidades (
               id,
               nome,
@@ -166,7 +169,6 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
           )
         `,
         )
-        .not("posto_servico_id", "is", null)
         .order("nome_completo", { ascending: true });
       if (error) throw error;
       return (data || []) as ColaboradorAlocado[];

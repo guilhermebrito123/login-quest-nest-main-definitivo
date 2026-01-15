@@ -151,11 +151,18 @@ export default function Diaristas() {
     return map;
   }, [blacklist]);
 
-  const filteredDiaristas = diaristas?.filter((diarista) =>
-    diarista.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    diarista.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    diarista.telefone.includes(searchTerm)
-  );
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  const filteredDiaristas = (diaristas || []).filter((diarista) => {
+    if (!normalizedSearchTerm) return true;
+    const nome = String(diarista?.nome_completo ?? "").toLowerCase();
+    const email = String(diarista?.email ?? "").toLowerCase();
+    const telefone = String(diarista?.telefone ?? "");
+    return (
+      nome.includes(normalizedSearchTerm) ||
+      email.includes(normalizedSearchTerm) ||
+      telefone.includes(searchTerm)
+    );
+  });
 
   const handleEdit = (diarista: any) => {
     setEditingDiarista(diarista);
