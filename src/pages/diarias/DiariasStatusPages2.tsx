@@ -39,6 +39,7 @@ import {
   formatDateTime,
   STATUS_BADGE,
   normalizeStatus,
+  Diarista,
 } from "./utils";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -55,8 +56,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Bell } from "lucide-react";
+import { Trash2, Bell, AlertTriangle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   useDiariasTemporariasData,
@@ -137,6 +143,35 @@ const MOTIVO_VAGO_OPTIONS = [
   "FÉRIAS",
   "SUSPENSÃO",
 ];
+
+const CADASTRO_INCOMPLETO_MESSAGE =
+  "Cadastro do diarista está incompleto";
+
+const CadastroIncompletoBadge = ({
+  stopPropagation = false,
+}: {
+  stopPropagation?: boolean;
+}) => (
+  <Popover>
+    <PopoverTrigger asChild>
+      <button
+        type="button"
+        className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-200 text-amber-900 shadow-sm transition hover:bg-amber-300"
+        aria-label={CADASTRO_INCOMPLETO_MESSAGE}
+        onClick={(event) => {
+          if (stopPropagation) {
+            event.stopPropagation();
+          }
+        }}
+      >
+        <AlertTriangle className="h-4 w-4" />
+      </button>
+    </PopoverTrigger>
+    <PopoverContent className="w-auto border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+      {CADASTRO_INCOMPLETO_MESSAGE}
+    </PopoverContent>
+  </Popover>
+);
 
 const TooltipLabel = ({
   label,
@@ -588,6 +623,19 @@ const createStatusPage = ({
     const toTrimOrNull = (value: string | null | undefined) => {
       const trimmed = (value ?? "").trim();
       return trimmed ? trimmed : null;
+    };
+    const isCadastroIncompleto = (diarista?: Diarista | null) => {
+      if (!diarista) return false;
+      const requiredFields = [
+        diarista.nome_completo,
+        diarista.cpf,
+        diarista.banco,
+        diarista.agencia,
+        diarista.numero_conta,
+        diarista.tipo_conta,
+        diarista.pix,
+      ];
+      return requiredFields.some((value) => !toTrimOrNull(value));
     };
 
     const getStatusResponsavel = (diaria: DiariaTemporaria) => {
@@ -2818,6 +2866,9 @@ const createStatusPage = ({
     const selectedDiaristaInfo =
       selectedDiaria?.diarista ||
       diaristaMap.get(selectedDiaria?.diarista_id || "");
+    const selectedDiaristaCadastroIncompleto = isCadastroIncompleto(
+      selectedDiaristaInfo
+    );
     const selectedContratoInfo = getContratoInfoFromPosto(selectedPostoInfo);
     const selectedClienteNome =
       (typeof selectedDiaria?.cliente_id === "number" &&
@@ -3346,6 +3397,11 @@ const createStatusPage = ({
                                 (id) =>
                                   okPagamentoById.get(id.toString()) === false
                               );
+                              const diaristaInfo = group.diaristaId
+                                ? diaristaMap.get(group.diaristaId)
+                                : null;
+                              const diaristaCadastroIncompleto =
+                                isCadastroIncompleto(diaristaInfo);
                               const groupRowClasses = getPagamentoRowClasses(
                                 hasNaoOk ? false : null,
                                 "cursor-pointer transition"
@@ -3364,7 +3420,14 @@ const createStatusPage = ({
                                 >
                                   <TableCell>
                                     <div className="flex flex-col gap-1">
-                                      <span>{group.diaristaNome}</span>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span>{group.diaristaNome}</span>
+                                        {diaristaCadastroIncompleto && (
+                                          <CadastroIncompletoBadge
+                                            stopPropagation
+                                          />
+                                        )}
+                                      </div>
                                       <span className="text-xs text-muted-foreground md:hidden">
                                         Cliente: {group.clienteLabel}
                                       </span>
@@ -3575,6 +3638,8 @@ const createStatusPage = ({
                               const diaristaInfo =
                                 diaria.diarista ||
                                 diaristaMap.get(diaria.diarista_id || "");
+                              const diaristaCadastroIncompleto =
+                                isCadastroIncompleto(diaristaInfo);
                               const colaboradorNome =
                                 colaboradorInfo?.nome_completo || "-";
                               const novoPostoFlag = diaria.novo_posto === true;
@@ -3647,9 +3712,16 @@ const createStatusPage = ({
                                   </TableCell>
                                   <TableCell>
                                     <div className="flex flex-col gap-2">
-                                      <span>
-                                        {diaristaInfo?.nome_completo || "-"}
-                                      </span>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span>
+                                          {diaristaInfo?.nome_completo || "-"}
+                                        </span>
+                                        {diaristaCadastroIncompleto && (
+                                          <CadastroIncompletoBadge
+                                            stopPropagation
+                                          />
+                                        )}
+                                      </div>
                                     </div>
                                   </TableCell>
                                   <TableCell className="hidden md:table-cell">
@@ -4888,8 +4960,13 @@ const createStatusPage = ({
                   <div className="mt-2 flex flex-col gap-3 md:grid md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Nome</p>
-                      <p className="font-medium">
-                        {selectedDiaristaInfo?.nome_completo || "-"}
+                      <p className="font-medium flex flex-wrap items-center gap-2">
+                        <span>
+                          {selectedDiaristaInfo?.nome_completo || "-"}
+                        </span>
+                        {selectedDiaristaCadastroIncompleto && (
+                          <CadastroIncompletoBadge />
+                        )}
                       </p>
                     </div>
                     <div>
