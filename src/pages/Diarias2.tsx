@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import {
   currentMonthValue,
   normalizeStatus,
   currencyFormatter,
+  formatDate,
 } from "./diarias/utils";
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 
@@ -92,10 +94,19 @@ const initialFormState = {
   observacao: "",
 };
 
+type FaltaResumo = {
+  id: number;
+  colaborador_id: string;
+  diaria_temporaria_id: number;
+  created_at: string;
+  motivo?: string | null;
+};
+
 const Diarias2 = () => {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
   const [formState, setFormState] = useState(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
 
   const {
     diaristas,
@@ -109,6 +120,13 @@ const Diarias2 = () => {
     postoMap,
     diarias,
   } = useDiariasTemporariasData(selectedMonth);
+  const diariaMap = useMemo(() => {
+    const map = new Map<string, any>();
+    diarias.forEach((diaria) => {
+      map.set(String(diaria.id), diaria);
+    });
+    return map;
+  }, [diarias]);
   const { data: blacklist = [] } = useQuery({
     queryKey: ["blacklist"],
     queryFn: async () => {
@@ -117,6 +135,26 @@ const Diarias2 = () => {
         .select("diarista_id, motivo");
       if (error) throw error;
       return data || [];
+    },
+  });
+  const { data: faltasResumo } = useQuery({
+    queryKey: ["faltas-pendentes-resumo"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("colaborador_faltas")
+        .select("id", { count: "exact", head: true })
+        .is("justificada_em", null);
+      if (error) throw error;
+
+      const { data, error: listError } = await supabase
+        .from("colaborador_faltas")
+        .select("id, colaborador_id, diaria_temporaria_id, created_at, motivo")
+        .is("justificada_em", null)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (listError) throw listError;
+
+      return { count: count || 0, recent: (data || []) as FaltaResumo[] };
     },
   });
   const blacklistMap = useMemo(() => {
@@ -763,6 +801,49 @@ const Diarias2 = () => {
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg border border-amber-200">
+          <CardHeader>
+            <CardTitle>Faltas pendentes</CardTitle>
+            <CardDescription>
+              {faltasResumo?.count
+                ? `${faltasResumo.count} falta(s) aguardando justificativa.`
+                : "Nenhuma falta pendente no momento."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {faltasResumo?.recent?.length ? (
+              <div className="space-y-2 text-sm">
+                {faltasResumo.recent.map((falta) => {
+                  const diariaInfo = diariaMap.get(String(falta.diaria_temporaria_id));
+                  const colaboradorInfo = colaboradoresMap.get(falta.colaborador_id);
+                  return (
+                    <div
+                      key={falta.id}
+                      className="flex flex-col gap-1 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 md:flex-row md:items-center md:justify-between"
+                    >
+                      <span className="font-medium">
+                        {colaboradorInfo?.nome_completo || falta.colaborador_id}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(diariaInfo?.data_diaria)} • Diaria #{falta.diaria_temporaria_id}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Sem faltas pendentes para exibir.
+              </p>
+            )}
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" onClick={() => navigate("/faltas")}>
+                Abrir modulo de faltas
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

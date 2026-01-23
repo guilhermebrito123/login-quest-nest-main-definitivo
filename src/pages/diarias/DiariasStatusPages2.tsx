@@ -50,6 +50,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FaltaJustificarDialog } from "@/components/faltas/FaltaJustificarDialog";
 import { Label } from "@/components/ui/label";
 import {
   Tooltip,
@@ -132,9 +133,12 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
 
 const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
+const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
+const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
-  "FALTA INJUSTIFICADA",
+  MOTIVO_FALTA_INJUSTIFICADA,
+  MOTIVO_FALTA_JUSTIFICADA,
   "LICENÇA MATERNIDADE",
   "LICENÇA PATERNIDADE",
   "LICENÇA CASAMENTO",
@@ -360,6 +364,9 @@ const createStatusPage = ({
     const [originalDiaristaId, setOriginalDiaristaId] = useState<string | null>(
       null
     );
+    const [faltaDialogOpen, setFaltaDialogOpen] = useState(false);
+    const [faltaDialogDiaria, setFaltaDialogDiaria] =
+      useState<DiariaTemporaria | null>(null);
     const OPTIONAL_VALUE = "__none__";
     const UNSET_BOOL = "__unset__";
     const observacaoPagamentoOptions =
@@ -420,6 +427,20 @@ const createStatusPage = ({
     const [extraUserMap, setExtraUserMap] = useState<Map<string, string>>(
       new Map()
     );
+    const { data: faltaInfo, refetch: refetchFaltaInfo } = useQuery({
+      queryKey: ["colaborador-falta-diaria", selectedDiaria?.id],
+      queryFn: async () => {
+        if (!selectedDiaria?.id) return null;
+        const { data, error } = await supabase
+          .from("colaborador_faltas")
+          .select("*")
+          .eq("diaria_temporaria_id", selectedDiaria.id)
+          .maybeSingle();
+        if (error) throw error;
+        return data;
+      },
+      enabled: !!selectedDiaria?.id,
+    });
 
     const normalizedKey = normalizeStatus(statusKey);
     const normalizedAguardandoStatus = normalizeStatus(STATUS.aguardando);
@@ -590,6 +611,38 @@ const createStatusPage = ({
       if (value === true) return "Sim";
       if (value === false) return "Nao";
       return "-";
+    };
+
+    const isFaltaMotivo = (motivo?: string | null) => {
+      const upper = (motivo || "").toUpperCase();
+      return (
+        upper === MOTIVO_FALTA_INJUSTIFICADA ||
+        upper === MOTIVO_FALTA_JUSTIFICADA
+      );
+    };
+
+    const handleFaltaDialogOpenChange = (open: boolean) => {
+      setFaltaDialogOpen(open);
+      if (!open) setFaltaDialogDiaria(null);
+    };
+
+    const openFaltaDialog = (diaria: DiariaTemporaria) => {
+      setFaltaDialogDiaria(diaria);
+      setFaltaDialogOpen(true);
+    };
+
+    const handleViewFaltaDocumento = async (path: string) => {
+      try {
+        const { data, error } = await supabase.storage
+          .from("atestados")
+          .createSignedUrl(path, 120);
+        if (error || !data?.signedUrl) {
+          throw error || new Error("Link temporario indisponivel.");
+        }
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      } catch (error: any) {
+        toast.error(error?.message || "Nao foi possivel abrir o documento.");
+      }
     };
 
     const stripNonDigits = (value?: string | number | null) =>
@@ -2885,6 +2938,15 @@ const createStatusPage = ({
       toTrimOrNull(selectedDiaria?.unidade) ||
       selectedPostoInfo?.unidade?.nome ||
       "-";
+    const isFaltaSelecionada = isFaltaMotivo(selectedDiaria?.motivo_vago);
+    const isFaltaInjustificada =
+      (selectedDiaria?.motivo_vago || "").toUpperCase() ===
+      MOTIVO_FALTA_INJUSTIFICADA;
+    const faltaJustificadaPorNome = faltaInfo?.justificada_por
+      ? usuarioMap.get(faltaInfo.justificada_por) ||
+        extraUserMap.get(faltaInfo.justificada_por) ||
+        faltaInfo.justificada_por
+      : "-";
     const motivoVagaEmAbertoSelecionado = isVagaEmAberto(
       selectedDiaria?.motivo_vago
     );
@@ -4898,6 +4960,56 @@ const createStatusPage = ({
                         </p>
                       </div>
                     )}
+                    {isFaltaSelecionada && (
+                      <div className="sm:col-span-2">
+                        <p className="text-muted-foreground text-xs">Falta</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant={isFaltaInjustificada ? "destructive" : "default"}
+                          >
+                            {isFaltaInjustificada
+                              ? "Falta injustificada"
+                              : "Falta justificada"}
+                          </Badge>
+                          {faltaInfo?.justificada_em && (
+                            <span className="text-xs text-muted-foreground">
+                              Justificada em {formatDateTime(faltaInfo.justificada_em)}
+                            </span>
+                          )}
+                          {faltaInfo?.justificada_por && (
+                            <span className="text-xs text-muted-foreground">
+                              por {faltaJustificadaPorNome}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {faltaInfo?.documento_url && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                handleViewFaltaDocumento(faltaInfo.documento_url as string)
+                              }
+                            >
+                              Ver atestado
+                            </Button>
+                          )}
+                          {isFaltaInjustificada && selectedDiaria && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                openFaltaDialog(selectedDiaria);
+                                closeDetailsDialog();
+                              }}
+                            >
+                              Justificar falta
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -5546,6 +5658,26 @@ const createStatusPage = ({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        <FaltaJustificarDialog
+          open={faltaDialogOpen}
+          onOpenChange={handleFaltaDialogOpenChange}
+          diariaId={faltaDialogDiaria?.id ?? null}
+          colaboradorId={faltaDialogDiaria?.colaborador_ausente ?? null}
+          colaboradorNome={
+            faltaDialogDiaria?.colaborador_ausente
+              ? colaboradoresMap.get(faltaDialogDiaria.colaborador_ausente)?.nome_completo
+              : null
+          }
+          dataDiariaLabel={
+            faltaDialogDiaria ? formatDate(faltaDialogDiaria.data_diaria) : null
+          }
+          onSuccess={async () => {
+            await refetchDiarias();
+            if (selectedDiaria?.id) {
+              await refetchFaltaInfo();
+            }
+          }}
+        />
       </DashboardLayout>
     );
   };
