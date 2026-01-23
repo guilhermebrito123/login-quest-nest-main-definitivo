@@ -471,6 +471,7 @@ export type Database = {
           contato_email: string | null
           contato_nome: string | null
           contato_telefone: string | null
+          convenia_cost_center_id: string | null
           created_at: string
           id: number
           itens_adicionais: string | null
@@ -483,6 +484,7 @@ export type Database = {
           contato_email?: string | null
           contato_nome?: string | null
           contato_telefone?: string | null
+          convenia_cost_center_id?: string | null
           created_at?: string
           id?: number
           itens_adicionais?: string | null
@@ -495,6 +497,7 @@ export type Database = {
           contato_email?: string | null
           contato_nome?: string | null
           contato_telefone?: string | null
+          convenia_cost_center_id?: string | null
           created_at?: string
           id?: number
           itens_adicionais?: string | null
@@ -503,6 +506,64 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      colaborador_faltas: {
+        Row: {
+          colaborador_id: string
+          created_at: string
+          diaria_temporaria_id: number
+          documento_url: string | null
+          id: number
+          justificada_em: string | null
+          justificada_por: string | null
+          motivo: Database["public"]["Enums"]["motivo_vago_type"]
+          updated_at: string
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string
+          diaria_temporaria_id: number
+          documento_url?: string | null
+          id?: number
+          justificada_em?: string | null
+          justificada_por?: string | null
+          motivo: Database["public"]["Enums"]["motivo_vago_type"]
+          updated_at?: string
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string
+          diaria_temporaria_id?: number
+          documento_url?: string | null
+          id?: number
+          justificada_em?: string | null
+          justificada_por?: string | null
+          motivo?: Database["public"]["Enums"]["motivo_vago_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "colaborador_faltas_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "colaboradores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "colaborador_faltas_diaria_temporaria_id_fkey"
+            columns: ["diaria_temporaria_id"]
+            isOneToOne: true
+            referencedRelation: "diarias_temporarias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "colaborador_faltas_justificada_por_fkey"
+            columns: ["justificada_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       colaborador_movimentacoes_posto: {
         Row: {
@@ -678,6 +739,209 @@ export type Database = {
           },
         ]
       }
+      colaboradores_convenia: {
+        Row: {
+          address_city: string | null
+          address_complement: string | null
+          address_district: string | null
+          address_number: string | null
+          address_state: string | null
+          address_street: string | null
+          address_zip_code: string | null
+          annotations: Json | null
+          aso: Json | null
+          bank_accounts: Json | null
+          birth_date: string | null
+          convenia_id: string
+          cost_center: Json | null
+          cost_center_id: string | null
+          cost_center_name: string | null
+          cpf: string | null
+          created_at: string
+          ctps_emission_date: string | null
+          ctps_number: string | null
+          ctps_serial_number: string | null
+          department_id: string | null
+          department_name: string | null
+          disability: Json | null
+          driver_license_category: string | null
+          driver_license_emission_date: string | null
+          driver_license_number: string | null
+          driver_license_validate_date: string | null
+          educations: Json | null
+          electoral_card: Json | null
+          email: string | null
+          emergency_contacts: Json | null
+          experience_period: Json | null
+          foreign_data: Json | null
+          hiring_date: string | null
+          id: string
+          intern_data: Json | null
+          job_id: string | null
+          job_name: string | null
+          last_name: string | null
+          name: string | null
+          nationalities: Json | null
+          payroll: Json | null
+          personal_email: string | null
+          personal_phone: string | null
+          pis: string | null
+          raw_data: Json | null
+          registration: string | null
+          reservist: Json | null
+          residential_phone: string | null
+          rg_emission_date: string | null
+          rg_issuing_agency: string | null
+          rg_number: string | null
+          salary: number | null
+          social_name: string | null
+          status: string | null
+          supervisor_id: string | null
+          supervisor_last_name: string | null
+          supervisor_name: string | null
+          synced_at: string | null
+          team_id: string | null
+          team_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          address_city?: string | null
+          address_complement?: string | null
+          address_district?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip_code?: string | null
+          annotations?: Json | null
+          aso?: Json | null
+          bank_accounts?: Json | null
+          birth_date?: string | null
+          convenia_id: string
+          cost_center?: Json | null
+          cost_center_id?: string | null
+          cost_center_name?: string | null
+          cpf?: string | null
+          created_at?: string
+          ctps_emission_date?: string | null
+          ctps_number?: string | null
+          ctps_serial_number?: string | null
+          department_id?: string | null
+          department_name?: string | null
+          disability?: Json | null
+          driver_license_category?: string | null
+          driver_license_emission_date?: string | null
+          driver_license_number?: string | null
+          driver_license_validate_date?: string | null
+          educations?: Json | null
+          electoral_card?: Json | null
+          email?: string | null
+          emergency_contacts?: Json | null
+          experience_period?: Json | null
+          foreign_data?: Json | null
+          hiring_date?: string | null
+          id?: string
+          intern_data?: Json | null
+          job_id?: string | null
+          job_name?: string | null
+          last_name?: string | null
+          name?: string | null
+          nationalities?: Json | null
+          payroll?: Json | null
+          personal_email?: string | null
+          personal_phone?: string | null
+          pis?: string | null
+          raw_data?: Json | null
+          registration?: string | null
+          reservist?: Json | null
+          residential_phone?: string | null
+          rg_emission_date?: string | null
+          rg_issuing_agency?: string | null
+          rg_number?: string | null
+          salary?: number | null
+          social_name?: string | null
+          status?: string | null
+          supervisor_id?: string | null
+          supervisor_last_name?: string | null
+          supervisor_name?: string | null
+          synced_at?: string | null
+          team_id?: string | null
+          team_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address_city?: string | null
+          address_complement?: string | null
+          address_district?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip_code?: string | null
+          annotations?: Json | null
+          aso?: Json | null
+          bank_accounts?: Json | null
+          birth_date?: string | null
+          convenia_id?: string
+          cost_center?: Json | null
+          cost_center_id?: string | null
+          cost_center_name?: string | null
+          cpf?: string | null
+          created_at?: string
+          ctps_emission_date?: string | null
+          ctps_number?: string | null
+          ctps_serial_number?: string | null
+          department_id?: string | null
+          department_name?: string | null
+          disability?: Json | null
+          driver_license_category?: string | null
+          driver_license_emission_date?: string | null
+          driver_license_number?: string | null
+          driver_license_validate_date?: string | null
+          educations?: Json | null
+          electoral_card?: Json | null
+          email?: string | null
+          emergency_contacts?: Json | null
+          experience_period?: Json | null
+          foreign_data?: Json | null
+          hiring_date?: string | null
+          id?: string
+          intern_data?: Json | null
+          job_id?: string | null
+          job_name?: string | null
+          last_name?: string | null
+          name?: string | null
+          nationalities?: Json | null
+          payroll?: Json | null
+          personal_email?: string | null
+          personal_phone?: string | null
+          pis?: string | null
+          raw_data?: Json | null
+          registration?: string | null
+          reservist?: Json | null
+          residential_phone?: string | null
+          rg_emission_date?: string | null
+          rg_issuing_agency?: string | null
+          rg_number?: string | null
+          salary?: number | null
+          social_name?: string | null
+          status?: string | null
+          supervisor_id?: string | null
+          supervisor_last_name?: string | null
+          supervisor_name?: string | null
+          synced_at?: string | null
+          team_id?: string | null
+          team_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "colaboradores_convenia_cost_center_fk"
+            columns: ["cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_center"
+            referencedColumns: ["convenia_id"]
+          },
+        ]
+      }
       contratos: {
         Row: {
           cliente_id: number
@@ -712,6 +976,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "contratos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_center: {
+        Row: {
+          convenia_id: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          convenia_id: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          convenia_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cost_centers_convenia: {
+        Row: {
+          cliente_id: number | null
+          convenia_cost_center_id: string
+          convenia_cost_center_name: string
+          created_at: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          cliente_id?: number | null
+          convenia_cost_center_id: string
+          convenia_cost_center_name: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          cliente_id?: number | null
+          convenia_cost_center_id?: string
+          convenia_cost_center_name?: string
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_centers_convenia_cliente_id_fkey"
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
@@ -2490,6 +2813,42 @@ export type Database = {
           },
         ]
       }
+      sync_logs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          job_name: string
+          records_synced: number | null
+          response_data: Json | null
+          started_at: string | null
+          status: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          job_name: string
+          records_synced?: number | null
+          response_data?: Json | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          job_name?: string
+          records_synced?: number | null
+          response_data?: Json | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       unidades: {
         Row: {
           cep: string | null
@@ -2811,6 +3170,39 @@ export type Database = {
           },
         ]
       }
+      webhook_logs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          event_type: string | null
+          id: string
+          payload: Json | null
+          processed_at: string | null
+          source: string
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type?: string | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          source: string
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type?: string | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          source?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -2893,6 +3285,14 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      justificar_falta_diaria_temporaria: {
+        Args: {
+          p_diaria_temporaria_id: number
+          p_documento_url: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       limpar_diarias_antigas: { Args: never; Returns: undefined }
       limpar_diarias_temporarias_antigas: { Args: never; Returns: undefined }
       limpar_posto_dias_vagos_antigos: { Args: never; Returns: undefined }

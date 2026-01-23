@@ -17,6 +17,8 @@ import {
   ListOrdered,
   Briefcase,
   Lock,
+  AlertTriangle,
+  FolderTree,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -93,6 +95,7 @@ const menuItems: MenuItem[] = [
   { title: "Chamados", url: "/chamados", icon: MessageSquare },
   { title: "Ordens de Serviço", url: "/ordens-servico", icon: ClipboardList },
   { title: "Colaboradores", url: "/colaboradores", icon: UserCheck },
+  { title: "Centros de Custo", url: "/centros-custo", icon: FolderTree },
   { title: "Diaristas✅", url: "/diaristas", icon: UserCircle },
   { title: "Diaristas🔒", url: "/diaristas-restritos", icon: Lock },
   { title: "Diaristas logs", url: "/diaristas/logs", icon: FileText },
@@ -104,6 +107,7 @@ const menuItems: MenuItem[] = [
     children: diariasTemporariasChildren,
     statusCountsKey: "diariasTemporarias",
   },
+  { title: "Faltas", url: "/faltas", icon: AlertTriangle },
   { title: "Ativos", url: "/ativos", icon: Package },
   { title: "Estoque", url: "/estoque", icon: Package },
   { title: "Checklists", url: "/checklists", icon: ClipboardCheck },

@@ -15,6 +15,7 @@ import Contratos from "./pages/Contratos";
 import MesaOperacoes from "./pages/MesaOperacoes";
 import OrdensServico from "./pages/OrdensServico";
 import Colaboradores from "./pages/Colaboradores";
+import CentrosCusto from "./pages/CentrosCusto";
 import Escalas from "./pages/Escalas";
 import Ativos from "./pages/Ativos";
 import Estoque from "./pages/Estoque";
@@ -42,6 +43,7 @@ import {
 import DiariasTemporariasLogsPage from "./pages/diarias/DiariasTemporariasLogsPage";
 import Diarias from "./pages/Diarias";
 import Diarias2 from "./pages/Diarias2";
+import Faltas from "./pages/Faltas";
 import Inspecao from "./pages/Inspecao";
 import Checklist from "./pages/Checklist";
 import ChecklistItens from "./pages/ChecklistItens";
@@ -77,6 +79,7 @@ const App = () => (
           <Route path="/chamados" element={<ProtectedRoute><Chamados /></ProtectedRoute>} />
           <Route path="/ordens-servico" element={<ProtectedRoute><OrdensServico /></ProtectedRoute>} />
           <Route path="/colaboradores" element={<ProtectedRoute><Colaboradores /></ProtectedRoute>} />
+          <Route path="/centros-custo" element={<ProtectedRoute><CentrosCusto /></ProtectedRoute>} />
           <Route path="/escalas" element={<ProtectedRoute><Escalas /></ProtectedRoute>} />
           <Route path="/ativos" element={<ProtectedRoute><Ativos /></ProtectedRoute>} />
           <Route path="/estoque" element={<ProtectedRoute><Estoque /></ProtectedRoute>} />
@@ -100,6 +103,7 @@ const App = () => (
           <Route path="/diarias2/pagas" element={<ProtectedRoute><Diarias2PagasPage /></ProtectedRoute>} />
           <Route path="/diarias2/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
           <Route path="/diarias2" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
+          <Route path="/faltas" element={<ProtectedRoute><Faltas /></ProtectedRoute>} />
           <Route path="/inspecao" element={<ProtectedRoute><Inspecao /></ProtectedRoute>} />
           <Route path="/checklists" element={<ProtectedRoute><Checklist /></ProtectedRoute>} />
           <Route path="/checklist-itens" element={<ProtectedRoute><ChecklistItens /></ProtectedRoute>} />
