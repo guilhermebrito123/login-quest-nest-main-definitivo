@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,22 +19,6 @@ import {
 
 } from "@/components/ui/select";
 
-import {
-
-  Table,
-
-  TableBody,
-
-  TableCell,
-
-  TableHead,
-
-  TableHeader,
-
-  TableRow,
-
-} from "@/components/ui/table";
-
 import { Badge } from "@/components/ui/badge";
 
 import { Search, Info } from "lucide-react";
@@ -43,6 +28,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { toast } from "sonner";
 
 import {
   Dialog,
@@ -74,6 +60,14 @@ const getColaboradorNome = (colaborador: any) => {
 };
 
 const getCostCenterLabel = (colaborador: any) => {
+  const linked = colaborador?.cost_center_ref;
+  const linkedName =
+    linked?.name ||
+    linked?.convenia_cost_center_name ||
+    linked?.descricao ||
+    linked?.description;
+  if (typeof linkedName === "string" && linkedName.trim()) return linkedName;
+
   const raw = colaborador?.cost_center;
   const fallback = colaborador?.cost_center_name;
 
@@ -127,7 +121,7 @@ export default function Colaboradores() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("colaboradores_convenia")
-        .select("*")
+        .select("*, cost_center_ref:cost_center_id ( id, name, convenia_id )")
         .order("name");
 
       if (error) throw error;
@@ -191,6 +185,42 @@ export default function Colaboradores() {
 
   const getSupervisorNome = (colaborador: any) =>
     [colaborador?.supervisor_name, colaborador?.supervisor_last_name].filter(Boolean).join(" ") || "-";
+
+  const handleExportXlsx = () => {
+    if (!filteredColaboradores.length) {
+      toast.error("Nenhum colaborador para exportar.");
+      return;
+    }
+
+    const rows = filteredColaboradores.map((colaborador: any) => ({
+      Nome: getColaboradorNome(colaborador),
+      "Email corporativo": colaborador.email || "",
+      "Email pessoal": colaborador.personal_email || "",
+      Telefone:
+        colaborador.personal_phone ||
+        colaborador.residential_phone ||
+        "",
+      Status:
+        STATUS_COLABORADOR_LABELS[colaborador.status] ||
+        colaborador.status ||
+        "",
+      Cargo: colaborador.job_name || "",
+      Departamento: colaborador.department_name || "",
+      "Centro de custo": getCostCenterLabel(colaborador),
+      Equipe: colaborador.team_name || "",
+      Supervisor: getSupervisorNome(colaborador),
+      Matricula: colaborador.registration || "",
+      CPF: colaborador.cpf || "",
+      "Data de nascimento": formatDate(colaborador.birth_date),
+      "Data de admissao": formatDate(colaborador.hiring_date),
+    }));
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, "Colaboradores");
+    XLSX.writeFile(wb, `colaboradores-convenia-${Date.now()}.xlsx`);
+    toast.success("Arquivo XLSX gerado.");
+  };
 
   return (
     <DashboardLayout>
@@ -283,52 +313,53 @@ export default function Colaboradores() {
                   : "Exibindo todos os colaboradores disponiveis"}
               </p>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportXlsx}
+              disabled={!filteredColaboradores.length}
+            >
+              Exportar XLSX
+            </Button>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Colaborador</TableHead>
-                <TableHead>Cargo</TableHead>
-                <TableHead>Centro de Custo</TableHead>
-                <TableHead className="w-[120px]">Acoes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredColaboradores.length ? (
-                filteredColaboradores.map((colaborador: any) => (
-                  <TableRow
-                    key={colaborador.id}
-                    className="cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setColaboradorDetalhe(colaborador)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setColaboradorDetalhe(colaborador);
-                      }
-                    }}
-                  >
-                    <TableCell className="align-top">
-                      <div className="space-y-2 rounded-md border border-transparent p-2 transition group-hover:border-muted">
+          <div className="divide-y">
+            {filteredColaboradores.length ? (
+              filteredColaboradores.map((colaborador: any) => (
+                <div
+                  key={colaborador.id}
+                  className="flex flex-col gap-4 p-4 transition hover:bg-muted/40 sm:flex-row sm:items-start sm:justify-between"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setColaboradorDetalhe(colaborador)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setColaboradorDetalhe(colaborador);
+                    }
+                  }}
+                >
+                  <div className="flex-1 space-y-3">
+                    <div className="flex flex-wrap items-start gap-3">
+                      <div>
                         <p className="font-semibold leading-tight">{getColaboradorNome(colaborador)}</p>
                         <p className="text-xs text-muted-foreground">
                           {colaborador.email || colaborador.personal_email || "-"}
                         </p>
-                        {colaborador.status && (
-                          <Badge
-                            variant={getStatusBadgeVariant(colaborador.status)}
-                            className="capitalize"
-                          >
-                            {STATUS_COLABORADOR_LABELS[colaborador.status] || colaborador.status}
-                          </Badge>
-                        )}
                       </div>
-                    </TableCell>
+                      {colaborador.status && (
+                        <Badge
+                          variant={getStatusBadgeVariant(colaborador.status)}
+                          className="capitalize"
+                        >
+                          {STATUS_COLABORADOR_LABELS[colaborador.status] || colaborador.status}
+                        </Badge>
+                      )}
+                    </div>
 
-                    <TableCell className="align-top">
-                      <div className="space-y-1 text-sm">
+                    <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Cargo</p>
                         <p className="font-medium">{colaborador.job_name || "-"}</p>
                         {colaborador.department_name && (
                           <p className="text-xs text-muted-foreground">
@@ -336,41 +367,41 @@ export default function Colaboradores() {
                           </p>
                         )}
                       </div>
-                    </TableCell>
-
-                    <TableCell className="align-top">
-                      <div className="space-y-1 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Centro de custo</p>
                         <p className="font-medium">{getCostCenterLabel(colaborador)}</p>
                       </div>
-                    </TableCell>
-
-                    <TableCell className="align-top">
-                      <div className="flex flex-wrap gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setColaboradorDetalhe(colaborador);
-                          }}
-                          title="Ver detalhes"
-                        >
-                          <Info className="h-4 w-4" />
-                          <span className="sr-only">Ver detalhes</span>
-                        </Button>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Matricula</p>
+                        <p className="font-medium">{colaborador.registration || "-"}</p>
+                        <p className="text-xs text-muted-foreground">CPF</p>
+                        <p className="font-medium">{colaborador.cpf || "-"}</p>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">
-                    Nenhum colaborador encontrado com os filtros selecionados.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setColaboradorDetalhe(colaborador);
+                      }}
+                      title="Ver detalhes"
+                    >
+                      <Info className="h-4 w-4" />
+                      <span className="sr-only">Ver detalhes</span>
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                Nenhum colaborador encontrado com os filtros selecionados.
+              </div>
+            )}
+          </div>
         </div>
 
         <Dialog
@@ -461,6 +492,7 @@ export default function Colaboradores() {
                     <p className="font-medium">{formatDate(colaboradorDetalhe.hiring_date)}</p>
                   </div>
                 </div>
+
               </div>
             )}
           </DialogContent>
