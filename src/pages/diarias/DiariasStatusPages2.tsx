@@ -4995,18 +4995,6 @@ const createStatusPage = ({
                               Ver atestado
                             </Button>
                           )}
-                          {isFaltaInjustificada && selectedDiaria && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => {
-                                openFaltaDialog(selectedDiaria);
-                                closeDetailsDialog();
-                              }}
-                            >
-                              Justificar falta
-                            </Button>
-                          )}
                         </div>
                       </div>
                     )}
