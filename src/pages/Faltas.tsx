@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate, formatDateTime } from "./diarias/utils";
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
@@ -88,6 +89,8 @@ const Faltas = () => {
   const [faltaType, setFaltaType] = useState<FaltaTipo>("convenia");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedFalta, setSelectedFalta] = useState<FaltaData | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [detailsFalta, setDetailsFalta] = useState<FaltaData | null>(null);
 
   const {
     diarias,
@@ -185,7 +188,7 @@ const Faltas = () => {
     const map = new Map<string, string>();
     usuarios.forEach((usuario: any) => {
       if (!usuario?.id) return;
-      map.set(usuario.id, usuario.full_name || usuario.email || usuario.id);
+      map.set(usuario.id, usuario.full_name || usuario.id);
     });
     return map;
   }, [usuarios]);
@@ -248,6 +251,16 @@ const Faltas = () => {
     setDialogOpen(true);
   };
 
+  const handleDetailsDialogOpenChange = (open: boolean) => {
+    setDetailsDialogOpen(open);
+    if (!open) setDetailsFalta(null);
+  };
+
+  const openDetailsDialog = (falta: FaltaData) => {
+    setDetailsFalta(falta);
+    setDetailsDialogOpen(true);
+  };
+
   const selectedColaboradorId = selectedFalta ? getFaltaColaboradorId(selectedFalta) : null;
   const selectedColaboradorNome = selectedFalta ? getFaltaColaboradorNome(selectedFalta) : null;
   const selectedRpcName =
@@ -268,7 +281,7 @@ const Faltas = () => {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="flex flex-col gap-4 md:grid md:grid-cols-3">
           <Card className="shadow-lg">
             <CardHeader className="pb-2">
               <CardDescription>Total de faltas</CardDescription>
@@ -303,7 +316,7 @@ const Faltas = () => {
             <CardTitle>Filtros</CardTitle>
             <CardDescription>Busque faltas por colaborador ou ID da diaria.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-4">
+          <CardContent className="flex flex-col gap-4 md:grid md:grid-cols-4">
             <div className="space-y-2">
               <span className="text-sm text-muted-foreground">Busca</span>
               <Input
@@ -361,11 +374,11 @@ const Faltas = () => {
                   <TableRow>
                     <TableHead>Data</TableHead>
                     <TableHead>Colaborador</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Motivo</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Justificada em</TableHead>
-                    <TableHead>Documento</TableHead>
+                    <TableHead className="hidden sm:table-cell">Cliente</TableHead>
+                    <TableHead className="hidden sm:table-cell">Motivo</TableHead>
+                    <TableHead className="hidden sm:table-cell">Status</TableHead>
+                    <TableHead className="hidden sm:table-cell">Justificada em</TableHead>
+                    <TableHead className="hidden sm:table-cell">Documento</TableHead>
                     <TableHead className="text-right">Acoes</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -393,15 +406,19 @@ const Faltas = () => {
                     const colaboradorNome = getFaltaColaboradorNome(falta);
                     const documentoPath = getFaltaDocumentoPath(falta);
                     return (
-                      <TableRow key={falta.id}>
+                      <TableRow
+                        key={falta.id}
+                        className="cursor-pointer"
+                        onClick={() => openDetailsDialog(falta)}
+                      >
                         <TableCell>{formatDate(diaria?.data_diaria)}</TableCell>
                         <TableCell>{colaboradorNome}</TableCell>
-                        <TableCell>{clienteNome}</TableCell>
-                        <TableCell>{falta.motivo || "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">{clienteNome}</TableCell>
+                        <TableCell className="hidden sm:table-cell">{falta.motivo || "-"}</TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <Badge variant={statusVariant}>{statusLabel}</Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           {falta.justificada_em ? (
                             <div className="text-xs">
                               <div>{formatDateTime(falta.justificada_em)}</div>
@@ -411,13 +428,16 @@ const Faltas = () => {
                             "-"
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           {documentoPath ? (
                             <Button
                               type="button"
                               size="sm"
                               variant="outline"
-                              onClick={() => handleViewDocumento(documentoPath as string)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleViewDocumento(documentoPath as string);
+                              }}
                             >
                               Ver
                             </Button>
@@ -430,7 +450,10 @@ const Faltas = () => {
                             type="button"
                             size="sm"
                             disabled={!!falta.justificada_em}
-                            onClick={() => openJustificarDialog(falta)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openJustificarDialog(falta);
+                            }}
                           >
                             Justificar
                           </Button>
@@ -465,6 +488,102 @@ const Faltas = () => {
           ]);
         }}
       />
+      <Dialog open={detailsDialogOpen} onOpenChange={handleDetailsDialogOpenChange}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da falta</DialogTitle>
+            <DialogDescription>Informacoes completas da falta selecionada.</DialogDescription>
+          </DialogHeader>
+          {detailsFalta ? (() => {
+            const diaria = diariaMap.get(String(detailsFalta.diaria_temporaria_id));
+            const colaborador =
+              detailsFalta.tipo === "colaborador"
+                ? colaboradoresMap.get(detailsFalta.colaborador_id)
+                : null;
+            const postoInfo =
+              diaria?.posto_servico_id
+                ? postoMap.get(diaria.posto_servico_id)
+                : colaborador?.posto || null;
+            const clienteNome =
+              (typeof diaria?.cliente_id === "number" && clienteMap.get(diaria.cliente_id)) ||
+              getClienteInfoFromPosto(postoInfo)?.nome ||
+              "-";
+            const statusLabel = detailsFalta.justificada_em ? "Justificada" : "Pendente";
+            const statusVariant: "default" | "destructive" =
+              detailsFalta.justificada_em ? "default" : "destructive";
+            const justificadaPorNome = detailsFalta.justificada_por
+              ? usuarioMap.get(detailsFalta.justificada_por) || detailsFalta.justificada_por
+              : "-";
+            const colaboradorNome = getFaltaColaboradorNome(detailsFalta);
+            const documentoPath = getFaltaDocumentoPath(detailsFalta);
+
+            return (
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Data</p>
+                    <p className="text-sm font-medium">{formatDate(diaria?.data_diaria)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Colaborador</p>
+                    <p className="text-sm font-medium">{colaboradorNome}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Cliente</p>
+                    <p className="text-sm font-medium">{clienteNome}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Motivo</p>
+                    <p className="text-sm font-medium">{detailsFalta.motivo || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <Badge variant={statusVariant}>{statusLabel}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Justificada em</p>
+                    <p className="text-sm font-medium">
+                      {detailsFalta.justificada_em ? formatDateTime(detailsFalta.justificada_em) : "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Justificada por</p>
+                    <p className="text-sm font-medium">{justificadaPorNome}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Documento</p>
+                    {documentoPath ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewDocumento(documentoPath as string)}
+                      >
+                        Ver documento
+                      </Button>
+                    ) : (
+                      <p className="text-sm font-medium">-</p>
+                    )}
+                  </div>
+                </div>
+                <DialogFooter className="sm:justify-start">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!!detailsFalta.justificada_em}
+                    onClick={() => {
+                      handleDetailsDialogOpenChange(false);
+                      openJustificarDialog(detailsFalta);
+                    }}
+                  >
+                    Justificar
+                  </Button>
+                </DialogFooter>
+              </div>
+            );
+          })() : null}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };
