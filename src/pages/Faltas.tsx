@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 const BUCKET = "atestados";
 
-type FaltaTipo = "colaborador" | "convenia";
+type FaltaTipo = "convenia";
 
 type FaltaRow = {
   id: number;
@@ -79,14 +79,13 @@ const STATUS_FILTERS = [
 ];
 
 const FALTA_TYPE_OPTIONS: { value: FaltaTipo; label: string }[] = [
-  { value: "colaborador", label: "Colaboradores" },
   { value: "convenia", label: "Convenia" },
 ];
 
 const Faltas = () => {
   const [statusFilter, setStatusFilter] = useState("pendente");
   const [searchTerm, setSearchTerm] = useState("");
-  const [faltaType, setFaltaType] = useState<FaltaTipo>("colaborador");
+  const [faltaType, setFaltaType] = useState<FaltaTipo>("convenia");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedFalta, setSelectedFalta] = useState<FaltaData | null>(null);
 
