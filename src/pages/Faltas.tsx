@@ -15,6 +15,7 @@ import { FaltaJustificarDialog } from "@/components/faltas/FaltaJustificarDialog
 import { toast } from "sonner";
 
 const BUCKET = "atestados";
+const CLIENTE_FILTER_ALL = "__all__";
 
 type FaltaTipo = "convenia";
 
@@ -86,6 +87,7 @@ const FALTA_TYPE_OPTIONS: { value: FaltaTipo; label: string }[] = [
 const Faltas = () => {
   const [statusFilter, setStatusFilter] = useState("pendente");
   const [searchTerm, setSearchTerm] = useState("");
+  const [clienteFilter, setClienteFilter] = useState(CLIENTE_FILTER_ALL);
   const [faltaType, setFaltaType] = useState<FaltaTipo>("convenia");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedFalta, setSelectedFalta] = useState<FaltaData | null>(null);
@@ -94,6 +96,7 @@ const Faltas = () => {
 
   const {
     diarias,
+    costCenters,
     colaboradoresMap,
     colaboradoresConveniaMap,
     postoMap,
@@ -222,12 +225,26 @@ const Faltas = () => {
       if (statusFilter === "pendente" && falta.justificada_em) return false;
       if (statusFilter === "justificada" && !falta.justificada_em) return false;
 
+      if (clienteFilter !== CLIENTE_FILTER_ALL) {
+        const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
+        const centroCustoId = diaria?.centro_custo_id;
+        if (!centroCustoId || String(centroCustoId) !== clienteFilter) return false;
+      }
+
       if (!term) return true;
       const colaboradorNome = getFaltaColaboradorNome(falta).toLowerCase();
       const diariaId = String(falta.diaria_temporaria_id);
       return colaboradorNome.includes(term) || diariaId.includes(term);
     });
-  }, [faltasAtivas, searchTerm, statusFilter, colaboradoresMap, colaboradoresConveniaMap]);
+  }, [
+    faltasAtivas,
+    searchTerm,
+    statusFilter,
+    clienteFilter,
+    diariaMap,
+    colaboradoresMap,
+    colaboradoresConveniaMap,
+  ]);
 
   const handleViewDocumento = async (path: string) => {
     try {
@@ -350,6 +367,22 @@ const Faltas = () => {
                   {STATUS_FILTERS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <span className="text-sm text-muted-foreground">Cliente</span>
+              <Select value={clienteFilter} onValueChange={setClienteFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={CLIENTE_FILTER_ALL}>Todos</SelectItem>
+                  {costCenters.map((center) => (
+                    <SelectItem key={center.id} value={center.id}>
+                      {center.name || center.id}
                     </SelectItem>
                   ))}
                 </SelectContent>
