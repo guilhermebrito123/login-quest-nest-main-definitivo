@@ -62,8 +62,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Bell, AlertTriangle } from "lucide-react";
+import { Trash2, Bell, AlertTriangle, MoreVertical } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   useDiariasTemporariasData,
@@ -206,6 +212,45 @@ const TooltipLabel = ({
       </TooltipContent>
     </Tooltip>
   </div>
+);
+
+const ReprovarMenu = ({
+  disabled = false,
+  onReprovar,
+}: {
+  disabled?: boolean;
+  onReprovar: () => void;
+}) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+        disabled={disabled}
+        onClick={(event) => event.stopPropagation()}
+        aria-label="Mais opcoes"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent
+      align="end"
+      className="w-40"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <DropdownMenuItem
+        className="text-destructive focus:text-destructive"
+        onSelect={(event) => {
+          event.stopPropagation();
+          onReprovar();
+        }}
+      >
+        Reprovar
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
 );
 
 const STATUS_DATE_LABELS: { field: keyof DiariaTemporaria; label: string }[] = [
@@ -488,6 +533,7 @@ const createStatusPage = ({
     const isPagaPage = normalizedKey === normalizeStatus(STATUS.paga);
     const isLancadaPage = normalizedKey === normalizeStatus(STATUS.lancada);
     const isAprovadaPage = normalizedKey === normalizeStatus(STATUS.aprovada);
+    const showReprovarMenu = isAprovadaPage || isLancadaPage;
     const canEditDiaria = (diaria?: DiariaTemporaria | null) =>
       normalizeStatus(diaria?.status || "") === normalizedAguardandoStatus;
     const statusResponsavelField = useMemo(() => {
@@ -2591,7 +2637,7 @@ const createStatusPage = ({
       const normalizedStatus = normalizeStatus(reasonDialog.targetStatus);
       const isReprovada = normalizedStatus === normalizedReprovadaStatus;
       const useEnumMotivoReprovacao =
-        (isConfirmadaPage || isAprovadaPage) && isReprovada;
+        (isConfirmadaPage || isAprovadaPage || isLancadaPage) && isReprovada;
       let extra: Record<string, unknown>;
       if (useEnumMotivoReprovacao) {
         if (!motivoReprovacao) {
@@ -3020,17 +3066,38 @@ const createStatusPage = ({
         toast.info("Nenhuma diaria selecionada.");
         return;
       }
+      const normalizedTarget = normalizeStatus(status);
       const message = `Aplicar "${STATUS_LABELS[status] || status}" em ${
         ids.length
       } diaria(s)?`;
       if (typeof window !== "undefined" && !window.confirm(message)) return;
       setUpdatingId("bulk");
       try {
+        if (
+          isLancadaPage &&
+          normalizedTarget === normalizeStatus(STATUS.paga)
+        ) {
+          const { data, error: userError } = await supabase.auth.getUser();
+          if (userError) throw userError;
+          const now = new Date().toISOString();
+          const payload: Record<string, unknown> = {
+            status,
+            ok_pagamento: true,
+            ok_pagamento_em: now,
+            ok_pagamento_por: data?.user?.id || null,
+          };
+          const { error } = await supabase
+            .from("diarias_temporarias")
+            .update(payload)
+            .in("id", ids);
+          if (error) throw error;
+        } else {
         const { error } = await supabase
           .from("diarias_temporarias")
           .update({ status })
           .in("id", ids);
         if (error) throw error;
+        }
         toast.success(
           `Status atualizado para ${STATUS_LABELS[status] || status} em ${
             ids.length
@@ -3174,7 +3241,7 @@ const createStatusPage = ({
       normalizedKey === normalizedCancelStatus ||
       normalizedKey === normalizedReprovadaStatus;
     const showEnumMotivoReprovacao =
-      (isConfirmadaPage || isAprovadaPage) &&
+      (isConfirmadaPage || isAprovadaPage || isLancadaPage) &&
       normalizeStatus(reasonDialog.targetStatus || "") ===
         normalizedReprovadaStatus;
     const showGroupedLancadas =
@@ -4030,24 +4097,19 @@ const createStatusPage = ({
                                             Reprovar
                                           </Button>
                                         )}
-                                        {isAprovadaPage && (
-                                          <Button
-                                            size="sm"
-                                            variant="destructive"
+                                        {showReprovarMenu && (
+                                          <ReprovarMenu
                                             disabled={
                                               updatingId ===
                                               diaria.id.toString()
                                             }
-                                            onClick={(event) => {
-                                              event.stopPropagation();
+                                            onReprovar={() =>
                                               openReasonDialog(
                                                 diaria.id.toString(),
                                                 STATUS.reprovada
-                                              );
-                                            }}
-                                          >
-                                            Reprovar
-                                          </Button>
+                                              )
+                                            }
+                                          />
                                         )}
                                         {isAguardandoPage && (
                                           <Button
@@ -5432,21 +5494,19 @@ const createStatusPage = ({
                       Reprovar
                     </Button>
                   )}
-                  {isAprovadaPage && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={updatingId === selectedDiaria.id.toString()}
-                      onClick={() => {
-                        closeDetailsDialog();
-                        openReasonDialog(
-                          selectedDiaria.id.toString(),
-                          STATUS.reprovada
-                        );
-                      }}
-                    >
-                      Reprovar
-                    </Button>
+                  {showReprovarMenu && (
+                    <div className="flex justify-end">
+                      <ReprovarMenu
+                        disabled={updatingId === selectedDiaria.id.toString()}
+                        onReprovar={() => {
+                          closeDetailsDialog();
+                          openReasonDialog(
+                            selectedDiaria.id.toString(),
+                            STATUS.reprovada
+                          );
+                        }}
+                      />
+                    </div>
                   )}
                   {isAguardandoPage && (
                     <Button
