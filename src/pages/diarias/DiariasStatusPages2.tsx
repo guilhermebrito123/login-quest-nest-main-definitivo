@@ -609,6 +609,30 @@ const createStatusPage = ({
       return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
     };
 
+    const parseTimeToMinutes = (value?: string | null) => {
+      if (!value) return null;
+      const [hour = "", minute = ""] = value.split(":");
+      if (!hour && !minute) return null;
+      const parsedHour = Number(hour);
+      const parsedMinute = Number(minute || "0");
+      if (Number.isNaN(parsedHour) || Number.isNaN(parsedMinute)) return null;
+      return parsedHour * 60 + parsedMinute;
+    };
+
+    const calcularJornadaDiaria = (
+      horarioInicio?: string | null,
+      horarioFim?: string | null,
+      intervalo?: number | null
+    ) => {
+      const inicioMinutos = parseTimeToMinutes(horarioInicio);
+      const fimMinutos = parseTimeToMinutes(horarioFim);
+      if (inicioMinutos === null || fimMinutos === null) return null;
+      const intervaloMinutos = typeof intervalo === "number" ? intervalo : Number(intervalo) || 0;
+      const ajusteVirada = fimMinutos < inicioMinutos ? 1440 : 0;
+      const totalMinutos = fimMinutos - inicioMinutos + ajusteVirada - intervaloMinutos;
+      return totalMinutos / 60;
+    };
+
     const getDateKeyFromValue = (value?: string | null) => {
       if (!value) return "";
       const trimmed = value.trim();
@@ -631,7 +655,20 @@ const createStatusPage = ({
       if (value === null || value === undefined) return "-";
       const parsed = Number(value);
       if (Number.isNaN(parsed)) return "-";
-      return `${parsed.toFixed(2)} h`;
+      return parsed.toFixed(2);
+    };
+
+    const getJornadaDiariaValue = (diaria: DiariaTemporaria) => {
+      const calculada = calcularJornadaDiaria(
+        diaria.horario_inicio,
+        diaria.horario_fim,
+        diaria.intervalo ?? null
+      );
+      if (calculada !== null) return calculada;
+      const rawValue = typeof diaria.jornada_diaria === "number"
+        ? diaria.jornada_diaria
+        : Number(diaria.jornada_diaria);
+      return Number.isNaN(rawValue) ? null : rawValue;
     };
 
     const formatPixPertence = (value?: boolean | null) => {
@@ -1591,7 +1628,7 @@ const createStatusPage = ({
         Status: STATUS_LABELS[diaria.status] || diaria.status,
         "Horario inicio": formatTimeValue(diaria.horario_inicio),
         "Horario fim": formatTimeValue(diaria.horario_fim),
-        "Jornada diaria (h)": formatJornadaValue(diaria.jornada_diaria),
+        "Jornada diaria (h)": formatJornadaValue(getJornadaDiariaValue(diaria)),
         "Intervalo (min)": formatIntervalValue(diaria.intervalo),
         "Motivo (dia vago)": diaria.motivo_vago || "-",
         "Demissao?": isMotivoVagaEmAberto
@@ -5250,7 +5287,7 @@ const createStatusPage = ({
                         Jornada diaria
                       </p>
                       <p className="font-medium">
-                        {formatJornadaValue(selectedDiaria.jornada_diaria)}
+                        {formatJornadaValue(getJornadaDiariaValue(selectedDiaria))}
                       </p>
                     </div>
                     <div>
