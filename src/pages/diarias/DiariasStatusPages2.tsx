@@ -2590,7 +2590,8 @@ const createStatusPage = ({
       if (!reasonDialog.diariaId || !reasonDialog.targetStatus) return;
       const normalizedStatus = normalizeStatus(reasonDialog.targetStatus);
       const isReprovada = normalizedStatus === normalizedReprovadaStatus;
-      const useEnumMotivoReprovacao = isConfirmadaPage && isReprovada;
+      const useEnumMotivoReprovacao =
+        (isConfirmadaPage || isAprovadaPage) && isReprovada;
       let extra: Record<string, unknown>;
       if (useEnumMotivoReprovacao) {
         if (!motivoReprovacao) {
@@ -3173,7 +3174,7 @@ const createStatusPage = ({
       normalizedKey === normalizedCancelStatus ||
       normalizedKey === normalizedReprovadaStatus;
     const showEnumMotivoReprovacao =
-      isConfirmadaPage &&
+      (isConfirmadaPage || isAprovadaPage) &&
       normalizeStatus(reasonDialog.targetStatus || "") ===
         normalizedReprovadaStatus;
     const showGroupedLancadas =
@@ -4029,7 +4030,26 @@ const createStatusPage = ({
                                             Reprovar
                                           </Button>
                                         )}
-                                        {(isAguardandoPage || isAprovadaPage) && (
+                                        {isAprovadaPage && (
+                                          <Button
+                                            size="sm"
+                                            variant="destructive"
+                                            disabled={
+                                              updatingId ===
+                                              diaria.id.toString()
+                                            }
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              openReasonDialog(
+                                                diaria.id.toString(),
+                                                STATUS.reprovada
+                                              );
+                                            }}
+                                          >
+                                            Reprovar
+                                          </Button>
+                                        )}
+                                        {isAguardandoPage && (
                                           <Button
                                             size="sm"
                                             variant="destructive"
@@ -5412,7 +5432,23 @@ const createStatusPage = ({
                       Reprovar
                     </Button>
                   )}
-                  {(isAguardandoPage || isAprovadaPage) && (
+                  {isAprovadaPage && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={updatingId === selectedDiaria.id.toString()}
+                      onClick={() => {
+                        closeDetailsDialog();
+                        openReasonDialog(
+                          selectedDiaria.id.toString(),
+                          STATUS.reprovada
+                        );
+                      }}
+                    >
+                      Reprovar
+                    </Button>
+                  )}
+                  {isAguardandoPage && (
                     <Button
                       size="sm"
                       variant="destructive"
