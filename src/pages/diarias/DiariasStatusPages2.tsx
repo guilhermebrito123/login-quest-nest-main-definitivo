@@ -4029,7 +4029,7 @@ const createStatusPage = ({
                                             Reprovar
                                           </Button>
                                         )}
-                                        {isAguardandoPage && (
+                                        {(isAguardandoPage || isAprovadaPage) && (
                                           <Button
                                             size="sm"
                                             variant="destructive"
@@ -5412,7 +5412,7 @@ const createStatusPage = ({
                       Reprovar
                     </Button>
                   )}
-                  {isAguardandoPage && (
+                  {(isAguardandoPage || isAprovadaPage) && (
                     <Button
                       size="sm"
                       variant="destructive"
