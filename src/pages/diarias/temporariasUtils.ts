@@ -9,6 +9,7 @@ export type PostoServicoResumo = {
   nome: string;
   valor_diaria: number | null;
   cliente_id?: string | number | null;
+  cost_center_id?: string | null;
   observacoes_especificas?: string | null;
   unidade?: {
     id: string;
@@ -42,15 +43,32 @@ export type ClienteResumo = {
   nome_fantasia: string | null;
 };
 
+export type CostCenterResumo = {
+  id: string;
+  name: string;
+  convenia_id: string;
+};
+
+export type ColaboradorConvenia = {
+  id: string;
+  name: string | null;
+  last_name: string | null;
+  social_name: string | null;
+  cost_center_id: string | null;
+  cost_center_name: string | null;
+};
+
 export type DiariaTemporaria = {
   id: number;
   diarista_id: string;
   colaborador_ausente: string | null;
+  colaborador_ausente_convenia?: string | null;
   colaborador_ausente_nome?: string | null;
   posto_servico_id: string | null;
   posto_servico?: string | null;
   unidade?: string | null;
   cliente_id?: number | null;
+  centro_custo_id?: string | null;
   criado_por?: string | null;
   confirmada_por?: string | null;
   aprovada_por?: string | null;
@@ -79,9 +97,13 @@ export type DiariaTemporaria = {
   motivo_reprovacao: string | null;
   motivo_reprovacao_observacao?: string | null;
   motivo_vago: string;
+  atestado_path?: string | null;
+  falta_justificada_em?: string | null;
+  falta_justificada_por?: string | null;
   demissao?: boolean | null;
   novo_posto?: boolean | null;
   colaborador_demitido?: string | null;
+  colaborador_demitido_convenia?: string | null;
   colaborador_demitido_nome?: string | null;
   observacao?: string | null;
   ok_pagamento?: boolean | null;
@@ -109,6 +131,18 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
         .order("razao_social");
       if (error) throw error;
       return (data || []) as ClienteResumo[];
+    },
+  });
+
+  const { data: costCenters = [] } = useQuery({
+    queryKey: ["cost-centers-temporarias"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cost_center")
+        .select("id, name, convenia_id")
+        .order("name");
+      if (error) throw error;
+      return (data || []) as CostCenterResumo[];
     },
   });
 
@@ -151,6 +185,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
             valor_diaria,
             observacoes_especificas,
             cliente_id,
+            cost_center_id,
             unidade:unidades (
               id,
               nome,
@@ -172,6 +207,18 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
         .order("nome_completo", { ascending: true });
       if (error) throw error;
       return (data || []) as ColaboradorAlocado[];
+    },
+  });
+
+  const { data: colaboradoresConvenia = [] } = useQuery({
+    queryKey: ["colaboradores-convenia-temporarias"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("colaboradores_convenia")
+        .select("id, name, last_name, social_name, cost_center_id, cost_center_name")
+        .order("name");
+      if (error) throw error;
+      return (data || []) as ColaboradorConvenia[];
     },
   });
 
@@ -203,6 +250,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
         diaria.paga_por,
         diaria.cancelada_por,
         diaria.reprovada_por,
+        diaria.falta_justificada_por,
       ].forEach((id) => {
         if (id) set.add(id);
       });
@@ -222,6 +270,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
           valor_diaria,
           observacoes_especificas,
           cliente_id,
+          cost_center_id,
           unidade:unidades (
             id,
             nome,
@@ -322,6 +371,14 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
     return map;
   }, [colaboradores]);
 
+  const colaboradoresConveniaMap = useMemo(() => {
+    const map = new Map<string, ColaboradorConvenia>();
+    colaboradoresConvenia.forEach((item) => {
+      if (item.id) map.set(item.id, item);
+    });
+    return map;
+  }, [colaboradoresConvenia]);
+
   const postoMap = useMemo(() => {
     const map = new Map<string, PostoServicoResumo>();
     postosServicos.forEach((posto: any) => {
@@ -332,6 +389,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
         valor_diaria: posto.valor_diaria ?? null,
         observacoes_especificas: posto.observacoes_especificas ?? null,
         cliente_id: posto.cliente_id ?? null,
+        cost_center_id: posto.cost_center_id ?? null,
         unidade: posto.unidade ?? null,
       });
     });
@@ -351,6 +409,16 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
     return map;
   }, [clientes]);
 
+  const costCenterMap = useMemo(() => {
+    const map = new Map<string, string>();
+    costCenters.forEach((center) => {
+      if (center?.id) {
+        map.set(center.id, center.name || center.id);
+      }
+    });
+    return map;
+  }, [costCenters]);
+
   const usuarioMap = useMemo(() => {
     const map = new Map<string, string>();
     usuarios.forEach((usuario: any) => {
@@ -363,14 +431,18 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
 
   return {
     clientes,
+    costCenters,
     colaboradores,
     colaboradoresMap,
+    colaboradoresConvenia,
+    colaboradoresConveniaMap,
     diaristas,
     diaristaMap,
     diarias,
     filteredDiarias,
     postoMap,
     clienteMap,
+    costCenterMap,
     usuarioMap,
     refetchDiarias,
     loadingDiarias,

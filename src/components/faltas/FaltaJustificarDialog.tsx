@@ -28,6 +28,7 @@ type FaltaJustificarDialogProps = {
   colaboradorNome?: string | null;
   dataDiariaLabel?: string | null;
   onSuccess?: () => Promise<void> | void;
+  rpcName?: "justificar_falta_diaria_temporaria" | "justificar_falta_convenia";
 };
 
 export const FaltaJustificarDialog = ({
@@ -38,6 +39,7 @@ export const FaltaJustificarDialog = ({
   colaboradorNome,
   dataDiariaLabel,
   onSuccess,
+  rpcName = "justificar_falta_diaria_temporaria",
 }: FaltaJustificarDialogProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -92,9 +94,9 @@ export const FaltaJustificarDialog = ({
         .upload(storagePath, file, { upsert: false });
       if (uploadError) throw uploadError;
 
-      const { error: rpcError } = await supabase.rpc("justificar_falta_diaria_temporaria", {
+      const { error: rpcError } = await supabase.rpc(rpcName, {
         p_diaria_temporaria_id: diariaId,
-        p_documento_url: storagePath,
+        p_atestado_path: storagePath,
         p_user_id: authData.user.id,
       });
 

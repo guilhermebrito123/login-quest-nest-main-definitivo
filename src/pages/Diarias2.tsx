@@ -50,6 +50,18 @@ const isTestDiarista = (diarista: any) => {
   const cpfDigits = stripNonDigits(diarista?.cpf);
   return TEST_DIARISTA_NAMES.has(name) || TEST_DIARISTA_CPFS.has(cpfDigits);
 };
+const getConveniaColaboradorNome = (colaborador?: {
+  name?: string | null;
+  last_name?: string | null;
+  social_name?: string | null;
+  id?: string;
+} | null) => {
+  if (!colaborador) return "-";
+  const base = (colaborador.social_name || colaborador.name || "").trim();
+  const last = (colaborador.last_name || "").trim();
+  const full = [base, last].filter(Boolean).join(" ").trim();
+  return full || colaborador.name || colaborador.id || "-";
+};
 
 const TooltipLabel = ({
   label,
@@ -85,7 +97,7 @@ const initialFormState = {
   colaboradorAusenteId: "",
   postoServicoId: "",
   unidade: "",
-  clienteId: "",
+  centroCustoId: "",
   valorDiaria: "",
   diaristaId: "",
   motivoVago: MOTIVO_VAGO_OPTIONS[0],
@@ -110,10 +122,11 @@ const Diarias2 = () => {
 
   const {
     diaristas,
-    clientes,
     clienteMap,
-    colaboradores,
     colaboradoresMap,
+    colaboradoresConvenia,
+    colaboradoresConveniaMap,
+    costCenters,
     filteredDiarias,
     refetchDiarias,
     loadingDiarias,
@@ -170,6 +183,7 @@ const Diarias2 = () => {
     id: p.id,
     nome: p.nome || "Sem nome",
     cliente_id: p.cliente_id,
+    cost_center_id: p.cost_center_id,
   }));
   const getClienteInfoFromPosto = (postoInfo: any) => {
     const contrato = postoInfo?.unidade?.contrato;
@@ -182,6 +196,14 @@ const Diarias2 = () => {
           "Cliente nao informado",
       };
     }
+    if (postoInfo?.cliente_id !== null && postoInfo?.cliente_id !== undefined) {
+      const clienteId = Number(postoInfo.cliente_id);
+      const nome = Number.isFinite(clienteId) ? clienteMap.get(clienteId) : null;
+      return {
+        id: postoInfo.cliente_id ?? "",
+        nome: nome || "Cliente nao informado",
+      };
+    }
     return null;
   };
 
@@ -191,27 +213,13 @@ const Diarias2 = () => {
   const normalizedReprovada = normalizeStatus(STATUS.reprovada);
   const normalizedPaga = normalizeStatus(STATUS.paga);
 
-  const colaboradoresByCliente = useMemo(() => {
-    if (!formState.clienteId) return colaboradores;
-    const getColaboradorClienteId = (colaborador: any) => {
-      if (colaborador?.cliente_id !== null && colaborador?.cliente_id !== undefined) {
-        return String(colaborador.cliente_id);
-      }
-      if (colaborador?.posto?.cliente_id !== null && colaborador?.posto?.cliente_id !== undefined) {
-        return String(colaborador.posto.cliente_id);
-      }
-      if (
-        colaborador?.posto?.unidade?.contrato?.cliente_id !== null &&
-        colaborador?.posto?.unidade?.contrato?.cliente_id !== undefined
-      ) {
-        return String(colaborador.posto.unidade.contrato.cliente_id);
-      }
-      return "";
-    };
-    return colaboradores.filter(
-      (colaborador) => getColaboradorClienteId(colaborador) === formState.clienteId,
+  const colaboradoresConveniaByCentroCusto = useMemo(() => {
+    const base = colaboradoresConvenia.filter((colaborador) => colaborador?.id);
+    if (!formState.centroCustoId) return base;
+    return base.filter(
+      (colaborador) => colaborador.cost_center_id === formState.centroCustoId,
     );
-  }, [colaboradores, formState.clienteId]);
+  }, [colaboradoresConvenia, formState.centroCustoId]);
 
   const { clienteReceberTotals, clienteRecebidosTotals } = useMemo(() => {
     const receber = new Map<string, { nome: string; total: number }>();
@@ -273,14 +281,8 @@ const Diarias2 = () => {
       return;
     }
 
-    if (!formState.clienteId) {
-      toast.error("Selecione o cliente.");
-      return;
-    }
-
-    const clienteIdNumber = Number(formState.clienteId);
-    if (!Number.isFinite(clienteIdNumber)) {
-      toast.error("Cliente invalido.");
+    if (!formState.centroCustoId) {
+      toast.error("Selecione o centro de custo.");
       return;
     }
 
@@ -321,13 +323,20 @@ const Diarias2 = () => {
     }
 
     const postoInfo = formState.postoServicoId ? postoMap.get(formState.postoServicoId) : null;
+    const clienteInfoFromPosto = getClienteInfoFromPosto(postoInfo);
+    const clienteIdValue = clienteInfoFromPosto?.id ?? "";
+    const clienteIdNumber = Number(clienteIdValue);
+    if (!Number.isFinite(clienteIdNumber)) {
+      toast.error("Cliente invalido.");
+      return;
+    }
     const unidadeValue =
       toUpperOrNull(formState.unidade) || toUpperOrNull(postoInfo?.unidade?.nome);
     if (!unidadeValue) {
       toast.error("Informe a unidade.");
       return;
     }
-    const clienteIdValue = clienteIdNumber;
+    const centroCustoIdValue = formState.centroCustoId || null;
     const demissaoValue = isMotivoVagaEmAberto ? formState.demissao : null;
     const novoPostoValue = isMotivoVagaEmAberto
       ? demissaoValue
@@ -342,13 +351,17 @@ const Diarias2 = () => {
         ? toTrimOrNull(formState.colaboradorDemitidoId)
         : null;
     const colaboradorAusenteInfo = colaboradorAusenteId
-      ? colaboradoresMap.get(colaboradorAusenteId)
+      ? colaboradoresConveniaMap.get(colaboradorAusenteId)
       : null;
     const colaboradorDemitidoInfo = colaboradorDemitidoId
-      ? colaboradoresMap.get(colaboradorDemitidoId)
+      ? colaboradoresConveniaMap.get(colaboradorDemitidoId)
       : null;
-    const colaboradorAusenteNome = toUpperOrNull(colaboradorAusenteInfo?.nome_completo);
-    const colaboradorDemitidoNomeValue = toUpperOrNull(colaboradorDemitidoInfo?.nome_completo);
+    const colaboradorAusenteNome = toUpperOrNull(
+      getConveniaColaboradorNome(colaboradorAusenteInfo),
+    );
+    const colaboradorDemitidoNomeValue = toUpperOrNull(
+      getConveniaColaboradorNome(colaboradorDemitidoInfo),
+    );
     const observacaoValue = toUpperOrNull(formState.observacao);
     const motivoVagoValue = (formState.motivoVago || "").toUpperCase();
 
@@ -375,17 +388,20 @@ const Diarias2 = () => {
         horario_inicio: formState.horarioInicio,
         horario_fim: formState.horarioFim,
         intervalo: intervaloNumber,
-        colaborador_ausente: colaboradorAusenteId,
+        colaborador_ausente: null,
+        colaborador_ausente_convenia: colaboradorAusenteId,
         colaborador_ausente_nome: colaboradorAusenteNome,
         posto_servico_id: formState.postoServicoId || null,
         unidade: unidadeValue,
-        cliente_id: clienteIdValue,
+        cliente_id: clienteIdNumber,
+        centro_custo_id: centroCustoIdValue,
         valor_diaria: valorNumber,
         diarista_id: formState.diaristaId,
         motivo_vago: motivoVagoValue,
         demissao: demissaoValue,
         novo_posto: novoPostoValue,
-        colaborador_demitido: colaboradorDemitidoId,
+        colaborador_demitido: null,
+        colaborador_demitido_convenia: colaboradorDemitidoId,
         colaborador_demitido_nome: colaboradorDemitidoNomeValue,
         observacao: observacaoValue,
         criado_por: userId,
@@ -485,14 +501,14 @@ const Diarias2 = () => {
               </div>
 
               <div className="space-y-2">
-                <TooltipLabel label="Cliente" tooltip="Cliente associado a diaria." />
+                <TooltipLabel label="Centro de custo" tooltip="Centro de custo associado a diaria." />
                 <Select
                   required
-                  value={formState.clienteId}
+                  value={formState.centroCustoId}
                   onValueChange={(value) =>
                     setFormState((prev) => ({
                       ...prev,
-                      clienteId: value,
+                      centroCustoId: value,
                       postoServicoId: "",
                       colaboradorAusenteId: "",
                       colaboradorDemitidoId: "",
@@ -500,12 +516,12 @@ const Diarias2 = () => {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o cliente" />
+                    <SelectValue placeholder="Selecione o centro de custo" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
-                    {clientes.map((cliente) => (
-                      <SelectItem key={cliente.id} value={cliente.id.toString()}>
-                        {cliente.nome_fantasia || cliente.razao_social || cliente.id}
+                    {costCenters.map((centro) => (
+                      <SelectItem key={centro.id} value={centro.id}>
+                        {centro.name || centro.id}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -558,14 +574,14 @@ const Diarias2 = () => {
                       <SelectValue placeholder="Selecione o colaborador" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72 overflow-y-auto">
-                      {colaboradoresByCliente.length === 0 && (
+                      {colaboradoresConveniaByCentroCusto.length === 0 && (
                         <SelectItem value="none" disabled>
                           Nenhum colaborador encontrado
                         </SelectItem>
                       )}
-                      {colaboradoresByCliente.map((colaborador) => (
+                      {colaboradoresConveniaByCentroCusto.map((colaborador) => (
                         <SelectItem key={colaborador.id} value={colaborador.id}>
-                          {colaborador.nome_completo}
+                          {getConveniaColaboradorNome(colaborador)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -626,14 +642,14 @@ const Diarias2 = () => {
                           <SelectValue placeholder="Selecione o colaborador" />
                         </SelectTrigger>
                         <SelectContent className="max-h-72 overflow-y-auto">
-                          {colaboradoresByCliente.length === 0 && (
+                          {colaboradoresConveniaByCentroCusto.length === 0 && (
                             <SelectItem value="none" disabled>
                               Nenhum colaborador encontrado
                             </SelectItem>
                           )}
-                          {colaboradoresByCliente.map((colaborador) => (
+                          {colaboradoresConveniaByCentroCusto.map((colaborador) => (
                             <SelectItem key={colaborador.id} value={colaborador.id}>
-                              {colaborador.nome_completo}
+                              {getConveniaColaboradorNome(colaborador)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -656,14 +672,14 @@ const Diarias2 = () => {
                     const postoInfo = value ? postoMap.get(value) : null;
                     const unidadeFromPosto = postoInfo?.unidade?.nome || "";
                     setFormState((prev) => {
-                      const nextClienteId = posto?.cliente_id
-                        ? posto.cliente_id.toString()
-                        : prev.clienteId;
-                      const shouldResetColaboradores = nextClienteId !== prev.clienteId;
+                      const nextCentroCustoId = posto?.cost_center_id
+                        ? posto.cost_center_id.toString()
+                        : prev.centroCustoId;
+                      const shouldResetColaboradores = nextCentroCustoId !== prev.centroCustoId;
                       return {
                         ...prev,
                         postoServicoId: value,
-                        clienteId: nextClienteId,
+                        centroCustoId: nextCentroCustoId,
                         unidade: toTrimOrNull(prev.unidade) ? prev.unidade : unidadeFromPosto,
                         colaboradorAusenteId: shouldResetColaboradores
                           ? ""
@@ -674,12 +690,14 @@ const Diarias2 = () => {
                       };
                     });
                   }}
-                  disabled={!formState.clienteId}
+                  disabled={!formState.centroCustoId}
                 >
                   <SelectTrigger>
                     <SelectValue
                       placeholder={
-                        formState.clienteId ? "Selecione o posto" : "Escolha o cliente primeiro"
+                        formState.centroCustoId
+                          ? "Selecione o posto"
+                          : "Escolha o centro de custo primeiro"
                       }
                     />
                   </SelectTrigger>
@@ -687,8 +705,9 @@ const Diarias2 = () => {
                     {postosOptions
                       .filter(
                         (posto) =>
-                          !formState.clienteId ||
-                          (posto.cliente_id && posto.cliente_id.toString() === formState.clienteId),
+                          !formState.centroCustoId ||
+                          (posto.cost_center_id &&
+                            posto.cost_center_id.toString() === formState.centroCustoId),
                       )
                       .map((posto) => (
                         <SelectItem key={posto.id} value={posto.id}>
