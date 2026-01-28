@@ -293,13 +293,15 @@ const createStatusPage = ({
       diarias,
       refetchDiarias,
       loadingDiarias,
-      clientes,
+      costCenters,
       diaristas,
       diaristaMap,
-      colaboradores,
       colaboradoresMap,
+      colaboradoresConvenia,
+      colaboradoresConveniaMap,
       postoMap,
       clienteMap,
+      costCenterMap,
       usuarioMap,
     } = useDiariasTemporariasData();
     const { data: blacklist = [] } = useQuery({
@@ -380,7 +382,7 @@ const createStatusPage = ({
       motivoVago: MOTIVO_VAGO_OPTIONS[0] || "",
       postoServicoId: "",
       unidade: "",
-      clienteId: "",
+      centroCustoId: "",
       valorDiaria: "",
       diaristaId: "",
       colaboradorAusenteId: "",
@@ -394,6 +396,7 @@ const createStatusPage = ({
       diaristaId: "",
       motivo: "",
       clienteId: "",
+      centroCustoId: "",
       startDate: "",
       endDate: "",
       criadoPorId: "",
@@ -427,13 +430,39 @@ const createStatusPage = ({
     const [extraUserMap, setExtraUserMap] = useState<Map<string, string>>(
       new Map()
     );
+    const isConveniaFalta = !!selectedDiaria?.colaborador_ausente_convenia;
     const { data: faltaInfo, refetch: refetchFaltaInfo } = useQuery({
-      queryKey: ["colaborador-falta-diaria", selectedDiaria?.id],
+      queryKey: [
+        "colaborador-falta-diaria",
+        selectedDiaria?.id,
+        isConveniaFalta ? "convenia" : "colaborador",
+      ],
       queryFn: async () => {
         if (!selectedDiaria?.id) return null;
+        if (isConveniaFalta) {
+          const { data, error } = await supabase
+            .from("faltas_colaboradores_convenia")
+            .select(
+              "motivo, atestado_path, justificada_em, justificada_por, diaria_temporaria_id"
+            )
+            .eq("diaria_temporaria_id", selectedDiaria.id)
+            .maybeSingle();
+          if (error) throw error;
+          if (!data) return null;
+          return {
+            motivo: data.motivo,
+            documento_url: data.atestado_path,
+            justificada_em: data.justificada_em,
+            justificada_por: data.justificada_por,
+            diaria_temporaria_id: data.diaria_temporaria_id,
+          };
+        }
+
         const { data, error } = await supabase
           .from("colaborador_faltas")
-          .select("*")
+          .select(
+            "motivo, documento_url, justificada_em, justificada_por, diaria_temporaria_id"
+          )
           .eq("diaria_temporaria_id", selectedDiaria.id)
           .maybeSingle();
         if (error) throw error;
@@ -669,6 +698,19 @@ const createStatusPage = ({
       return result;
     };
 
+    const getConveniaColaboradorNome = (colaborador?: {
+      name?: string | null;
+      last_name?: string | null;
+      social_name?: string | null;
+      id?: string;
+    } | null) => {
+      if (!colaborador) return "-";
+      const base = (colaborador.social_name || colaborador.name || "").trim();
+      const last = (colaborador.last_name || "").trim();
+      const full = [base, last].filter(Boolean).join(" ").trim();
+      return full || colaborador.name || colaborador.id || "-";
+    };
+
     const toUpperOrNull = (value: string | null | undefined) => {
       const trimmed = (value ?? "").trim();
       return trimmed ? trimmed.toUpperCase() : null;
@@ -846,6 +888,16 @@ const createStatusPage = ({
       if (contratoInfo?.clienteId && contratoInfo.clienteNome) {
         return { id: contratoInfo.clienteId, nome: contratoInfo.clienteNome };
       }
+      if (postoInfo?.cliente_id !== null && postoInfo?.cliente_id !== undefined) {
+        const clienteId = Number(postoInfo.cliente_id);
+        const nome = Number.isFinite(clienteId)
+          ? clienteMap.get(clienteId) || ""
+          : "";
+        return {
+          id: postoInfo.cliente_id ?? "",
+          nome: nome || "Cliente nao informado",
+        };
+      }
       return null;
     };
 
@@ -872,6 +924,69 @@ const createStatusPage = ({
           ? String(getClienteInfoFromPosto(postoInfo)?.id)
           : "");
       return key;
+    };
+
+    const getCentroCustoIdFromDiaria = (
+      diaria: DiariaTemporaria,
+      postoInfo: any
+    ) => {
+      if (diaria.centro_custo_id) return diaria.centro_custo_id.toString();
+      if (postoInfo?.cost_center_id) return postoInfo.cost_center_id.toString();
+      return "";
+    };
+
+    const getCentroCustoNomeFromDiaria = (
+      diaria: DiariaTemporaria,
+      postoInfo: any
+    ) => {
+      const centroId = getCentroCustoIdFromDiaria(diaria, postoInfo);
+      if (!centroId) return "";
+      return costCenterMap.get(centroId) || centroId;
+    };
+
+    const getClienteOuCentroCustoDisplay = (
+      diaria: DiariaTemporaria,
+      postoInfo: any
+    ) => {
+      const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo);
+      if (toTrimOrNull(clienteNome)) {
+        return { label: "Cliente", value: clienteNome };
+      }
+      const centroNome = getCentroCustoNomeFromDiaria(diaria, postoInfo);
+      if (toTrimOrNull(centroNome)) {
+        return { label: "Centro de custo", value: centroNome };
+      }
+      return { label: "Cliente", value: "-" };
+    };
+
+    const getColaboradorAusenteDisplay = (diaria: DiariaTemporaria) => {
+      if (diaria.colaborador_ausente) {
+        return (
+          colaboradoresMap.get(diaria.colaborador_ausente)?.nome_completo ||
+          diaria.colaborador_ausente
+        );
+      }
+      if (diaria.colaborador_ausente_convenia) {
+        return getConveniaColaboradorNome(
+          colaboradoresConveniaMap.get(diaria.colaborador_ausente_convenia)
+        );
+      }
+      return "-";
+    };
+
+    const getColaboradorDemitidoDisplay = (diaria: DiariaTemporaria) => {
+      if (diaria.colaborador_demitido) {
+        return (
+          colaboradoresMap.get(diaria.colaborador_demitido)?.nome_completo ||
+          diaria.colaborador_demitido
+        );
+      }
+      if (diaria.colaborador_demitido_convenia) {
+        return getConveniaColaboradorNome(
+          colaboradoresConveniaMap.get(diaria.colaborador_demitido_convenia)
+        );
+      }
+      return "-";
     };
 
     const clienteOptions = useMemo(() => {
@@ -962,62 +1077,40 @@ const createStatusPage = ({
           id: p.id?.toString?.() || "",
           nome: p.nome || "Sem nome",
           cliente_id: p.cliente_id ?? p.unidade?.contrato?.cliente_id ?? "",
+          cost_center_id: p.cost_center_id ?? "",
           unidade: p.unidade?.nome ?? null,
         }))
         .filter((p) => p.id);
     }, [postoMap]);
 
-    const getColaboradorClienteId = (colaborador: any) => {
-      if (
-        colaborador?.cliente_id !== null &&
-        colaborador?.cliente_id !== undefined
-      ) {
-        return String(colaborador.cliente_id);
-      }
-      if (
-        colaborador?.posto?.cliente_id !== null &&
-        colaborador?.posto?.cliente_id !== undefined
-      ) {
-        return String(colaborador.posto.cliente_id);
-      }
-      if (
-        colaborador?.posto?.unidade?.contrato?.cliente_id !== null &&
-        colaborador?.posto?.unidade?.contrato?.cliente_id !== undefined
-      ) {
-        return String(colaborador.posto.unidade.contrato.cliente_id);
-      }
-      return "";
-    };
-
-    const colaboradoresByCliente = useMemo(() => {
-      const base = colaboradores.filter((colaborador) => colaborador?.id);
-      if (!editForm.clienteId) return base;
+    const colaboradoresConveniaByCentroCusto = useMemo(() => {
+      const base = colaboradoresConvenia.filter((colaborador) => colaborador?.id);
+      if (!editForm.centroCustoId) return base;
       return base.filter(
-        (colaborador) =>
-          getColaboradorClienteId(colaborador) === editForm.clienteId
+        (colaborador) => colaborador.cost_center_id === editForm.centroCustoId
       );
-    }, [colaboradores, editForm.clienteId]);
+    }, [colaboradoresConvenia, editForm.centroCustoId]);
 
-    const colaboradoresOptionsByCliente = useMemo(
+    const colaboradoresOptionsByCentroCusto = useMemo(
       () =>
-        colaboradoresByCliente
+        colaboradoresConveniaByCentroCusto
           .map((colaborador) => ({
             id: colaborador.id,
-            nome: colaborador.nome_completo || colaborador.id,
+            nome: getConveniaColaboradorNome(colaborador),
           }))
           .sort((a, b) => a.nome.localeCompare(b.nome)),
-      [colaboradoresByCliente]
+      [colaboradoresConveniaByCentroCusto]
     );
 
-    const clienteOptionsAll = useMemo(
+    const costCenterOptionsAll = useMemo(
       () =>
-        clientes
-          .map((c) => ({
-            id: c.id.toString(),
-            nome: c.nome_fantasia || c.razao_social || c.id.toString(),
+        costCenters
+          .map((center) => ({
+            id: center.id,
+            nome: center.name || center.id,
           }))
           .sort((a, b) => a.nome.localeCompare(b.nome)),
-      [clientes]
+      [costCenters]
     );
 
     const criadoPorOptions = useMemo(() => {
@@ -1087,6 +1180,25 @@ const createStatusPage = ({
         .map(([id, nome]) => ({ id, nome }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
     }, [diariasDoStatus, diariasDoStatusFull, postoMap]);
+
+    const costCenterFilterOptions = useMemo(() => {
+      const map = new Map<string, string>();
+      const source = [...diariasDoStatus, ...diariasDoStatusFull];
+      source.forEach((diaria) => {
+        const postoInfo =
+          diaria.posto ||
+          (diaria.posto_servico_id
+            ? postoMap.get(diaria.posto_servico_id)
+            : null);
+        const centroId = getCentroCustoIdFromDiaria(diaria, postoInfo);
+        if (!centroId) return;
+        const nome = costCenterMap.get(centroId) || centroId;
+        map.set(centroId, nome);
+      });
+      return Array.from(map.entries())
+        .map(([id, nome]) => ({ id, nome }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+    }, [diariasDoStatus, diariasDoStatusFull, postoMap, costCenterMap]);
 
     const diariasBase = useMemo(
       () =>
@@ -1197,6 +1309,7 @@ const createStatusPage = ({
             ? postoMap.get(diaria.posto_servico_id)
             : null);
         const clienteKey = getClienteKeyFromDiaria(diaria, postoInfo);
+        const centroCustoKey = getCentroCustoIdFromDiaria(diaria, postoInfo);
         const data = diaria.data_diaria || "";
         const statusDateValue = statusDateConfig
           ? ((diaria as any)[statusDateConfig.field] as
@@ -1252,6 +1365,9 @@ const createStatusPage = ({
           return false;
         }
         if (filters.clienteId && filters.clienteId !== clienteKey) {
+          return false;
+        }
+        if (filters.centroCustoId && filters.centroCustoId !== centroCustoKey) {
           return false;
         }
         if (filters.statusResponsavelId && statusResponsavelField) {
@@ -1324,7 +1440,8 @@ const createStatusPage = ({
           (diaria.posto_servico_id
             ? postoMap.get(diaria.posto_servico_id)
             : null);
-        const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
+        const clienteNome =
+          getClienteOuCentroCustoDisplay(diaria, postoInfo).value || "-";
         const diaristaKey = diaristaId || `no-diarista-${diaria.id}`;
         const diaristaInfo = diaristaId ? diaristaMap.get(diaristaId) : null;
         const diaristaCpfKey = diaristaInfo?.cpf
@@ -1446,15 +1563,8 @@ const createStatusPage = ({
           : null);
       const diaristaInfo =
         diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
-      const colaboradorInfo =
-        diaria.colaborador ||
-        (diaria.colaborador_ausente
-          ? colaboradoresMap.get(diaria.colaborador_ausente)
-          : null);
-      const colaboradorDemitidoInfo = diaria.colaborador_demitido
-        ? colaboradoresMap.get(diaria.colaborador_demitido)
-        : null;
-      const clienteNome = getClienteNomeFromDiaria(diaria, postoInfo) || "-";
+      const clienteNome =
+        getClienteOuCentroCustoDisplay(diaria, postoInfo).value || "-";
       const unidadeNome =
         toTrimOrNull(diaria.unidade) || postoInfo?.unidade?.nome || "-";
       const criadoPorNome = getUsuarioNome(diaria.criado_por);
@@ -1466,9 +1576,8 @@ const createStatusPage = ({
       const lancadaPorNome = getUsuarioNome(diaria.lancada_por);
       const okPagamentoPorNome = getUsuarioNome(diaria.ok_pagamento_por);
       const pagaPorNome = getUsuarioNome(diaria.paga_por);
-      const colaboradorNome = colaboradorInfo?.nome_completo || "-";
-      const colaboradorDemitidoNome =
-        colaboradorDemitidoInfo?.nome_completo || "";
+      const colaboradorNome = getColaboradorAusenteDisplay(diaria);
+      const colaboradorDemitidoNome = getColaboradorDemitidoDisplay(diaria);
       const novoPostoFlag = diaria.novo_posto === true;
       const isMotivoVagaEmAberto = isVagaEmAberto(diaria.motivo_vago);
       const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
@@ -1616,7 +1725,7 @@ const createStatusPage = ({
                 ? postoMap.get(diaria.posto_servico_id)
                 : null);
             const clienteNome =
-              getClienteNomeFromDiaria(diaria, postoInfo) || "-";
+              getClienteOuCentroCustoDisplay(diaria, postoInfo).value || "-";
             const base = `Diaria ${diaria.motivo_vago || ""} ${formatDate(
               diaria.data_diaria
             )}`;
@@ -2096,6 +2205,7 @@ const createStatusPage = ({
         diaristaId: "",
         motivo: "",
         clienteId: "",
+        centroCustoId: "",
         startDate: "",
         endDate: "",
         criadoPorId: "",
@@ -2575,17 +2685,21 @@ const createStatusPage = ({
           ? diaria.posto_servico_id.toString()
           : "",
         unidade: diaria.unidade || postoInfo?.unidade?.nome || "",
-        clienteId: diaria.cliente_id ? diaria.cliente_id.toString() : "",
+        centroCustoId: diaria.centro_custo_id
+          ? diaria.centro_custo_id.toString()
+          : postoInfo?.cost_center_id
+            ? postoInfo.cost_center_id.toString()
+            : "",
         valorDiaria:
           diaria.valor_diaria !== null && diaria.valor_diaria !== undefined
             ? String(diaria.valor_diaria)
             : "",
         diaristaId: diaria.diarista_id || "",
-        colaboradorAusenteId: diaria.colaborador_ausente
-          ? diaria.colaborador_ausente.toString()
+        colaboradorAusenteId: diaria.colaborador_ausente_convenia
+          ? diaria.colaborador_ausente_convenia.toString()
           : "",
-        colaboradorDemitidoId: diaria.colaborador_demitido
-          ? diaria.colaborador_demitido.toString()
+        colaboradorDemitidoId: diaria.colaborador_demitido_convenia
+          ? diaria.colaborador_demitido_convenia.toString()
           : "",
         demissao: typeof diaria.demissao === "boolean" ? diaria.demissao : null,
         novoPosto:
@@ -2649,8 +2763,8 @@ const createStatusPage = ({
         return;
       }
 
-      if (!editForm.clienteId) {
-        toast.error("Selecione o cliente.");
+      if (!editForm.centroCustoId) {
+        toast.error("Selecione o centro de custo.");
         return;
       }
 
@@ -2697,18 +2811,19 @@ const createStatusPage = ({
         return;
       }
 
-      const clienteIdNumber = Number(editForm.clienteId);
-      if (!Number.isFinite(clienteIdNumber)) {
-        toast.error("Cliente invalido.");
-        return;
-      }
-
       const postoSelecionado = postosOptions.find(
         (p) => p.id === editForm.postoServicoId
       );
       const postoInfo = editForm.postoServicoId
         ? postoMap.get(editForm.postoServicoId)
         : null;
+      const clienteInfoFromPosto = getClienteInfoFromPosto(postoInfo);
+      const clienteIdValue = clienteInfoFromPosto?.id ?? "";
+      const clienteIdNumber = Number(clienteIdValue);
+      if (!Number.isFinite(clienteIdNumber)) {
+        toast.error("Cliente invalido.");
+        return;
+      }
       const unidadeValue =
         toUpperOrNull(editForm.unidade) ||
         toUpperOrNull(postoSelecionado?.unidade ?? postoInfo?.unidade?.nome);
@@ -2717,6 +2832,7 @@ const createStatusPage = ({
         return;
       }
       const postoServicoIdValue = editForm.postoServicoId || null;
+      const centroCustoIdValue = editForm.centroCustoId || null;
       const motivoVagoValue = (editForm.motivoVago || "").toUpperCase();
       const demissaoValue = isMotivoVaga ? editForm.demissao : null;
       const novoPostoValue = isMotivoVaga ? demissaoValue === false : null;
@@ -2728,16 +2844,16 @@ const createStatusPage = ({
           ? toTrimOrNull(editForm.colaboradorDemitidoId)
           : null;
       const colaboradorAusenteInfo = colaboradorAusenteId
-        ? colaboradoresMap.get(colaboradorAusenteId)
+        ? colaboradoresConveniaMap.get(colaboradorAusenteId)
         : null;
       const colaboradorDemitidoInfo = colaboradorDemitidoId
-        ? colaboradoresMap.get(colaboradorDemitidoId)
+        ? colaboradoresConveniaMap.get(colaboradorDemitidoId)
         : null;
       const colaboradorAusenteNomeValue = toUpperOrNull(
-        colaboradorAusenteInfo?.nome_completo
+        getConveniaColaboradorNome(colaboradorAusenteInfo)
       );
       const colaboradorDemitidoNomeValue = toUpperOrNull(
-        colaboradorDemitidoInfo?.nome_completo
+        getConveniaColaboradorNome(colaboradorDemitidoInfo)
       );
       const observacaoValue = toUpperOrNull(editForm.observacao);
 
@@ -2756,9 +2872,12 @@ const createStatusPage = ({
             posto_servico_id: postoServicoIdValue,
             unidade: unidadeValue,
             cliente_id: clienteIdNumber,
-            colaborador_ausente: colaboradorAusenteId,
+            centro_custo_id: centroCustoIdValue,
+            colaborador_ausente: null,
+            colaborador_ausente_convenia: colaboradorAusenteId,
             colaborador_ausente_nome: colaboradorAusenteNomeValue,
-            colaborador_demitido: colaboradorDemitidoId,
+            colaborador_demitido: null,
+            colaborador_demitido_convenia: colaboradorDemitidoId,
             colaborador_demitido_nome: colaboradorDemitidoNomeValue,
             demissao: demissaoValue,
             novo_posto: novoPostoValue,
@@ -2903,14 +3022,6 @@ const createStatusPage = ({
       setSelectedDiaria(null);
     };
 
-    const selectedColaboradorInfo =
-      selectedDiaria?.colaborador ||
-      (selectedDiaria?.colaborador_ausente
-        ? colaboradoresMap.get(selectedDiaria.colaborador_ausente)
-        : null);
-    const selectedColaboradorDemitidoInfo = selectedDiaria?.colaborador_demitido
-      ? colaboradoresMap.get(selectedDiaria.colaborador_demitido)
-      : null;
     const selectedPostoInfo =
       selectedDiaria?.posto ||
       (selectedDiaria?.posto_servico_id
@@ -2923,15 +3034,16 @@ const createStatusPage = ({
       selectedDiaristaInfo
     );
     const selectedContratoInfo = getContratoInfoFromPosto(selectedPostoInfo);
-    const selectedClienteNome =
-      (typeof selectedDiaria?.cliente_id === "number" &&
-        clienteMap.get(selectedDiaria.cliente_id)) ||
-      selectedContratoInfo?.clienteNome ||
-      "-";
-    const selectedColaboradorNome =
-      selectedColaboradorInfo?.nome_completo || "-";
-    const selectedColaboradorDemitidoNome =
-      selectedColaboradorDemitidoInfo?.nome_completo || "";
+    const selectedClienteDisplay = selectedDiaria
+      ? getClienteOuCentroCustoDisplay(selectedDiaria, selectedPostoInfo)
+      : { label: "Cliente", value: "-" };
+    const selectedClienteNome = selectedClienteDisplay.value || "-";
+    const selectedColaboradorNome = selectedDiaria
+      ? getColaboradorAusenteDisplay(selectedDiaria)
+      : "-";
+    const selectedColaboradorDemitidoNome = selectedDiaria
+      ? getColaboradorDemitidoDisplay(selectedDiaria)
+      : "";
     const selectedPostoNome =
       selectedDiaria?.posto_servico?.trim() || selectedPostoInfo?.nome || "-";
     const selectedUnidadeNome =
@@ -3181,6 +3293,36 @@ const createStatusPage = ({
                           Todos os clientes
                         </SelectItem>
                         {clienteFilterOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-centro-custo-${statusKey}`}
+                      label="Centro de custo"
+                      tooltip="Mostra apenas diarias relacionadas ao centro de custo selecionado."
+                    />
+                    <Select
+                      value={filters.centroCustoId || selectAllValue}
+                      onValueChange={(value) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          centroCustoId: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`filtro-temp-centro-custo-${statusKey}`}>
+                        <SelectValue placeholder="Todos os centros de custo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>
+                          Todos os centros de custo
+                        </SelectItem>
+                        {costCenterFilterOptions.map((option) => (
                           <SelectItem key={option.id} value={option.id}>
                             {option.nome}
                           </SelectItem>
@@ -3686,12 +3828,6 @@ const createStatusPage = ({
                                       diaria.colaborador_ausente
                                     )
                                   : null);
-                              const colaboradorDemitidoInfo =
-                                diaria.colaborador_demitido
-                                  ? colaboradoresMap.get(
-                                      diaria.colaborador_demitido
-                                    )
-                                  : null;
                               const postoInfo =
                                 diaria.posto ||
                                 (diaria.posto_servico_id
@@ -3703,7 +3839,10 @@ const createStatusPage = ({
                               const diaristaCadastroIncompleto =
                                 isCadastroIncompleto(diaristaInfo);
                               const colaboradorNome =
-                                colaboradorInfo?.nome_completo || "-";
+                                colaboradorInfo?.nome_completo ||
+                                getColaboradorAusenteDisplay(diaria);
+                              const colaboradorDemitidoNome =
+                                getColaboradorDemitidoDisplay(diaria);
                               const novoPostoFlag = diaria.novo_posto === true;
                               const isVagaAbertoMotivo = isVagaEmAberto(
                                 diaria.motivo_vago
@@ -3712,8 +3851,7 @@ const createStatusPage = ({
                               if (isVagaAbertoMotivo) {
                                 if (diaria.demissao) {
                                   colaboradorDisplay =
-                                    colaboradorDemitidoInfo?.nome_completo ||
-                                    "";
+                                    colaboradorDemitidoNome || "";
                                 } else {
                                   colaboradorDisplay = novoPostoFlag
                                     ? "Novo posto"
@@ -3725,8 +3863,10 @@ const createStatusPage = ({
                                 postoInfo?.nome ||
                                 "-";
                               const clienteNome =
-                                getClienteNomeFromDiaria(diaria, postoInfo) ||
-                                "-";
+                                getClienteOuCentroCustoDisplay(
+                                  diaria,
+                                  postoInfo
+                                ).value || "-";
                               const actionElement = renderAction(diaria);
                               const rowClasses = getPagamentoRowClasses(
                                 diaria.ok_pagamento,
@@ -4510,8 +4650,10 @@ const createStatusPage = ({
                                 ? postoMap.get(diaria.posto_servico_id)
                                 : null);
                             const clienteNome =
-                              getClienteNomeFromDiaria(diaria, postoInfo) ||
-                              "-";
+                              getClienteOuCentroCustoDisplay(
+                                diaria,
+                                postoInfo
+                              ).value || "-";
                             const postoNome =
                               diaria.posto_servico?.trim() ||
                               postoInfo?.nome ||
@@ -4779,7 +4921,9 @@ const createStatusPage = ({
                       <p className="font-medium">{selectedUnidadeNome}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground text-xs">Cliente</p>
+                      <p className="text-muted-foreground text-xs">
+                        {selectedClienteDisplay.label}
+                      </p>
                       <p className="font-medium">{selectedClienteNome}</p>
                     </div>
                     <div>
@@ -5305,15 +5449,15 @@ const createStatusPage = ({
 
               <div className="space-y-1 md:col-span-2">
                 <TooltipLabel
-                  label="Cliente"
-                  tooltip="Cliente associado a diaria."
+                  label="Centro de custo"
+                  tooltip="Centro de custo associado a diaria."
                 />
                 <Select
-                  value={editForm.clienteId || OPTIONAL_VALUE}
+                  value={editForm.centroCustoId || OPTIONAL_VALUE}
                   onValueChange={(value) =>
                     setEditForm((prev) => ({
                       ...prev,
-                      clienteId: value === OPTIONAL_VALUE ? "" : value,
+                      centroCustoId: value === OPTIONAL_VALUE ? "" : value,
                       postoServicoId: "",
                       colaboradorAusenteId: "",
                       colaboradorDemitidoId: "",
@@ -5321,13 +5465,13 @@ const createStatusPage = ({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o cliente" />
+                    <SelectValue placeholder="Selecione o centro de custo" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
                     <SelectItem value={OPTIONAL_VALUE} disabled>
                       Selecione
                     </SelectItem>
-                    {clienteOptionsAll.map((option) => (
+                    {costCenterOptionsAll.map((option) => (
                       <SelectItem key={option.id} value={option.id}>
                         {option.nome}
                       </SelectItem>
@@ -5392,12 +5536,12 @@ const createStatusPage = ({
                       <SelectValue placeholder="Selecione o colaborador" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72 overflow-y-auto">
-                      {colaboradoresOptionsByCliente.length === 0 && (
+                      {colaboradoresOptionsByCentroCusto.length === 0 && (
                         <SelectItem value="none" disabled>
                           Nenhum colaborador encontrado
                         </SelectItem>
                       )}
-                      {colaboradoresOptionsByCliente.map((option) => (
+                      {colaboradoresOptionsByCentroCusto.map((option) => (
                         <SelectItem key={option.id} value={option.id}>
                           {option.nome}
                         </SelectItem>
@@ -5461,12 +5605,12 @@ const createStatusPage = ({
                           <SelectValue placeholder="Selecione o colaborador" />
                         </SelectTrigger>
                         <SelectContent className="max-h-72 overflow-y-auto">
-                          {colaboradoresOptionsByCliente.length === 0 && (
+                          {colaboradoresOptionsByCentroCusto.length === 0 && (
                             <SelectItem value="none" disabled>
                               Nenhum colaborador encontrado
                             </SelectItem>
                           )}
-                          {colaboradoresOptionsByCliente.map((option) => (
+                          {colaboradoresOptionsByCentroCusto.map((option) => (
                             <SelectItem key={option.id} value={option.id}>
                               {option.nome}
                             </SelectItem>
@@ -5504,22 +5648,36 @@ const createStatusPage = ({
                     const postoId = value === OPTIONAL_VALUE ? "" : value;
                     const postoInfo = postoId ? postoMap.get(postoId) : null;
                     const unidadeFromPosto = postoInfo?.unidade?.nome || "";
-                    setEditForm((prev) => ({
-                      ...prev,
-                      postoServicoId: postoId,
-                      unidade: toTrimOrNull(prev.unidade)
-                        ? prev.unidade
-                        : unidadeFromPosto,
-                    }));
+                    setEditForm((prev) => {
+                      const nextCentroCustoId = postoInfo?.cost_center_id
+                        ? String(postoInfo.cost_center_id)
+                        : prev.centroCustoId;
+                      const shouldResetColaboradores =
+                        nextCentroCustoId !== prev.centroCustoId;
+                      return {
+                        ...prev,
+                        postoServicoId: postoId,
+                        centroCustoId: nextCentroCustoId,
+                        unidade: toTrimOrNull(prev.unidade)
+                          ? prev.unidade
+                          : unidadeFromPosto,
+                        colaboradorAusenteId: shouldResetColaboradores
+                          ? ""
+                          : prev.colaboradorAusenteId,
+                        colaboradorDemitidoId: shouldResetColaboradores
+                          ? ""
+                          : prev.colaboradorDemitidoId,
+                      };
+                    });
                   }}
-                  disabled={!editForm.clienteId}
+                  disabled={!editForm.centroCustoId}
                 >
                   <SelectTrigger>
                     <SelectValue
                       placeholder={
-                        editForm.clienteId
+                        editForm.centroCustoId
                           ? "Selecione o posto"
-                          : "Escolha o cliente primeiro"
+                          : "Escolha o centro de custo primeiro"
                       }
                     />
                   </SelectTrigger>
@@ -5530,9 +5688,10 @@ const createStatusPage = ({
                     {postosOptions
                       .filter(
                         (posto) =>
-                          !editForm.clienteId ||
-                          (posto.cliente_id &&
-                            posto.cliente_id.toString() === editForm.clienteId)
+                          !editForm.centroCustoId ||
+                          (posto.cost_center_id &&
+                            posto.cost_center_id.toString() ===
+                              editForm.centroCustoId)
                       )
                       .map((posto) => (
                         <SelectItem key={posto.id} value={posto.id}>
@@ -5650,14 +5809,29 @@ const createStatusPage = ({
           open={faltaDialogOpen}
           onOpenChange={handleFaltaDialogOpenChange}
           diariaId={faltaDialogDiaria?.id ?? null}
-          colaboradorId={faltaDialogDiaria?.colaborador_ausente ?? null}
+          colaboradorId={
+            faltaDialogDiaria?.colaborador_ausente_convenia ??
+            faltaDialogDiaria?.colaborador_ausente ??
+            null
+          }
           colaboradorNome={
-            faltaDialogDiaria?.colaborador_ausente
-              ? colaboradoresMap.get(faltaDialogDiaria.colaborador_ausente)?.nome_completo
+            faltaDialogDiaria?.colaborador_ausente_convenia
+              ? getConveniaColaboradorNome(
+                  colaboradoresConveniaMap.get(
+                    faltaDialogDiaria.colaborador_ausente_convenia
+                  )
+                )
+              : faltaDialogDiaria?.colaborador_ausente
+                ? colaboradoresMap.get(faltaDialogDiaria.colaborador_ausente)?.nome_completo
               : null
           }
           dataDiariaLabel={
             faltaDialogDiaria ? formatDate(faltaDialogDiaria.data_diaria) : null
+          }
+          rpcName={
+            faltaDialogDiaria?.colaborador_ausente_convenia
+              ? "justificar_falta_convenia"
+              : "justificar_falta_diaria_temporaria"
           }
           onSuccess={async () => {
             await refetchDiarias();
