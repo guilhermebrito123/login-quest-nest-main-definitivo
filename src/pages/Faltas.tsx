@@ -16,6 +16,9 @@ import { toast } from "sonner";
 
 const BUCKET = "atestados";
 const CLIENTE_FILTER_ALL = "__all__";
+const ADVANCED_FILTER_ALL = "__all__";
+const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
+const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
 
 type FaltaTipo = "convenia";
 
@@ -93,10 +96,27 @@ const Faltas = () => {
   const [selectedFalta, setSelectedFalta] = useState<FaltaData | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [detailsFalta, setDetailsFalta] = useState<FaltaData | null>(null);
+  const [advancedDialogOpen, setAdvancedDialogOpen] = useState(false);
+  const [advancedTotalRange, setAdvancedTotalRange] = useState({
+    colaboradorId: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [advancedInjustificadaRange, setAdvancedInjustificadaRange] = useState({
+    colaboradorId: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [advancedJustificadaRange, setAdvancedJustificadaRange] = useState({
+    colaboradorId: "",
+    startDate: "",
+    endDate: "",
+  });
 
   const {
     diarias,
     costCenters,
+    colaboradoresConvenia,
     colaboradoresMap,
     colaboradoresConveniaMap,
     postoMap,
@@ -219,6 +239,56 @@ const Faltas = () => {
     [faltasAtivas],
   );
 
+  const advancedColaboradorOptions = useMemo(() => {
+    return colaboradoresConvenia
+      .map((colaborador) => ({
+        id: colaborador.id,
+        label: getConveniaColaboradorNome(colaborador),
+      }))
+      .filter((item) => item.id)
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [colaboradoresConvenia]);
+
+  const computeFaltasCount = (
+    range: { colaboradorId: string; startDate: string; endDate: string },
+    motivoFiltro?: string,
+  ) => {
+    if (!range.colaboradorId || !range.startDate || !range.endDate) return null;
+    const start = new Date(range.startDate);
+    const end = new Date(range.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    end.setHours(23, 59, 59, 999);
+    if (start > end) return 0;
+    const motivoUpper = motivoFiltro?.toUpperCase() || null;
+
+    return faltasConvenia.reduce((acc, falta) => {
+      if (falta.colaborador_convenia_id !== range.colaboradorId) return acc;
+      const dataStr = falta.data_falta;
+      if (!dataStr) return acc;
+      const faltaDate = new Date(dataStr);
+      if (Number.isNaN(faltaDate.getTime())) return acc;
+      if (faltaDate < start || faltaDate > end) return acc;
+      if (motivoUpper) {
+        const motivoAtual = (falta.motivo || "").toUpperCase();
+        if (motivoAtual !== motivoUpper) return acc;
+      }
+      return acc + 1;
+    }, 0);
+  };
+
+  const advancedTotalCount = useMemo(
+    () => computeFaltasCount(advancedTotalRange),
+    [faltasConvenia, advancedTotalRange],
+  );
+  const advancedInjustificadaCount = useMemo(
+    () => computeFaltasCount(advancedInjustificadaRange, MOTIVO_FALTA_INJUSTIFICADA),
+    [faltasConvenia, advancedInjustificadaRange],
+  );
+  const advancedJustificadaCount = useMemo(
+    () => computeFaltasCount(advancedJustificadaRange, MOTIVO_FALTA_JUSTIFICADA),
+    [faltasConvenia, advancedJustificadaRange],
+  );
+
   const filteredFaltas = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return faltasAtivas.filter((falta) => {
@@ -329,9 +399,14 @@ const Faltas = () => {
         </div>
 
         <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Filtros</CardTitle>
-            <CardDescription>Busque faltas por colaborador ou ID da diaria.</CardDescription>
+          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>Filtros</CardTitle>
+              <CardDescription>Busque faltas por colaborador ou ID da diaria.</CardDescription>
+            </div>
+            <Button type="button" variant="outline" onClick={() => setAdvancedDialogOpen(true)}>
+              Filtragem avancada
+            </Button>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 md:grid md:grid-cols-4">
             <div className="space-y-2">
@@ -615,6 +690,214 @@ const Faltas = () => {
               </div>
             );
           })() : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={advancedDialogOpen} onOpenChange={setAdvancedDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Filtragem avancada</DialogTitle>
+            <DialogDescription>
+              Consulte quantidades de faltas por colaborador e periodo (data da falta).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+              <p className="text-sm font-semibold text-muted-foreground">
+                Quantidade de faltas (justificadas + injustificadas)
+              </p>
+              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Colaborador</span>
+                  <Select
+                    value={advancedTotalRange.colaboradorId || ADVANCED_FILTER_ALL}
+                    onValueChange={(value) =>
+                      setAdvancedTotalRange((prev) => ({
+                        ...prev,
+                        colaboradorId: value === ADVANCED_FILTER_ALL ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o colaborador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ADVANCED_FILTER_ALL}>Selecione o colaborador</SelectItem>
+                      {advancedColaboradorOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Data inicial</span>
+                  <Input
+                    type="date"
+                    value={advancedTotalRange.startDate}
+                    onChange={(event) =>
+                      setAdvancedTotalRange((prev) => ({
+                        ...prev,
+                        startDate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Data final</span>
+                  <Input
+                    type="date"
+                    value={advancedTotalRange.endDate}
+                    onChange={(event) =>
+                      setAdvancedTotalRange((prev) => ({
+                        ...prev,
+                        endDate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="rounded-md border bg-background/80 p-3">
+                <p className="text-sm text-muted-foreground">Quantidade indicando periodo</p>
+                <p className="text-2xl font-semibold">
+                  {advancedTotalCount !== null ? advancedTotalCount : "--"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+              <p className="text-sm font-semibold text-muted-foreground">
+                Quantidade de faltas - {MOTIVO_FALTA_INJUSTIFICADA}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Colaborador</span>
+                  <Select
+                    value={advancedInjustificadaRange.colaboradorId || ADVANCED_FILTER_ALL}
+                    onValueChange={(value) =>
+                      setAdvancedInjustificadaRange((prev) => ({
+                        ...prev,
+                        colaboradorId: value === ADVANCED_FILTER_ALL ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o colaborador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ADVANCED_FILTER_ALL}>Selecione o colaborador</SelectItem>
+                      {advancedColaboradorOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Data inicial</span>
+                  <Input
+                    type="date"
+                    value={advancedInjustificadaRange.startDate}
+                    onChange={(event) =>
+                      setAdvancedInjustificadaRange((prev) => ({
+                        ...prev,
+                        startDate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Data final</span>
+                  <Input
+                    type="date"
+                    value={advancedInjustificadaRange.endDate}
+                    onChange={(event) =>
+                      setAdvancedInjustificadaRange((prev) => ({
+                        ...prev,
+                        endDate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="rounded-md border bg-background/80 p-3">
+                <p className="text-sm text-muted-foreground">Quantidade indicando periodo</p>
+                <p className="text-2xl font-semibold">
+                  {advancedInjustificadaCount !== null ? advancedInjustificadaCount : "--"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+              <p className="text-sm font-semibold text-muted-foreground">
+                Quantidade de faltas - {MOTIVO_FALTA_JUSTIFICADA}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Colaborador</span>
+                  <Select
+                    value={advancedJustificadaRange.colaboradorId || ADVANCED_FILTER_ALL}
+                    onValueChange={(value) =>
+                      setAdvancedJustificadaRange((prev) => ({
+                        ...prev,
+                        colaboradorId: value === ADVANCED_FILTER_ALL ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o colaborador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ADVANCED_FILTER_ALL}>Selecione o colaborador</SelectItem>
+                      {advancedColaboradorOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Data inicial</span>
+                  <Input
+                    type="date"
+                    value={advancedJustificadaRange.startDate}
+                    onChange={(event) =>
+                      setAdvancedJustificadaRange((prev) => ({
+                        ...prev,
+                        startDate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Data final</span>
+                  <Input
+                    type="date"
+                    value={advancedJustificadaRange.endDate}
+                    onChange={(event) =>
+                      setAdvancedJustificadaRange((prev) => ({
+                        ...prev,
+                        endDate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="rounded-md border bg-background/80 p-3">
+                <p className="text-sm text-muted-foreground">Quantidade indicando periodo</p>
+                <p className="text-2xl font-semibold">
+                  {advancedJustificadaCount !== null ? advancedJustificadaCount : "--"}
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" onClick={() => setAdvancedDialogOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

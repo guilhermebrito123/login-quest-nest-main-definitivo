@@ -425,6 +425,10 @@ const createStatusPage = ({
       startDate: "",
       endDate: "",
     });
+    const [totalRangePeriodo, setTotalRangePeriodo] = useState({
+      startDate: "",
+      endDate: "",
+    });
     const [totalDialogOpen, setTotalDialogOpen] = useState(false);
     const selectAllValue = "__all__";
     const [extraUserMap, setExtraUserMap] = useState<Map<string, string>>(
@@ -1764,6 +1768,32 @@ const createStatusPage = ({
       () => Object.values(filters).some(Boolean),
       [filters]
     );
+
+    const periodoTotal = useMemo(() => {
+      if (!totalRangePeriodo.startDate || !totalRangePeriodo.endDate) {
+        return null;
+      }
+      const start = new Date(totalRangePeriodo.startDate);
+      const end = new Date(totalRangePeriodo.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
+        return null;
+      end.setHours(23, 59, 59, 999);
+      if (start > end) return 0;
+
+      return diariasDoStatusFull.reduce((acc, diaria) => {
+        const dataStr = diaria.data_diaria;
+        if (!dataStr) return acc;
+        const diariaDate = new Date(dataStr);
+        if (Number.isNaN(diariaDate.getTime())) return acc;
+        if (diariaDate < start || diariaDate > end) return acc;
+
+        const valorDiaria =
+          typeof diaria.valor_diaria === "number"
+            ? diaria.valor_diaria
+            : Number(diaria.valor_diaria) || 0;
+        return acc + valorDiaria;
+      }, 0);
+    }, [diariasDoStatusFull, totalRangePeriodo]);
 
     const diaristaTotal = useMemo(() => {
       if (
@@ -4154,6 +4184,55 @@ const createStatusPage = ({
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+                <p className="text-sm font-semibold text-muted-foreground">
+                  Total geral por periodo
+                </p>
+                <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-periodo-inicio-${statusKey}`}>
+                      Data inicial
+                    </Label>
+                    <Input
+                      id={`total-periodo-inicio-${statusKey}`}
+                      type="date"
+                      value={totalRangePeriodo.startDate}
+                      onChange={(event) =>
+                        setTotalRangePeriodo((prev) => ({
+                          ...prev,
+                          startDate: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`total-periodo-fim-${statusKey}`}>
+                      Data final
+                    </Label>
+                    <Input
+                      id={`total-periodo-fim-${statusKey}`}
+                      type="date"
+                      value={totalRangePeriodo.endDate}
+                      onChange={(event) =>
+                        setTotalRangePeriodo((prev) => ({
+                          ...prev,
+                          endDate: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="rounded-md border bg-background/80 p-3">
+                  <p className="text-sm text-muted-foreground">
+                    Valor total no periodo
+                  </p>
+                  <p className="text-2xl font-semibold">
+                    {periodoTotal !== null
+                      ? currencyFormatter.format(periodoTotal)
+                      : "--"}
+                  </p>
+                </div>
+              </div>
               <div className="space-y-2 rounded-md border bg-muted/30 p-4">
                 <p className="text-sm font-semibold text-muted-foreground">
                   Total por diarista (sem data)
