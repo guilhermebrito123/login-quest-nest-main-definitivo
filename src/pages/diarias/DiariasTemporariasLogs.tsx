@@ -215,28 +215,43 @@ export const DiariasTemporariasLogs = () => {
   } = useQuery({
     queryKey: ["diarias-temporarias-logs"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("diarias_temporarias_logs")
-        .select(
-          `
-          id,
-          diaria_id,
-          campo,
-          operacao,
-          valor_antigo,
-          valor_novo,
-          usuario_responsavel,
-          operacao_em,
-          criado_em,
-          usuarios:usuarios!diarias_temporarias_logs_usuario_responsavel_fkey (
-            full_name,
-            email
+      const pageSize = 1000;
+      const allLogs: LogRow[] = [];
+      let from = 0;
+
+      while (true) {
+        const { data, error } = await supabase
+          .from("diarias_temporarias_logs")
+          .select(
+            `
+            id,
+            diaria_id,
+            campo,
+            operacao,
+            valor_antigo,
+            valor_novo,
+            usuario_responsavel,
+            operacao_em,
+            criado_em,
+            usuarios:usuarios!diarias_temporarias_logs_usuario_responsavel_fkey (
+              full_name,
+              email
+            )
+          `,
           )
-        `,
-        )
-        .order("operacao_em", { ascending: false });
-      if (error) throw error;
-      return (data || []) as LogRow[];
+          .order("operacao_em", { ascending: false })
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+
+        const batch = (data || []) as LogRow[];
+        allLogs.push(...batch);
+
+        if (batch.length < pageSize) break;
+        from += pageSize;
+      }
+
+      return allLogs;
     },
   });
 
@@ -551,8 +566,8 @@ export const DiariasTemporariasLogs = () => {
                         {formatLogValue(log.campo, log.valor_novo)}
                       </TableCell>
                       <TableCell>{getUsuarioNome(log)}</TableCell>
-                    </TableRow>
-                  ))}
+                  </TableRow>
+                ))}
                 </TableBody>
               </Table>
             </div>
