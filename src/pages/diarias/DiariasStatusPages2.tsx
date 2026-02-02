@@ -474,6 +474,11 @@ const createStatusPage = ({
       startDate: "",
       endDate: "",
     });
+    const [totalRangeMotivo, setTotalRangeMotivo] = useState({
+      motivo: "",
+      startDate: "",
+      endDate: "",
+    });
     const [totalDialogOpen, setTotalDialogOpen] = useState(false);
     const selectAllValue = "__all__";
     const [extraUserMap, setExtraUserMap] = useState<Map<string, string>>(
@@ -1157,6 +1162,16 @@ const createStatusPage = ({
       });
       return Array.from(set).sort((a, b) => a.localeCompare(b));
     }, [diariasDoStatus]);
+
+    const motivoOptionsTotal = useMemo(() => {
+      const set = new Set<string>();
+      diariasDoStatusFull.forEach((diaria) => {
+        if (diaria.motivo_vago) {
+          set.add(diaria.motivo_vago);
+        }
+      });
+      return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [diariasDoStatusFull]);
 
     const postosOptions = useMemo(() => {
       return Array.from(postoMap.values())
@@ -1882,6 +1897,37 @@ const createStatusPage = ({
       }, 0);
     }, [diariasDoStatusFull, totalRangePeriodo]);
 
+    const motivoPeriodoTotal = useMemo(() => {
+      if (
+        !totalRangeMotivo.motivo ||
+        !totalRangeMotivo.startDate ||
+        !totalRangeMotivo.endDate
+      ) {
+        return null;
+      }
+      const start = new Date(totalRangeMotivo.startDate);
+      const end = new Date(totalRangeMotivo.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
+        return null;
+      end.setHours(23, 59, 59, 999);
+      if (start > end) return 0;
+
+      return diariasDoStatusFull.reduce((acc, diaria) => {
+        if ((diaria.motivo_vago || "") !== totalRangeMotivo.motivo) return acc;
+        const dataStr = diaria.data_diaria;
+        if (!dataStr) return acc;
+        const diariaDate = new Date(dataStr);
+        if (Number.isNaN(diariaDate.getTime())) return acc;
+        if (diariaDate < start || diariaDate > end) return acc;
+
+        const valorDiaria =
+          typeof diaria.valor_diaria === "number"
+            ? diaria.valor_diaria
+            : Number(diaria.valor_diaria) || 0;
+        return acc + valorDiaria;
+      }, 0);
+    }, [diariasDoStatusFull, totalRangeMotivo]);
+
     const diaristaTotal = useMemo(() => {
       if (
         !totalRangeDiarista.diaristaId ||
@@ -2074,6 +2120,27 @@ const createStatusPage = ({
 
     const filterDiariasParaTotalSemData = (diaristaId: string) =>
       diariasDoStatusFull.filter((diaria) => diaria.diarista_id === diaristaId);
+
+    const filterDiariasParaTotalMotivo = (
+      motivo: string,
+      start: string,
+      end: string
+    ) => {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()))
+        return [];
+      endDate.setHours(23, 59, 59, 999);
+      return diariasDoStatusFull.filter((diaria) => {
+        if ((diaria.motivo_vago || "") !== motivo) return false;
+        const dataStr = diaria.data_diaria;
+        if (!dataStr) return false;
+        const data = new Date(dataStr);
+        if (Number.isNaN(data.getTime())) return false;
+        if (data < startDate || data > endDate) return false;
+        return true;
+      });
+    };
 
     const exportTotal = (opts: {
       diaristaId: string;
@@ -2314,6 +2381,42 @@ const createStatusPage = ({
       )}-${Date.now()}.xlsx`;
       XLSX.writeFile(wb, fileName);
       toast.success("Planilha do cliente gerada.");
+    };
+
+    const exportMotivoTotal = () => {
+      const { motivo, startDate, endDate } = totalRangeMotivo;
+      if (!motivo || !startDate || !endDate || motivoPeriodoTotal === null) {
+        toast.error("Preencha motivo e intervalo para exportar.");
+        return;
+      }
+      const selecionadas = filterDiariasParaTotalMotivo(
+        motivo,
+        startDate,
+        endDate
+      );
+      if (selecionadas.length === 0) {
+        toast.info("Nenhuma diaria no intervalo para exportar.");
+        return;
+      }
+
+      const rows = uppercaseRows([
+        {
+          Motivo: motivo,
+          "Data inicial": startDate,
+          "Data final": endDate,
+          Status: STATUS_LABELS[statusKey] || statusKey,
+          "Valor total (R$)": motivoPeriodoTotal ?? 0,
+        },
+      ]);
+
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, "Total Motivo");
+      const fileName = `total-temp-motivo-${normalizeStatus(
+        statusKey
+      )}-${Date.now()}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast.success("Planilha de total gerada.");
     };
 
     const handleClearFilters = () =>
@@ -4538,17 +4641,98 @@ const createStatusPage = ({
                     />
                   </div>
                 </div>
-                <div className="rounded-md border bg-background/80 p-3">
-                  <p className="text-sm text-muted-foreground">
-                    Valor total no periodo
-                  </p>
-                  <p className="text-2xl font-semibold">
-                    {periodoTotal !== null
-                      ? currencyFormatter.format(periodoTotal)
-                      : "--"}
-                  </p>
+              <div className="rounded-md border bg-background/80 p-3">
+                <p className="text-sm text-muted-foreground">
+                  Valor total no periodo
+                </p>
+                <p className="text-2xl font-semibold">
+                  {periodoTotal !== null
+                    ? currencyFormatter.format(periodoTotal)
+                    : "--"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+              <p className="text-sm font-semibold text-muted-foreground">
+                Total por motivo e periodo
+              </p>
+              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+                <div className="space-y-1">
+                  <Label htmlFor={`total-motivo-${statusKey}`}>Motivo</Label>
+                  <Select
+                    value={totalRangeMotivo.motivo || selectAllValue}
+                    onValueChange={(value) =>
+                      setTotalRangeMotivo((prev) => ({
+                        ...prev,
+                        motivo: value === selectAllValue ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id={`total-motivo-${statusKey}`}>
+                      <SelectValue placeholder="Selecione o motivo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={selectAllValue}>
+                        Selecione o motivo
+                      </SelectItem>
+                      {motivoOptionsTotal.map((motivo) => (
+                        <SelectItem key={motivo} value={motivo}>
+                          {motivo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`total-motivo-inicio-${statusKey}`}>
+                    Data inicial
+                  </Label>
+                  <Input
+                    id={`total-motivo-inicio-${statusKey}`}
+                    type="date"
+                    value={totalRangeMotivo.startDate}
+                    onChange={(event) =>
+                      setTotalRangeMotivo((prev) => ({
+                        ...prev,
+                        startDate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`total-motivo-fim-${statusKey}`}>
+                    Data final
+                  </Label>
+                  <Input
+                    id={`total-motivo-fim-${statusKey}`}
+                    type="date"
+                    value={totalRangeMotivo.endDate}
+                    onChange={(event) =>
+                      setTotalRangeMotivo((prev) => ({
+                        ...prev,
+                        endDate: event.target.value,
+                      }))
+                    }
+                  />
                 </div>
               </div>
+              <div className="rounded-md border bg-background/80 p-3">
+                <p className="text-sm text-muted-foreground">
+                  Valor total no periodo (motivo)
+                </p>
+                <p className="text-2xl font-semibold">
+                  {motivoPeriodoTotal !== null
+                    ? currencyFormatter.format(motivoPeriodoTotal)
+                    : "--"}
+                </p>
+                <div className="pt-2">
+                  <Button variant="outline" size="sm" onClick={exportMotivoTotal}>
+                    Exportar total
+                  </Button>
+                </div>
+              </div>
+            </div>
               <div className="space-y-2 rounded-md border bg-muted/30 p-4">
                 <p className="text-sm font-semibold text-muted-foreground">
                   Total por diarista (sem data)
