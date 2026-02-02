@@ -3816,6 +3816,12 @@ const createStatusPage = ({
                       >
                         Exportar XLSX agrupadas
                       </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setTotalDialogOpen(true)}
+                      >
+                        Filtragem Avançada
+                      </Button>
                       {!isPagaPage && (
                         <Button
                           variant="default"
