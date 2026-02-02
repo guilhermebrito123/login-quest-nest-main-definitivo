@@ -1668,6 +1668,10 @@ const createStatusPage = ({
       const novoPostoFlag = diaria.novo_posto === true;
       const isMotivoVagaEmAberto = isVagaEmAberto(diaria.motivo_vago);
       const postoNome = diaria.posto_servico?.trim() || postoInfo?.nome || "-";
+      const valorDiariaNumber =
+        typeof diaria.valor_diaria === "number"
+          ? diaria.valor_diaria
+          : Number(diaria.valor_diaria) || 0;
       const baseRow: Record<string, any> = {
         ID: diaria.id,
         Data: formatDate(diaria.data_diaria),
@@ -1691,7 +1695,7 @@ const createStatusPage = ({
         Cliente: clienteNome,
         Diarista: diaristaInfo?.nome_completo || "-",
         "Status diarista": diaristaInfo?.status || "-",
-        "Valor (R$)": diaria.valor_diaria || 0,
+        "Valor (R$)": valorDiariaNumber,
         "Atualizado em": formatDateTime(diaria.updated_at),
         "Motivo reprovacao": diaria.motivo_reprovacao || "",
         "Motivo cancelamento": diaria.motivo_cancelamento || "",
@@ -1821,11 +1825,11 @@ const createStatusPage = ({
               : base;
           })
           .join(" - ");
-        const baseRow: Record<string, string> = {
+        const baseRow: Record<string, any> = {
           "IDs diarias": groupIdsLabel,
           Beneficiario: beneficiario,
           "CPF diarista": formatCpf(group.diaristaCpf) || "-",
-          Valor: currencyFormatter.format(group.totalValor),
+          Valor: group.totalValor,
           Aprovacao: aprovacao,
           Banco: "ITAU",
           Descricao: descricao,
@@ -3052,7 +3056,82 @@ const createStatusPage = ({
 
     const clearSelection = () => setSelectedIds(new Set());
 
-    const handleBulkStatusApply = async (status: string) => {
+    const groupedBulkIds = useMemo(() => {
+      const ids = diariasFiltradas.map((diaria) => diaria.id.toString());
+      return Array.from(new Set(ids));
+    }, [diariasFiltradas]);
+    const groupedSelectedIds = useMemo(
+      () => groupedBulkIds.filter((id) => selectedIds.has(id)),
+      [groupedBulkIds, selectedIds]
+    );
+    const groupedSelectionState = useMemo(() => {
+      const totalCount = groupedBulkIds.length;
+      const selectedCount = groupedSelectedIds.length;
+      return {
+        totalCount,
+        selectedCount,
+        allSelected: totalCount > 0 && selectedCount === totalCount,
+        partiallySelected: selectedCount > 0 && selectedCount < totalCount,
+      };
+    }, [groupedBulkIds, groupedSelectedIds]);
+    const groupedSelectionSummary = useMemo(() => {
+      let selectedGroups = 0;
+      let partiallySelectedGroups = 0;
+      lancadasAgrupadas.forEach((group) => {
+        const groupIds = group.ids.map((id) => id.toString());
+        if (groupIds.length === 0) return;
+        const selectedCount = groupIds.filter((id) => selectedIds.has(id))
+          .length;
+        if (selectedCount === groupIds.length) {
+          selectedGroups += 1;
+        } else if (selectedCount > 0) {
+          partiallySelectedGroups += 1;
+        }
+      });
+      return {
+        totalGroups: lancadasAgrupadas.length,
+        selectedGroups,
+        partiallySelectedGroups,
+      };
+    }, [lancadasAgrupadas, selectedIds]);
+    const canGroupedBulkAction =
+      groupedSelectionSummary.totalGroups > 0 &&
+      groupedSelectionSummary.partiallySelectedGroups === 0 &&
+      (groupedSelectionSummary.selectedGroups === 1 ||
+        groupedSelectionSummary.selectedGroups ===
+          groupedSelectionSummary.totalGroups);
+
+    const toggleSelectGroup = (ids: Array<string | number>) => {
+      const normalizedIds = ids.map((id) => id.toString());
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        const allSelected = normalizedIds.every((id) => next.has(id));
+        if (allSelected) {
+          normalizedIds.forEach((id) => next.delete(id));
+        } else {
+          normalizedIds.forEach((id) => next.add(id));
+        }
+        return next;
+      });
+    };
+
+    const toggleSelectAllGrouped = () => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (groupedSelectionState.allSelected) {
+          groupedBulkIds.forEach((id) => next.delete(id));
+        } else {
+          groupedBulkIds.forEach((id) => next.add(id));
+        }
+        return next;
+      });
+    };
+
+    const handleBulkStatusApply = async (
+      status: string,
+      overrideIds?: string[],
+      emptyMessage: string = "Nenhuma diaria selecionada."
+    ) => {
       if (!status) {
         toast.error("Selecione um status para aplicar.");
         return;
@@ -3061,9 +3140,10 @@ const createStatusPage = ({
         toast.error("Reprovar ou cancelar não estão disponíveis em massa.");
         return;
       }
-      const ids = Array.from(selectedIds);
+      const ids =
+        overrideIds !== undefined ? overrideIds : Array.from(selectedIds);
       if (ids.length === 0) {
-        toast.info("Nenhuma diaria selecionada.");
+        toast.info(emptyMessage);
         return;
       }
       const normalizedTarget = normalizeStatus(status);
@@ -3118,6 +3198,45 @@ const createStatusPage = ({
         return;
       }
       handleBulkStatusApply(pageDefaultAction.nextStatus);
+    };
+
+    const handleGroupedBulkDefaultAction = () => {
+      if (!pageDefaultAction) {
+        toast.info("Nenhuma ação em lote disponível nesta lista.");
+        return;
+      }
+      if (groupedSelectionSummary.totalGroups === 0) {
+        toast.info("Nenhuma diaria agrupada.");
+        return;
+      }
+      if (!canGroupedBulkAction) {
+        toast.info(
+          "Selecione 1 ou todas as diarias agrupadas para aplicar em lote."
+        );
+        return;
+      }
+      const selectedGroup =
+        groupedSelectionSummary.selectedGroups === 1
+          ? lancadasAgrupadas.find((group) => {
+              const groupIds = group.ids.map((id) => id.toString());
+              return (
+                groupIds.length > 0 &&
+                groupIds.every((id) => selectedIds.has(id))
+              );
+            }) || null
+          : null;
+      const targetIds =
+        groupedSelectionSummary.selectedGroups ===
+        groupedSelectionSummary.totalGroups
+          ? groupedBulkIds
+          : selectedGroup
+          ? selectedGroup.ids.map((id) => id.toString())
+          : [];
+      handleBulkStatusApply(
+        pageDefaultAction.nextStatus,
+        targetIds,
+        "Nenhuma diaria agrupada selecionada."
+      );
     };
 
     const handleBulkDeleteCancelled = async () => {
@@ -3690,13 +3809,29 @@ const createStatusPage = ({
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
                         onClick={handleExportGroupedXlsx}
                       >
                         Exportar XLSX agrupadas
                       </Button>
+                      {!isPagaPage && (
+                        <Button
+                          variant="default"
+                          className="bg-emerald-600 text-white hover:bg-emerald-700"
+                          disabled={
+                            updatingId === "bulk" ||
+                            !pageDefaultAction ||
+                            !canGroupedBulkAction
+                          }
+                          onClick={handleGroupedBulkDefaultAction}
+                        >
+                          {pageDefaultAction
+                            ? `${pageDefaultAction.label} (em lote)`
+                            : "Ação em lote"}
+                        </Button>
+                      )}
                     </div>
                     <div className="overflow-x-auto">
                       {lancadasAgrupadas.length === 0 ? (
@@ -3707,6 +3842,21 @@ const createStatusPage = ({
                         <Table>
                           <TableHeader>
                             <TableRow>
+                              {!isPagaPage && (
+                                <TableHead className="w-12">
+                                  <Checkbox
+                                    aria-label="Selecionar todas agrupadas"
+                                    checked={
+                                      groupedSelectionState.allSelected
+                                        ? true
+                                        : groupedSelectionState.partiallySelected
+                                        ? "indeterminate"
+                                        : false
+                                    }
+                                    onCheckedChange={toggleSelectAllGrouped}
+                                  />
+                                </TableHead>
+                              )}
                               <TableHead>Diarista</TableHead>
                               <TableHead>Cliente</TableHead>
                               <TableHead className="hidden md:table-cell">
@@ -3732,6 +3882,18 @@ const createStatusPage = ({
                               const isOkSaving = groupOkSavingKey === group.key;
                               const isLancarSaving =
                                 groupLancarSavingKey === group.key;
+                              const groupIds = group.ids.map((id) =>
+                                id.toString()
+                              );
+                              const groupSelectedCount = groupIds.filter((id) =>
+                                selectedIds.has(id)
+                              ).length;
+                              const groupAllSelected =
+                                groupIds.length > 0 &&
+                                groupSelectedCount === groupIds.length;
+                              const groupPartiallySelected =
+                                groupSelectedCount > 0 &&
+                                groupSelectedCount < groupIds.length;
                               const hasNaoOk = group.ids.some(
                                 (id) =>
                                   okPagamentoById.get(id.toString()) === false
@@ -3757,6 +3919,27 @@ const createStatusPage = ({
                                     openGroupDetailsDialog(group.key)
                                   }
                                 >
+                                  {!isPagaPage && (
+                                    <TableCell
+                                      onClick={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                    >
+                                      <Checkbox
+                                        aria-label={`Selecionar grupo ${group.diaristaNome}`}
+                                        checked={
+                                          groupAllSelected
+                                            ? true
+                                            : groupPartiallySelected
+                                            ? "indeterminate"
+                                            : false
+                                        }
+                                        onCheckedChange={() =>
+                                          toggleSelectGroup(group.ids)
+                                        }
+                                      />
+                                    </TableCell>
+                                  )}
                                   <TableCell>
                                     <div className="flex flex-col gap-1">
                                       <div className="flex flex-wrap items-center gap-2">
@@ -3883,20 +4066,22 @@ const createStatusPage = ({
                       >
                         Filtragem Avançada
                       </Button>
-                      <Button
-                        variant="default"
-                        className="bg-emerald-600 text-white hover:bg-emerald-700"
-                        disabled={
-                          updatingId === "bulk" ||
-                          selectedIds.size === 0 ||
-                          !pageDefaultAction
-                        }
-                        onClick={handleBulkDefaultAction}
-                      >
-                        {pageDefaultAction
-                          ? `${pageDefaultAction.label} (selecionadas)`
-                          : "Ação em massa"}
-                      </Button>
+                      {!isPagaPage && (
+                        <Button
+                          variant="default"
+                          className="bg-emerald-600 text-white hover:bg-emerald-700"
+                          disabled={
+                            updatingId === "bulk" ||
+                            selectedIds.size === 0 ||
+                            !pageDefaultAction
+                          }
+                          onClick={handleBulkDefaultAction}
+                        >
+                          {pageDefaultAction
+                            ? `${pageDefaultAction.label} (selecionadas)`
+                            : "Ação em massa"}
+                        </Button>
+                      )}
                       {allowDelete && (
                         <Button
                           variant="destructive"
@@ -3922,13 +4107,15 @@ const createStatusPage = ({
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="w-12">
-                                <Checkbox
-                                  aria-label="Selecionar todas"
-                                  checked={allVisibleSelected}
-                                  onCheckedChange={toggleSelectAllVisible}
-                                />
-                              </TableHead>
+                              {!isPagaPage && (
+                                <TableHead className="w-12">
+                                  <Checkbox
+                                    aria-label="Selecionar todas"
+                                    checked={allVisibleSelected}
+                                    onCheckedChange={toggleSelectAllVisible}
+                                  />
+                                </TableHead>
+                              )}
                               <TableHead className="whitespace-nowrap">
                                 ID
                               </TableHead>
@@ -4021,20 +4208,24 @@ const createStatusPage = ({
                                   style={rowStyle}
                                   onClick={() => handleRowClick(diaria)}
                                 >
-                                  <TableCell
-                                    onClick={(event) => event.stopPropagation()}
-                                  >
-                                    <Checkbox
-                                      aria-label="Selecionar diaria"
-                                      checked={selectedIds.has(
-                                        diaria.id.toString()
-                                      )}
-                                      onCheckedChange={() =>
-                                        toggleSelect(diaria.id.toString())
+                                  {!isPagaPage && (
+                                    <TableCell
+                                      onClick={(event) =>
+                                        event.stopPropagation()
                                       }
-                                      className={checkboxClass}
-                                    />
-                                  </TableCell>
+                                    >
+                                      <Checkbox
+                                        aria-label="Selecionar diaria"
+                                        checked={selectedIds.has(
+                                          diaria.id.toString()
+                                        )}
+                                        onCheckedChange={() =>
+                                          toggleSelect(diaria.id.toString())
+                                        }
+                                        className={checkboxClass}
+                                      />
+                                    </TableCell>
+                                  )}
                                   <TableCell className="whitespace-nowrap">
                                     {diaria.id}
                                   </TableCell>
