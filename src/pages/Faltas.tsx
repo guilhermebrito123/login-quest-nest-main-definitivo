@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import * as XLSX from "xlsx";
 import { formatDate, formatDateTime } from "./diarias/utils";
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 import { FaltaJustificarDialog } from "@/components/faltas/FaltaJustificarDialog";
@@ -19,6 +20,19 @@ const CLIENTE_FILTER_ALL = "__all__";
 const ADVANCED_FILTER_ALL = "__all__";
 const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
 const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
+const FALTAS_PAGE_SIZE = 10;
+const FALTAS_CONVENIA_EXPORT_COLUMNS = [
+  "id",
+  "colaborador_convenia_id",
+  "diaria_temporaria_id",
+  "data_falta",
+  "motivo",
+  "atestado_path",
+  "justificada_em",
+  "justificada_por",
+  "created_at",
+  "updated_at",
+];
 
 type FaltaTipo = "convenia";
 
@@ -96,6 +110,11 @@ const Faltas = () => {
   const [selectedFalta, setSelectedFalta] = useState<FaltaData | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [detailsFalta, setDetailsFalta] = useState<FaltaData | null>(null);
+  const [dateRangeFilter, setDateRangeFilter] = useState({
+    startDate: "",
+    endDate: "",
+  });
+  const [currentPage, setCurrentPage] = useState(1);
   const [advancedDialogOpen, setAdvancedDialogOpen] = useState(false);
   const [advancedTotalRange, setAdvancedTotalRange] = useState({
     colaboradorId: "",
@@ -249,7 +268,7 @@ const Faltas = () => {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [colaboradoresConvenia]);
 
-  const computeFaltasCount = (
+  const getFaltasConveniaByRange = (
     range: { colaboradorId: string; startDate: string; endDate: string },
     motivoFiltro?: string,
   ) => {
@@ -258,22 +277,30 @@ const Faltas = () => {
     const end = new Date(range.endDate);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
     end.setHours(23, 59, 59, 999);
-    if (start > end) return 0;
+    if (start > end) return [];
     const motivoUpper = motivoFiltro?.toUpperCase() || null;
 
-    return faltasConvenia.reduce((acc, falta) => {
-      if (falta.colaborador_convenia_id !== range.colaboradorId) return acc;
-      const dataStr = falta.data_falta;
-      if (!dataStr) return acc;
-      const faltaDate = new Date(dataStr);
-      if (Number.isNaN(faltaDate.getTime())) return acc;
-      if (faltaDate < start || faltaDate > end) return acc;
+    return faltasConvenia.filter((falta) => {
+      if (falta.colaborador_convenia_id !== range.colaboradorId) return false;
+      if (!falta.data_falta) return false;
+      const faltaDate = new Date(`${falta.data_falta}T00:00:00`);
+      if (Number.isNaN(faltaDate.getTime())) return false;
+      if (faltaDate < start || faltaDate > end) return false;
       if (motivoUpper) {
         const motivoAtual = (falta.motivo || "").toUpperCase();
-        if (motivoAtual !== motivoUpper) return acc;
+        if (motivoAtual !== motivoUpper) return false;
       }
-      return acc + 1;
-    }, 0);
+      return true;
+    });
+  };
+
+  const computeFaltasCount = (
+    range: { colaboradorId: string; startDate: string; endDate: string },
+    motivoFiltro?: string,
+  ) => {
+    const faltas = getFaltasConveniaByRange(range, motivoFiltro);
+    if (faltas === null) return null;
+    return faltas.length;
   };
 
   const advancedTotalCount = useMemo(
@@ -291,6 +318,16 @@ const Faltas = () => {
 
   const filteredFaltas = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
+    const startDate = dateRangeFilter.startDate
+      ? new Date(`${dateRangeFilter.startDate}T00:00:00`)
+      : null;
+    const endDate = dateRangeFilter.endDate
+      ? new Date(`${dateRangeFilter.endDate}T23:59:59.999`)
+      : null;
+    const hasInvalidRange =
+      (startDate && Number.isNaN(startDate.getTime())) ||
+      (endDate && Number.isNaN(endDate.getTime())) ||
+      (startDate && endDate && startDate > endDate);
     return faltasAtivas.filter((falta) => {
       if (statusFilter === "pendente" && falta.justificada_em) return false;
       if (statusFilter === "justificada" && !falta.justificada_em) return false;
@@ -299,6 +336,18 @@ const Faltas = () => {
         const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
         const centroCustoId = diaria?.centro_custo_id;
         if (!centroCustoId || String(centroCustoId) !== clienteFilter) return false;
+      }
+
+      if (startDate || endDate) {
+        if (hasInvalidRange) return false;
+        const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
+        const dataFalta =
+          diaria?.data_diaria || (falta.tipo === "convenia" ? falta.data_falta : null);
+        if (!dataFalta) return false;
+        const faltaDate = new Date(`${dataFalta}T00:00:00`);
+        if (Number.isNaN(faltaDate.getTime())) return false;
+        if (startDate && faltaDate < startDate) return false;
+        if (endDate && faltaDate > endDate) return false;
       }
 
       if (!term) return true;
@@ -311,10 +360,88 @@ const Faltas = () => {
     searchTerm,
     statusFilter,
     clienteFilter,
+    dateRangeFilter,
     diariaMap,
     colaboradoresMap,
     colaboradoresConveniaMap,
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredFaltas.length / FALTAS_PAGE_SIZE));
+  const paginatedFaltas = useMemo(() => {
+    const start = (currentPage - 1) * FALTAS_PAGE_SIZE;
+    return filteredFaltas.slice(start, start + FALTAS_PAGE_SIZE);
+  }, [filteredFaltas, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, clienteFilter, dateRangeFilter, faltaType]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("pendente");
+    setClienteFilter(CLIENTE_FILTER_ALL);
+    setDateRangeFilter({ startDate: "", endDate: "" });
+    setCurrentPage(1);
+  };
+
+  const buildFaltasConveniaExportRows = (faltas: FaltaConveniaRow[]) =>
+    faltas.map((falta) => ({
+      id: falta.id,
+      colaborador_convenia_id:
+        getConveniaColaboradorNome(
+          colaboradoresConveniaMap.get(falta.colaborador_convenia_id),
+        ) || falta.colaborador_convenia_id,
+      diaria_temporaria_id: falta.diaria_temporaria_id,
+      data_falta: falta.data_falta,
+      motivo: falta.motivo,
+      atestado_path: falta.atestado_path || "",
+      justificada_em: falta.justificada_em || "",
+      justificada_por: falta.justificada_por
+        ? usuarioMap.get(falta.justificada_por) || falta.justificada_por
+        : "",
+      created_at: falta.created_at,
+      updated_at: falta.updated_at,
+    }));
+
+  const exportFaltasConveniaXlsx = (faltas: FaltaConveniaRow[], filePrefix: string) => {
+    if (!faltas.length) {
+      toast.info("Nenhuma falta para exportar.");
+      return;
+    }
+    const sheet = XLSX.utils.json_to_sheet(buildFaltasConveniaExportRows(faltas), {
+      header: FALTAS_CONVENIA_EXPORT_COLUMNS,
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, "Faltas");
+    XLSX.writeFile(wb, `${filePrefix}-${Date.now()}.xlsx`);
+    toast.success("Arquivo XLSX gerado.");
+  };
+
+  const handleExportFilteredFaltas = () => {
+    const faltasParaExportar = filteredFaltas.filter(
+      (falta): falta is FaltaConveniaRow => falta.tipo === "convenia",
+    );
+    exportFaltasConveniaXlsx(faltasParaExportar, "faltas-convenia");
+  };
+
+  const handleExportAdvancedRange = (
+    range: { colaboradorId: string; startDate: string; endDate: string },
+    motivoFiltro: string | undefined,
+    fileSuffix: string,
+  ) => {
+    const faltas = getFaltasConveniaByRange(range, motivoFiltro);
+    if (faltas === null) {
+      toast.error("Preencha colaborador e periodo para exportar.");
+      return;
+    }
+    exportFaltasConveniaXlsx(faltas, `faltas-convenia-${fileSuffix}`);
+  };
 
   const handleViewDocumento = async (path: string) => {
     try {
@@ -404,12 +531,20 @@ const Faltas = () => {
               <CardTitle>Filtros</CardTitle>
               <CardDescription>Busque faltas por colaborador ou ID da diaria.</CardDescription>
             </div>
-            <Button type="button" variant="outline" onClick={() => setAdvancedDialogOpen(true)}>
-              Filtragem avancada
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="button" variant="outline" onClick={handleClearFilters}>
+                Limpar filtros
+              </Button>
+              <Button type="button" variant="outline" onClick={handleExportFilteredFaltas}>
+                Exportar XLSX
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setAdvancedDialogOpen(true)}>
+                Filtragem avancada
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4 md:grid md:grid-cols-4">
-            <div className="space-y-2">
+          <CardContent className="flex flex-col gap-4 md:grid md:grid-cols-6">
+            <div className="space-y-2 md:col-span-2">
               <span className="text-sm text-muted-foreground">Busca</span>
               <Input
                 value={searchTerm}
@@ -417,7 +552,7 @@ const Faltas = () => {
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <span className="text-sm text-muted-foreground">Tipo</span>
               <Select value={faltaType} onValueChange={(value) => setFaltaType(value as FaltaTipo)}>
                 <SelectTrigger>
@@ -432,7 +567,7 @@ const Faltas = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <span className="text-sm text-muted-foreground">Status</span>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
@@ -447,7 +582,7 @@ const Faltas = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <span className="text-sm text-muted-foreground">Cliente</span>
               <Select value={clienteFilter} onValueChange={setClienteFilter}>
                 <SelectTrigger>
@@ -463,6 +598,32 @@ const Faltas = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2 md:col-span-2">
+              <span className="text-sm text-muted-foreground">Data inicial</span>
+              <Input
+                type="date"
+                value={dateRangeFilter.startDate}
+                onChange={(event) =>
+                  setDateRangeFilter((prev) => ({
+                    ...prev,
+                    startDate: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <span className="text-sm text-muted-foreground">Data final</span>
+              <Input
+                type="date"
+                value={dateRangeFilter.endDate}
+                onChange={(event) =>
+                  setDateRangeFilter((prev) => ({
+                    ...prev,
+                    endDate: event.target.value,
+                  }))
+                }
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -477,100 +638,128 @@ const Faltas = () => {
             ) : filteredFaltas.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma falta encontrada.</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Colaborador</TableHead>
-                    <TableHead className="hidden sm:table-cell">Cliente</TableHead>
-                    <TableHead className="hidden sm:table-cell">Motivo</TableHead>
-                    <TableHead className="hidden sm:table-cell">Status</TableHead>
-                    <TableHead className="hidden sm:table-cell">Justificada em</TableHead>
-                    <TableHead className="hidden sm:table-cell">Documento</TableHead>
-                    <TableHead className="text-right">Acoes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredFaltas.map((falta) => {
-                    const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
-                    const colaborador =
-                      falta.tipo === "colaborador"
-                        ? colaboradoresMap.get(falta.colaborador_id)
-                        : null;
-                    const postoInfo =
-                      diaria?.posto_servico_id
-                        ? postoMap.get(diaria.posto_servico_id)
-                        : colaborador?.posto || null;
-                    const clienteNome =
-                      (typeof diaria?.cliente_id === "number" && clienteMap.get(diaria.cliente_id)) ||
-                      getClienteInfoFromPosto(postoInfo)?.nome ||
-                      "-";
-                    const statusLabel = falta.justificada_em ? "Justificada" : "Pendente";
-                    const statusVariant: "default" | "destructive" =
-                      falta.justificada_em ? "default" : "destructive";
-                    const justificadaPorNome = falta.justificada_por
-                      ? usuarioMap.get(falta.justificada_por) || falta.justificada_por
-                      : "-";
-                    const colaboradorNome = getFaltaColaboradorNome(falta);
-                    const documentoPath = getFaltaDocumentoPath(falta);
-                    return (
-                      <TableRow
-                        key={falta.id}
-                        className="cursor-pointer"
-                        onClick={() => openDetailsDialog(falta)}
-                      >
-                        <TableCell>{formatDate(diaria?.data_diaria)}</TableCell>
-                        <TableCell>{colaboradorNome}</TableCell>
-                        <TableCell className="hidden sm:table-cell">{clienteNome}</TableCell>
-                        <TableCell className="hidden sm:table-cell">{falta.motivo || "-"}</TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <Badge variant={statusVariant}>{statusLabel}</Badge>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          {falta.justificada_em ? (
-                            <div className="text-xs">
-                              <div>{formatDateTime(falta.justificada_em)}</div>
-                              <div className="text-muted-foreground">{justificadaPorNome}</div>
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          {documentoPath ? (
+              <div className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Colaborador</TableHead>
+                      <TableHead className="hidden sm:table-cell">Cliente</TableHead>
+                      <TableHead className="hidden sm:table-cell">Motivo</TableHead>
+                      <TableHead className="hidden sm:table-cell">Status</TableHead>
+                      <TableHead className="hidden sm:table-cell">Justificada em</TableHead>
+                      <TableHead className="hidden sm:table-cell">Documento</TableHead>
+                      <TableHead className="text-right">Acoes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedFaltas.map((falta) => {
+                      const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
+                      const colaborador =
+                        falta.tipo === "colaborador"
+                          ? colaboradoresMap.get(falta.colaborador_id)
+                          : null;
+                      const postoInfo =
+                        diaria?.posto_servico_id
+                          ? postoMap.get(diaria.posto_servico_id)
+                          : colaborador?.posto || null;
+                      const clienteNome =
+                        (typeof diaria?.cliente_id === "number" &&
+                          clienteMap.get(diaria.cliente_id)) ||
+                        getClienteInfoFromPosto(postoInfo)?.nome ||
+                        "-";
+                      const statusLabel = falta.justificada_em ? "Justificada" : "Pendente";
+                      const statusVariant: "default" | "destructive" =
+                        falta.justificada_em ? "default" : "destructive";
+                      const justificadaPorNome = falta.justificada_por
+                        ? usuarioMap.get(falta.justificada_por) || falta.justificada_por
+                        : "-";
+                      const colaboradorNome = getFaltaColaboradorNome(falta);
+                      const documentoPath = getFaltaDocumentoPath(falta);
+                      return (
+                        <TableRow
+                          key={falta.id}
+                          className="cursor-pointer"
+                          onClick={() => openDetailsDialog(falta)}
+                        >
+                          <TableCell>{formatDate(diaria?.data_diaria)}</TableCell>
+                          <TableCell>{colaboradorNome}</TableCell>
+                          <TableCell className="hidden sm:table-cell">{clienteNome}</TableCell>
+                          <TableCell className="hidden sm:table-cell">{falta.motivo || "-"}</TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <Badge variant={statusVariant}>{statusLabel}</Badge>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            {falta.justificada_em ? (
+                              <div className="text-xs">
+                                <div>{formatDateTime(falta.justificada_em)}</div>
+                                <div className="text-muted-foreground">{justificadaPorNome}</div>
+                              </div>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            {documentoPath ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleViewDocumento(documentoPath as string);
+                                }}
+                              >
+                                Ver
+                              </Button>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
                             <Button
                               type="button"
                               size="sm"
-                              variant="outline"
+                              disabled={!!falta.justificada_em}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                handleViewDocumento(documentoPath as string);
+                                openJustificarDialog(falta);
                               }}
                             >
-                              Ver
+                              Justificar
                             </Button>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={!!falta.justificada_em}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openJustificarDialog(falta);
-                            }}
-                          >
-                            Justificar
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <div className="flex flex-col items-start justify-between gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center">
+                  <span>
+                    Pagina {currentPage} de {totalPages}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    >
+                      Proxima
+                    </Button>
+                  </div>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -762,6 +951,16 @@ const Faltas = () => {
                 <p className="text-2xl font-semibold">
                   {advancedTotalCount !== null ? advancedTotalCount : "--"}
                 </p>
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleExportAdvancedRange(advancedTotalRange, undefined, "total")}
+                  >
+                    Exportar XLSX
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -826,6 +1025,22 @@ const Faltas = () => {
                 <p className="text-2xl font-semibold">
                   {advancedInjustificadaCount !== null ? advancedInjustificadaCount : "--"}
                 </p>
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      handleExportAdvancedRange(
+                        advancedInjustificadaRange,
+                        MOTIVO_FALTA_INJUSTIFICADA,
+                        "injustificadas",
+                      )
+                    }
+                  >
+                    Exportar XLSX
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -890,6 +1105,22 @@ const Faltas = () => {
                 <p className="text-2xl font-semibold">
                   {advancedJustificadaCount !== null ? advancedJustificadaCount : "--"}
                 </p>
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      handleExportAdvancedRange(
+                        advancedJustificadaRange,
+                        MOTIVO_FALTA_JUSTIFICADA,
+                        "justificadas",
+                      )
+                    }
+                  >
+                    Exportar XLSX
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
