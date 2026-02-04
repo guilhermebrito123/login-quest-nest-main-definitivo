@@ -139,10 +139,12 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
 
 const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
+const MOTIVO_VAGO_SERVICO_EXTRA = "SERVIÇO EXTRA";
 const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
 const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
+  MOTIVO_VAGO_SERVICO_EXTRA,
   MOTIVO_FALTA_INJUSTIFICADA,
   MOTIVO_FALTA_JUSTIFICADA,
   "LICENÇA MATERNIDADE",
@@ -932,6 +934,10 @@ const createStatusPage = ({
 
     const isVagaEmAberto = (motivo?: string | null) =>
       (motivo || "").toUpperCase().includes("VAGA EM ABERTO");
+    const isServicoExtra = (motivo?: string | null) =>
+      (motivo || "").toUpperCase() === MOTIVO_VAGO_SERVICO_EXTRA;
+    const isMotivoSemColaborador = (motivo?: string | null) =>
+      isVagaEmAberto(motivo) || isServicoExtra(motivo);
 
     const diariasDoStatusFull = useMemo(
       () =>
@@ -2955,6 +2961,8 @@ const createStatusPage = ({
         return;
       }
       const isMotivoVaga = isVagaEmAberto(editForm.motivoVago);
+      const isMotivoSemColaborador =
+        isMotivoVaga || isServicoExtra(editForm.motivoVago);
 
       if (
         !editForm.dataDiaria ||
@@ -2994,7 +3002,7 @@ const createStatusPage = ({
         return;
       }
 
-      if (!isMotivoVaga && !toTrimOrNull(editForm.colaboradorAusenteId)) {
+      if (!isMotivoSemColaborador && !toTrimOrNull(editForm.colaboradorAusenteId)) {
         toast.error("Informe o colaborador ausente.");
         return;
       }
@@ -3057,7 +3065,7 @@ const createStatusPage = ({
       const motivoVagoValue = (editForm.motivoVago || "").toUpperCase();
       const demissaoValue = isMotivoVaga ? editForm.demissao : null;
       const novoPostoValue = isMotivoVaga ? demissaoValue === false : null;
-      const colaboradorAusenteId = !isMotivoVaga
+      const colaboradorAusenteId = !isMotivoSemColaborador
         ? toTrimOrNull(editForm.colaboradorAusenteId)
         : null;
       const colaboradorDemitidoId =
@@ -3116,9 +3124,11 @@ const createStatusPage = ({
       }
     };
 
+    const editMotivoUpper = editForm.motivoVago.toUpperCase();
     const isEditMotivoVaga =
-      editForm.motivoVago.toUpperCase() ===
-      MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+      editMotivoUpper === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+    const isEditMotivoSemColaborador =
+      isEditMotivoVaga || editMotivoUpper === MOTIVO_VAGO_SERVICO_EXTRA;
     const demissaoSelectValue =
       editForm.demissao === null
         ? UNSET_BOOL
@@ -6083,12 +6093,13 @@ const createStatusPage = ({
                   value={editForm.motivoVago}
                   onValueChange={(value) => {
                     const upperValue = value.toUpperCase();
-                    const isVagaAberto =
-                      upperValue === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+                    const isSemColaborador =
+                      upperValue === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase() ||
+                      upperValue === MOTIVO_VAGO_SERVICO_EXTRA;
                     setEditForm((prev) => ({
                       ...prev,
                       motivoVago: value,
-                      colaboradorAusenteId: isVagaAberto
+                      colaboradorAusenteId: isSemColaborador
                         ? ""
                         : prev.colaboradorAusenteId,
                       demissao: null,
@@ -6109,7 +6120,7 @@ const createStatusPage = ({
                 </Select>
               </div>
 
-              {!isEditMotivoVaga && (
+              {!isEditMotivoSemColaborador && (
                 <div className="space-y-1 md:col-span-2">
                   <TooltipLabel
                     label="Colaborador ausente"

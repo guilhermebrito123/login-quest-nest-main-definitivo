@@ -22,9 +22,11 @@ import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 
 const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
+const MOTIVO_VAGO_SERVICO_EXTRA = "SERVIÇO EXTRA";
 
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
+  MOTIVO_VAGO_SERVICO_EXTRA,
   "FALTA INJUSTIFICADA",
   "LICENÇA MATERNIDADE",
   "LICENÇA PATERNIDADE",
@@ -207,8 +209,11 @@ const Diarias2 = () => {
     return null;
   };
 
+  const motivoVagoUpper = formState.motivoVago.toUpperCase();
   const isMotivoVagaEmAberto =
-    formState.motivoVago.toUpperCase() === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+    motivoVagoUpper === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+  const isMotivoSemColaborador =
+    isMotivoVagaEmAberto || motivoVagoUpper === MOTIVO_VAGO_SERVICO_EXTRA;
   const normalizedCancelada = normalizeStatus(STATUS.cancelada);
   const normalizedReprovada = normalizeStatus(STATUS.reprovada);
   const normalizedPaga = normalizeStatus(STATUS.paga);
@@ -286,7 +291,7 @@ const Diarias2 = () => {
       return;
     }
 
-    if (!isMotivoVagaEmAberto && !toTrimOrNull(formState.colaboradorAusenteId)) {
+    if (!isMotivoSemColaborador && !toTrimOrNull(formState.colaboradorAusenteId)) {
       toast.error("Informe o colaborador ausente.");
       return;
     }
@@ -343,7 +348,7 @@ const Diarias2 = () => {
         ? false
         : true
       : null;
-    const colaboradorAusenteId = !isMotivoVagaEmAberto
+    const colaboradorAusenteId = !isMotivoSemColaborador
       ? toTrimOrNull(formState.colaboradorAusenteId)
       : null;
     const colaboradorDemitidoId =
@@ -534,11 +539,16 @@ const Diarias2 = () => {
                   required
                   value={formState.motivoVago}
                   onValueChange={(value) => {
-                    const isVagaAberto = value.toUpperCase() === MOTIVO_VAGO_VAGA_EM_ABERTO;
+                    const upperValue = value.toUpperCase();
+                    const isSemColaborador =
+                      upperValue === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase() ||
+                      upperValue === MOTIVO_VAGO_SERVICO_EXTRA;
                     setFormState((prev) => ({
                       ...prev,
                       motivoVago: value,
-                      colaboradorAusenteId: isVagaAberto ? "" : prev.colaboradorAusenteId,
+                      colaboradorAusenteId: isSemColaborador
+                        ? ""
+                        : prev.colaboradorAusenteId,
                       demissao: null,
                       colaboradorDemitidoId: "",
                     }));
@@ -557,7 +567,7 @@ const Diarias2 = () => {
                 </Select>
               </div>
 
-              {!isMotivoVagaEmAberto && (
+              {!isMotivoSemColaborador && (
                 <div className="space-y-2">
                   <TooltipLabel
                     label="Colaborador ausente"
