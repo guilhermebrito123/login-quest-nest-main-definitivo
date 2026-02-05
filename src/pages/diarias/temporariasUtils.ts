@@ -163,6 +163,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
         numero_conta: item.numero_conta ?? null,
         tipo_conta: item.tipo_conta ?? null,
         pix: item.pix ?? null,
+        reserva_tecnica: item.reserva_tecnica ?? false,
       })) as Diarista[];
     },
   });
