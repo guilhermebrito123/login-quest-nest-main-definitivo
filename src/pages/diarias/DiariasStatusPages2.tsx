@@ -142,6 +142,7 @@ const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
 const MOTIVO_VAGO_SERVICO_EXTRA = "SERVIÇO EXTRA";
 const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
 const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
+const RESERVA_TECNICA_NAME = "RESERVA TÉCNICA";
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
   MOTIVO_VAGO_SERVICO_EXTRA,
@@ -184,6 +185,9 @@ const CadastroIncompletoBadge = ({
     </PopoverContent>
   </Popover>
 );
+
+const ReservaTecnicaBadge = ({ isReserva }: { isReserva: boolean }) =>
+  isReserva ? <Badge>Reserva técnica</Badge> : null;
 
 const TooltipLabel = ({
   label,
@@ -441,6 +445,7 @@ const createStatusPage = ({
     const [filters, setFilters] = useState({
       diariaId: "",
       diaristaId: "",
+      reservaTecnica: "",
       motivo: "",
       clienteId: "",
       centroCustoId: "",
@@ -1145,6 +1150,7 @@ const createStatusPage = ({
             id: diarista.id,
             nome: diarista.nome_completo || diarista.id,
             cpf: diarista.cpf ?? null,
+            reserva_tecnica: diarista.reserva_tecnica ?? false,
           }))
           .sort((a, b) => a.nome.localeCompare(b.nome)),
       [diaristas]
@@ -1191,13 +1197,24 @@ const createStatusPage = ({
         .filter((p) => p.id);
     }, [postoMap]);
 
+    const reservaTecnicaCostCenterId = useMemo(() => {
+      const target = costCenters.find(
+        (center) =>
+          (center.name || "").trim().toUpperCase() === RESERVA_TECNICA_NAME
+      );
+      return target?.id || "";
+    }, [costCenters]);
+
     const colaboradoresConveniaByCentroCusto = useMemo(() => {
       const base = colaboradoresConvenia.filter((colaborador) => colaborador?.id);
       if (!editForm.centroCustoId) return base;
       return base.filter(
-        (colaborador) => colaborador.cost_center_id === editForm.centroCustoId
+        (colaborador) =>
+          colaborador.cost_center_id === editForm.centroCustoId ||
+          (reservaTecnicaCostCenterId &&
+            colaborador.cost_center_id === reservaTecnicaCostCenterId)
       );
-    }, [colaboradoresConvenia, editForm.centroCustoId]);
+    }, [colaboradoresConvenia, editForm.centroCustoId, reservaTecnicaCostCenterId]);
 
     const colaboradoresOptionsByCentroCusto = useMemo(
       () =>
@@ -1457,6 +1474,16 @@ const createStatusPage = ({
         if (filters.diaristaId && filters.diaristaId !== diaristaId) {
           return false;
         }
+        if (filters.reservaTecnica) {
+          const diaristaInfo = diaristaId ? diaristaMap.get(diaristaId) : null;
+          const isReserva = diaristaInfo?.reserva_tecnica === true;
+          if (filters.reservaTecnica === "true" && !isReserva) {
+            return false;
+          }
+          if (filters.reservaTecnica === "false" && isReserva) {
+            return false;
+          }
+        }
         if (
           filters.diariaId.trim() &&
           filters.diariaId.trim() !== diaria.id.toString()
@@ -1505,6 +1532,7 @@ const createStatusPage = ({
       isPagaPage,
       statusDateConfig,
       statusResponsavelField,
+      diaristaMap,
     ]);
 
     const okPagamentoById = useMemo(() => {
@@ -1625,6 +1653,8 @@ const createStatusPage = ({
     const selectedGroupDiaristaInfo = selectedGroup?.diaristaId
       ? diaristaMap.get(selectedGroup.diaristaId)
       : null;
+    const selectedGroupReservaTecnica =
+      selectedGroupDiaristaInfo?.reserva_tecnica === true;
 
     const naoOkDiaristaNome = useMemo(() => {
       if (!naoOkTarget) return "-";
@@ -1715,6 +1745,7 @@ const createStatusPage = ({
         Unidade: unidadeNome,
         Cliente: clienteNome,
         Diarista: diaristaInfo?.nome_completo || "-",
+        "Reserva tecnica?": formatBooleanFlag(diaristaInfo?.reserva_tecnica),
         "Status diarista": diaristaInfo?.status || "-",
         "Valor (R$)": valorDiariaNumber,
         "Atualizado em": formatDateTime(diaria.updated_at),
@@ -1812,7 +1843,13 @@ const createStatusPage = ({
         const groupIdsLabel = sortedGroupDiarias
           .map((diaria) => diaria.id)
           .join(", ");
-        const beneficiario = group.diaristaNome;
+        const groupDiaristaInfo = group.diaristaId
+          ? diaristaMap.get(group.diaristaId)
+          : null;
+        const beneficiarioBase = group.diaristaNome || "-";
+        const beneficiario = groupDiaristaInfo?.reserva_tecnica
+          ? `${beneficiarioBase} - Reserva técnica`
+          : beneficiarioBase;
         const aprovacao =
           groupDiarias.length > 0 &&
           groupDiarias.every((diaria) => diaria.ok_pagamento === true)
@@ -2429,6 +2466,7 @@ const createStatusPage = ({
       setFilters({
         diariaId: "",
         diaristaId: "",
+        reservaTecnica: "",
         motivo: "",
         clienteId: "",
         centroCustoId: "",
@@ -3400,6 +3438,8 @@ const createStatusPage = ({
     const selectedDiaristaCadastroIncompleto = isCadastroIncompleto(
       selectedDiaristaInfo
     );
+    const selectedDiaristaReservaTecnica =
+      selectedDiaristaInfo?.reserva_tecnica === true;
     const selectedContratoInfo = getContratoInfoFromPosto(selectedPostoInfo);
     const selectedClienteDisplay = selectedDiaria
       ? getClienteOuCentroCustoDisplay(selectedDiaria, selectedPostoInfo)
@@ -3604,6 +3644,31 @@ const createStatusPage = ({
                             {option.nome}
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-reserva-${statusKey}`}
+                      label="Reserva técnica"
+                      tooltip="Filtra diarias por diaristas reserva tecnica."
+                    />
+                    <Select
+                      value={filters.reservaTecnica || selectAllValue}
+                      onValueChange={(value) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          reservaTecnica: value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id={`filtro-temp-reserva-${statusKey}`}>
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>Todos</SelectItem>
+                        <SelectItem value="true">Reserva técnica</SelectItem>
+                        <SelectItem value="false">Não reserva técnica</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -4022,6 +4087,8 @@ const createStatusPage = ({
                                 : null;
                               const diaristaCadastroIncompleto =
                                 isCadastroIncompleto(diaristaInfo);
+                              const diaristaReservaTecnica =
+                                diaristaInfo?.reserva_tecnica === true;
                               const groupRowClasses = getPagamentoRowClasses(
                                 hasNaoOk ? false : null,
                                 "cursor-pointer transition"
@@ -4063,6 +4130,9 @@ const createStatusPage = ({
                                     <div className="flex flex-col gap-1">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <span>{group.diaristaNome}</span>
+                                        <ReservaTecnicaBadge
+                                          isReserva={diaristaReservaTecnica}
+                                        />
                                         {diaristaCadastroIncompleto && (
                                           <CadastroIncompletoBadge
                                             stopPropagation
@@ -4279,6 +4349,8 @@ const createStatusPage = ({
                                 diaristaMap.get(diaria.diarista_id || "");
                               const diaristaCadastroIncompleto =
                                 isCadastroIncompleto(diaristaInfo);
+                              const diaristaReservaTecnica =
+                                diaristaInfo?.reserva_tecnica === true;
                               const colaboradorNome =
                                 colaboradorInfo?.nome_completo ||
                                 getColaboradorAusenteDisplay(diaria);
@@ -4363,6 +4435,9 @@ const createStatusPage = ({
                                         <span>
                                           {diaristaInfo?.nome_completo || "-"}
                                         </span>
+                                        <ReservaTecnicaBadge
+                                          isReserva={diaristaReservaTecnica}
+                                        />
                                         {diaristaCadastroIncompleto && (
                                           <CadastroIncompletoBadge
                                             stopPropagation
@@ -5144,8 +5219,11 @@ const createStatusPage = ({
                   <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground text-xs">Diarista</p>
-                      <p className="font-medium">
-                        {selectedGroup.diaristaNome || "-"}
+                      <p className="font-medium flex flex-wrap items-center gap-2">
+                        <span>{selectedGroup.diaristaNome || "-"}</span>
+                        <ReservaTecnicaBadge
+                          isReserva={selectedGroupReservaTecnica}
+                        />
                       </p>
                     </div>
                     <div>
@@ -5797,6 +5875,9 @@ const createStatusPage = ({
                         <span>
                           {selectedDiaristaInfo?.nome_completo || "-"}
                         </span>
+                        <ReservaTecnicaBadge
+                          isReserva={selectedDiaristaReservaTecnica}
+                        />
                         {selectedDiaristaCadastroIncompleto && (
                           <CadastroIncompletoBadge />
                         )}
@@ -6346,6 +6427,12 @@ const createStatusPage = ({
                         diaristaStatusMap.get(option.id) === "restrito";
                       const isCurrent = option.id === editForm.diaristaId;
                       const isTest = isTestDiarista(option);
+                      const cpfLabel = option.cpf
+                        ? ` - ${option.cpf}`
+                        : " - CPF nao informado";
+                      const reservaLabel = option.reserva_tecnica
+                        ? " - Reserva técnica"
+                        : "";
                       const labels = [
                         isBlacklisted ? "Blacklist" : null,
                         isRestrito ? "Restrito" : null,
@@ -6364,6 +6451,8 @@ const createStatusPage = ({
                           }
                         >
                           {option.nome}
+                          {cpfLabel}
+                          {reservaLabel}
                           {statusSuffix}
                           {isTest && (
                             <span className="ml-2 rounded-full bg-yellow-300 px-2 py-0.5 text-[10px] font-semibold text-yellow-900">

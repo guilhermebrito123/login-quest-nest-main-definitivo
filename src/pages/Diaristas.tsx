@@ -550,6 +550,12 @@ export default function Diaristas() {
                   <p className="text-xs text-muted-foreground">Status</p>
                   <p className="font-medium break-words">{diaristaDetalhe.status}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Reserva técnica</p>
+                  <p className="font-medium break-words">
+                    {diaristaDetalhe.reserva_tecnica ? "Sim" : "Não"}
+                  </p>
+                </div>
                 {diaristaDetalhe.status === "restrito" && (
                   <div className="sm:col-span-2">
                     <p className="text-xs text-muted-foreground">Motivo restricao</p>

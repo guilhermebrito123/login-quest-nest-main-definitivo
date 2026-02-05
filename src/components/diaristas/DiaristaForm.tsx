@@ -106,6 +106,7 @@ interface DiaristaFormState {
   telefone: string;
   email: string;
   possui_antecedente: boolean;
+  reserva_tecnica: boolean;
   status: "ativo" | "inativo" | "desligado";
   banco: string;
   agencia: string;
@@ -124,6 +125,7 @@ const createInitialFormState = (): DiaristaFormState => ({
   telefone: "",
   email: "",
   possui_antecedente: false,
+  reserva_tecnica: false,
   status: "ativo",
   banco: "",
   agencia: "",
@@ -224,6 +226,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
         telefone: formatTelefone(diarista.telefone || ""),
         email: diarista.email || "",
         possui_antecedente: diarista.possui_antecedente || false,
+        reserva_tecnica: diarista.reserva_tecnica || false,
         status: diarista.status || "ativo",
         banco: diarista.banco || "",
         agencia: diarista.agencia || "",
@@ -493,6 +496,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
         stripNonDigits(String(diarista.telefone ?? "")) !== payload.telefone ||
         (diarista.email || "") !== payload.email ||
         Boolean(diarista.possui_antecedente) !== payload.possui_antecedente ||
+        Boolean(diarista.reserva_tecnica) !== payload.reserva_tecnica ||
         (diarista.status || "ativo") !== payload.status ||
         (diarista.banco || "") !== payload.banco ||
         (diarista.agencia || "") !== payload.agencia ||
@@ -664,6 +668,22 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="reserva_tecnica">Reserva técnica?</Label>
+              <Select
+                value={formData.reserva_tecnica ? "true" : "false"}
+                onValueChange={(value) => setFormData({ ...formData, reserva_tecnica: value === "true" })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+              <SelectContent>
+                  <SelectItem value="false">Não</SelectItem>
+                  <SelectItem value="true">Sim</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>

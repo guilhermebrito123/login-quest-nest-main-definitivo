@@ -178,6 +178,7 @@ export type Diarista = {
   numero_conta?: string | null;
   tipo_conta?: string | null;
   pix?: string | null;
+  reserva_tecnica?: boolean | null;
 };
 
 export type Diaria = {

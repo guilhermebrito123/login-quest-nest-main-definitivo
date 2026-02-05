@@ -23,6 +23,7 @@ import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
 const MOTIVO_VAGO_SERVICO_EXTRA = "SERVIÇO EXTRA";
+const RESERVA_TECNICA_NAME = "RESERVA TÉCNICA";
 
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
@@ -218,13 +219,24 @@ const Diarias2 = () => {
   const normalizedReprovada = normalizeStatus(STATUS.reprovada);
   const normalizedPaga = normalizeStatus(STATUS.paga);
 
+  const reservaTecnicaCostCenterId = useMemo(() => {
+    const target = costCenters.find(
+      (center) =>
+        (center.name || "").trim().toUpperCase() === RESERVA_TECNICA_NAME,
+    );
+    return target?.id || "";
+  }, [costCenters]);
+
   const colaboradoresConveniaByCentroCusto = useMemo(() => {
     const base = colaboradoresConvenia.filter((colaborador) => colaborador?.id);
     if (!formState.centroCustoId) return base;
     return base.filter(
-      (colaborador) => colaborador.cost_center_id === formState.centroCustoId,
+      (colaborador) =>
+        colaborador.cost_center_id === formState.centroCustoId ||
+        (reservaTecnicaCostCenterId &&
+          colaborador.cost_center_id === reservaTecnicaCostCenterId),
     );
-  }, [colaboradoresConvenia, formState.centroCustoId]);
+  }, [colaboradoresConvenia, formState.centroCustoId, reservaTecnicaCostCenterId]);
 
   const { clienteReceberTotals, clienteRecebidosTotals } = useMemo(() => {
     const receber = new Map<string, { nome: string; total: number }>();
@@ -786,6 +798,7 @@ const Diarias2 = () => {
                       const statusSuffix =
                         statusLabels.length > 0 ? ` (${statusLabels.join(" / ")})` : "";
                       const cpfLabel = diarista.cpf ? ` - ${diarista.cpf}` : " - CPF nao informado";
+                      const reservaLabel = diarista.reserva_tecnica ? " - Reserva técnica" : "";
                       return (
                         <SelectItem
                           key={diarista.id}
@@ -799,6 +812,7 @@ const Diarias2 = () => {
                         >
                           {diarista.nome_completo}
                           {cpfLabel}
+                          {reservaLabel}
                           {statusSuffix}
                           {isTest && (
                             <span className="ml-2 rounded-full bg-yellow-300 px-2 py-0.5 text-[10px] font-semibold text-yellow-900">
