@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { parseISO, isWithinInterval } from "date-fns";
 import { getMonthRange, Diarista } from "./utils";
+import { useSession } from "@/hooks/useSession";
 
 export type PostoServicoResumo = {
   id: string;
@@ -117,13 +118,14 @@ export type DiariaTemporaria = {
 };
 
 export function useDiariasTemporariasData(selectedMonth?: string | null) {
+  const { session, loading: sessionLoading } = useSession();
   const monthRangeStrings = useMemo(
     () => (selectedMonth ? getMonthRange(selectedMonth) : null),
     [selectedMonth],
   );
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ["clientes-temporarias"],
+    queryKey: ["clientes-temporarias", session?.user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clientes")
@@ -132,10 +134,11 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
       if (error) throw error;
       return (data || []) as ClienteResumo[];
     },
+    enabled: !!session,
   });
 
   const { data: costCenters = [] } = useQuery({
-    queryKey: ["cost-centers-temporarias"],
+    queryKey: ["cost-centers-temporarias", session?.user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cost_center")
@@ -144,10 +147,11 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
       if (error) throw error;
       return (data || []) as CostCenterResumo[];
     },
+    enabled: !!session,
   });
 
   const { data: diaristas = [] } = useQuery({
-    queryKey: ["diaristas-temporarias"],
+    queryKey: ["diaristas-temporarias", session?.user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("diaristas").select("*").order("nome_completo");
       if (error) throw error;
@@ -166,10 +170,11 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
         reserva_tecnica: item.reserva_tecnica ?? false,
       })) as Diarista[];
     },
+    enabled: !!session,
   });
 
   const { data: colaboradores = [] } = useQuery({
-    queryKey: ["colaboradores-alocados-temporarias"],
+    queryKey: ["colaboradores-alocados-temporarias", session?.user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("colaboradores")
@@ -209,10 +214,11 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
       if (error) throw error;
       return (data || []) as ColaboradorAlocado[];
     },
+    enabled: !!session,
   });
 
   const { data: colaboradoresConvenia = [] } = useQuery({
-    queryKey: ["colaboradores-convenia-temporarias"],
+    queryKey: ["colaboradores-convenia-temporarias", session?.user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("colaboradores_convenia")
@@ -221,14 +227,15 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
       if (error) throw error;
       return (data || []) as ColaboradorConvenia[];
     },
+    enabled: !!session,
   });
 
   const {
     data: diarias = [],
-    isLoading: loadingDiarias,
+    isLoading: loadingDiariasRaw,
     refetch: refetchDiarias,
   } = useQuery({
-    queryKey: ["diarias-temporarias"],
+    queryKey: ["diarias-temporarias", session?.user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("diarias_temporarias")
@@ -237,6 +244,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
       if (error) throw error;
       return (data || []) as DiariaTemporaria[];
     },
+    enabled: !!session,
   });
 
   const usuarioIdsFromDiarias = useMemo(() => {
@@ -260,7 +268,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
   }, [diarias]);
 
   const { data: postosServicos = [] } = useQuery({
-    queryKey: ["postos-servico-temporarias"],
+    queryKey: ["postos-servico-temporarias", session?.user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("postos_servico")
@@ -293,6 +301,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
       if (error) throw error;
       return (data || []) as any[];
     },
+    enabled: !!session,
   });
 
   const fetchUsuariosByIds = async (ids: string[]) => {
@@ -327,7 +336,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
   };
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ["usuarios-temporarias", usuarioIdsFromDiarias],
+    queryKey: ["usuarios-temporarias", session?.user?.id, usuarioIdsFromDiarias],
     queryFn: async () => {
       if (usuarioIdsFromDiarias.length === 0) return [];
       try {
@@ -337,7 +346,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
         return usuarioIdsFromDiarias.map((id) => ({ id, full_name: id, email: null }));
       }
     },
-    enabled: usuarioIdsFromDiarias.length > 0,
+    enabled: !!session && usuarioIdsFromDiarias.length > 0,
   });
 
   const monthRange = useMemo(() => {
@@ -446,6 +455,6 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
     costCenterMap,
     usuarioMap,
     refetchDiarias,
-    loadingDiarias,
+    loadingDiarias: sessionLoading || loadingDiariasRaw,
   };
 }

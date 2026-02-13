@@ -16,6 +16,7 @@ import MesaOperacoes from "./pages/MesaOperacoes";
 import OrdensServico from "./pages/OrdensServico";
 import Colaboradores from "./pages/Colaboradores";
 import CentrosCusto from "./pages/CentrosCusto";
+import PostosServico from "./pages/PostosServico";
 import Escalas from "./pages/Escalas";
 import Ativos from "./pages/Ativos";
 import Estoque from "./pages/Estoque";
@@ -80,6 +81,7 @@ const App = () => (
           <Route path="/ordens-servico" element={<ProtectedRoute><OrdensServico /></ProtectedRoute>} />
           <Route path="/colaboradores" element={<ProtectedRoute><Colaboradores /></ProtectedRoute>} />
           <Route path="/centros-custo" element={<ProtectedRoute><CentrosCusto /></ProtectedRoute>} />
+          <Route path="/postos-servico" element={<ProtectedRoute><PostosServico /></ProtectedRoute>} />
           <Route path="/escalas" element={<ProtectedRoute><Escalas /></ProtectedRoute>} />
           <Route path="/ativos" element={<ProtectedRoute><Ativos /></ProtectedRoute>} />
           <Route path="/estoque" element={<ProtectedRoute><Estoque /></ProtectedRoute>} />

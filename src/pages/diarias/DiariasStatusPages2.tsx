@@ -140,6 +140,7 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
 const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
 const MOTIVO_VAGO_SERVICO_EXTRA = "SERVIÇO EXTRA";
+const MOTIVO_VAGO_DIARIA_BONUS = "DIÁRIA BÔNUS";
 const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
 const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
 const RESERVA_TECNICA_NAME = "RESERVA TÉCNICA";
@@ -148,6 +149,7 @@ const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_SERVICO_EXTRA,
   MOTIVO_FALTA_INJUSTIFICADA,
   MOTIVO_FALTA_JUSTIFICADA,
+  MOTIVO_VAGO_DIARIA_BONUS,
   "LICENÇA MATERNIDADE",
   "LICENÇA PATERNIDADE",
   "LICENÇA CASAMENTO",
@@ -411,6 +413,12 @@ const createStatusPage = ({
     const [lancadasView, setLancadasView] = useState<"lista" | "agrupadas">(
       "lista"
     );
+    const [ordenarListaAlfabetica, setOrdenarListaAlfabetica] =
+      useState(false);
+    const [ordenarListaPorDataDesc, setOrdenarListaPorDataDesc] =
+      useState(false);
+    const [ordenarAgrupadasAlfabetica, setOrdenarAgrupadasAlfabetica] =
+      useState(true);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editingDiariaId, setEditingDiariaId] = useState<string | null>(null);
     const [editingSaving, setEditingSaving] = useState(false);
@@ -941,8 +949,10 @@ const createStatusPage = ({
       (motivo || "").toUpperCase().includes("VAGA EM ABERTO");
     const isServicoExtra = (motivo?: string | null) =>
       (motivo || "").toUpperCase() === MOTIVO_VAGO_SERVICO_EXTRA;
+    const isDiariaBonus = (motivo?: string | null) =>
+      (motivo || "").toUpperCase() === MOTIVO_VAGO_DIARIA_BONUS;
     const isMotivoSemColaborador = (motivo?: string | null) =>
-      isVagaEmAberto(motivo) || isServicoExtra(motivo);
+      isVagaEmAberto(motivo) || isServicoExtra(motivo) || isDiariaBonus(motivo);
 
     const diariasDoStatusFull = useMemo(
       () =>
@@ -958,6 +968,21 @@ const createStatusPage = ({
           selectedIds.has(diaria.id.toString())
         ),
       [diariasDoStatusFull, selectedIds]
+    );
+    const selectedTotal = useMemo(
+      () =>
+        selectedDiarias.reduce((sum, diaria) => {
+          const valorDiaria =
+            typeof diaria.valor_diaria === "number"
+              ? diaria.valor_diaria
+              : Number(diaria.valor_diaria) || 0;
+          return sum + valorDiaria;
+        }, 0),
+      [selectedDiarias]
+    );
+    const selectedTotalLabel = useMemo(
+      () => currencyFormatter.format(selectedTotal),
+      [selectedTotal]
     );
 
     const diariasDoStatus = useMemo(
@@ -1535,6 +1560,38 @@ const createStatusPage = ({
       diaristaMap,
     ]);
 
+    const diariasOrdenadas = useMemo(() => {
+      if (!ordenarListaAlfabetica && !ordenarListaPorDataDesc) {
+        return diariasFiltradas;
+      }
+      const ordenadas = [...diariasFiltradas];
+      if (ordenarListaPorDataDesc) {
+        ordenadas.sort((a, b) => {
+          const keyA = getDateKeyFromValue(a.data_diaria);
+          const keyB = getDateKeyFromValue(b.data_diaria);
+          if (keyA === keyB) return 0;
+          return keyA < keyB ? 1 : -1;
+        });
+        return ordenadas;
+      }
+      if (ordenarListaAlfabetica) {
+        const getDiaristaNomeForSort = (diaria: DiariaTemporaria) => {
+          const diaristaInfo =
+            diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
+          return diaristaInfo?.nome_completo || "";
+        };
+        ordenadas.sort((a, b) =>
+          getDiaristaNomeForSort(a).localeCompare(getDiaristaNomeForSort(b))
+        );
+      }
+      return ordenadas;
+    }, [
+      diariasFiltradas,
+      ordenarListaAlfabetica,
+      ordenarListaPorDataDesc,
+      diaristaMap,
+    ]);
+
     const okPagamentoById = useMemo(() => {
       const map = new Map<string, boolean | null>();
       diariasFiltradas.forEach((diaria) => {
@@ -1611,22 +1668,25 @@ const createStatusPage = ({
         groups.set(key, group);
       });
 
-      return Array.from(groups.values())
-        .map((group) => {
-          let clienteLabel = "-";
-          if (group.clientes.size > 1) {
-            clienteLabel = "Diversos";
-          } else {
-            clienteLabel = Array.from(group.clientes)[0] || "-";
-          }
-          return { ...group, clienteLabel };
-        })
-        .sort((a, b) => a.diaristaNome.localeCompare(b.diaristaNome));
+      const agrupadas = Array.from(groups.values()).map((group) => {
+        let clienteLabel = "-";
+        if (group.clientes.size > 1) {
+          clienteLabel = "Diversos";
+        } else {
+          clienteLabel = Array.from(group.clientes)[0] || "-";
+        }
+        return { ...group, clienteLabel };
+      });
+      if (ordenarAgrupadasAlfabetica) {
+        agrupadas.sort((a, b) => a.diaristaNome.localeCompare(b.diaristaNome));
+      }
+      return agrupadas;
     }, [
       diariasFiltradas,
       diaristaMap,
       clienteMap,
       postoMap,
+      ordenarAgrupadasAlfabetica,
       isLancadaPage,
       isAprovadaPage,
       isPagaPage,
@@ -3000,7 +3060,9 @@ const createStatusPage = ({
       }
       const isMotivoVaga = isVagaEmAberto(editForm.motivoVago);
       const isMotivoSemColaborador =
-        isMotivoVaga || isServicoExtra(editForm.motivoVago);
+        isMotivoVaga ||
+        isServicoExtra(editForm.motivoVago) ||
+        isDiariaBonus(editForm.motivoVago);
 
       if (
         !editForm.dataDiaria ||
@@ -3027,6 +3089,24 @@ const createStatusPage = ({
           ? `: ${blacklistEntry.motivo}`
           : "";
         toast.error(`Diarista esta na blacklist${motivo}`);
+        return;
+      }
+      const diaristaOcupado = diarias.some((diaria) => {
+        if (diaria.id.toString() === editingDiariaId) return false;
+        if (
+          diaria.diarista_id !== editForm.diaristaId ||
+          diaria.data_diaria !== editForm.dataDiaria
+        ) {
+          return false;
+        }
+        const statusNorm = normalizeStatus(diaria.status);
+        return (
+          statusNorm !== normalizedCancelStatus &&
+          statusNorm !== normalizedReprovadaStatus
+        );
+      });
+      if (diaristaOcupado) {
+        toast.error("Este diarista ja possui uma diaria ativa para esta data");
         return;
       }
 
@@ -3166,7 +3246,9 @@ const createStatusPage = ({
     const isEditMotivoVaga =
       editMotivoUpper === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
     const isEditMotivoSemColaborador =
-      isEditMotivoVaga || editMotivoUpper === MOTIVO_VAGO_SERVICO_EXTRA;
+      isEditMotivoVaga ||
+      editMotivoUpper === MOTIVO_VAGO_SERVICO_EXTRA ||
+      editMotivoUpper === MOTIVO_VAGO_DIARIA_BONUS;
     const demissaoSelectValue =
       editForm.demissao === null
         ? UNSET_BOOL
@@ -3225,32 +3307,7 @@ const createStatusPage = ({
         partiallySelected: selectedCount > 0 && selectedCount < totalCount,
       };
     }, [groupedBulkIds, groupedSelectedIds]);
-    const groupedSelectionSummary = useMemo(() => {
-      let selectedGroups = 0;
-      let partiallySelectedGroups = 0;
-      lancadasAgrupadas.forEach((group) => {
-        const groupIds = group.ids.map((id) => id.toString());
-        if (groupIds.length === 0) return;
-        const selectedCount = groupIds.filter((id) => selectedIds.has(id))
-          .length;
-        if (selectedCount === groupIds.length) {
-          selectedGroups += 1;
-        } else if (selectedCount > 0) {
-          partiallySelectedGroups += 1;
-        }
-      });
-      return {
-        totalGroups: lancadasAgrupadas.length,
-        selectedGroups,
-        partiallySelectedGroups,
-      };
-    }, [lancadasAgrupadas, selectedIds]);
-    const canGroupedBulkAction =
-      groupedSelectionSummary.totalGroups > 0 &&
-      groupedSelectionSummary.partiallySelectedGroups === 0 &&
-      (groupedSelectionSummary.selectedGroups === 1 ||
-        groupedSelectionSummary.selectedGroups ===
-          groupedSelectionSummary.totalGroups);
+    const canGroupedBulkAction = groupedSelectedIds.length > 0;
 
     const toggleSelectGroup = (ids: Array<string | number>) => {
       const normalizedIds = ids.map((id) => id.toString());
@@ -3356,33 +3413,15 @@ const createStatusPage = ({
         toast.info("Nenhuma ação em lote disponível nesta lista.");
         return;
       }
-      if (groupedSelectionSummary.totalGroups === 0) {
+      if (groupedBulkIds.length === 0) {
         toast.info("Nenhuma diaria agrupada.");
         return;
       }
-      if (!canGroupedBulkAction) {
-        toast.info(
-          "Selecione 1 ou todas as diarias agrupadas para aplicar em lote."
-        );
+      if (groupedSelectedIds.length === 0) {
+        toast.info("Nenhuma diaria agrupada selecionada.");
         return;
       }
-      const selectedGroup =
-        groupedSelectionSummary.selectedGroups === 1
-          ? lancadasAgrupadas.find((group) => {
-              const groupIds = group.ids.map((id) => id.toString());
-              return (
-                groupIds.length > 0 &&
-                groupIds.every((id) => selectedIds.has(id))
-              );
-            }) || null
-          : null;
-      const targetIds =
-        groupedSelectionSummary.selectedGroups ===
-        groupedSelectionSummary.totalGroups
-          ? groupedBulkIds
-          : selectedGroup
-          ? selectedGroup.ids.map((id) => id.toString())
-          : [];
+      const targetIds = groupedSelectedIds;
       handleBulkStatusApply(
         pageDefaultAction.nextStatus,
         targetIds,
@@ -3987,7 +4026,25 @@ const createStatusPage = ({
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900">
+                        Total selecionado: {selectedTotalLabel}
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
+                        <Checkbox
+                          id={`ordenar-agrupadas-${normalizedKey}`}
+                          checked={ordenarAgrupadasAlfabetica}
+                          onCheckedChange={(checked) =>
+                            setOrdenarAgrupadasAlfabetica(checked === true)
+                          }
+                        />
+                        <Label
+                          htmlFor={`ordenar-agrupadas-${normalizedKey}`}
+                          className="cursor-pointer"
+                        >
+                          Ordenar A-Z
+                        </Label>
+                      </div>
                       <Button
                         variant="outline"
                         onClick={handleExportGroupedXlsx}
@@ -4026,21 +4083,19 @@ const createStatusPage = ({
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              {!isPagaPage && (
-                                <TableHead className="w-12">
-                                  <Checkbox
-                                    aria-label="Selecionar todas agrupadas"
-                                    checked={
-                                      groupedSelectionState.allSelected
-                                        ? true
-                                        : groupedSelectionState.partiallySelected
-                                        ? "indeterminate"
-                                        : false
-                                    }
-                                    onCheckedChange={toggleSelectAllGrouped}
-                                  />
-                                </TableHead>
-                              )}
+                              <TableHead className="w-12">
+                                <Checkbox
+                                  aria-label="Selecionar todas agrupadas"
+                                  checked={
+                                    groupedSelectionState.allSelected
+                                      ? true
+                                      : groupedSelectionState.partiallySelected
+                                      ? "indeterminate"
+                                      : false
+                                  }
+                                  onCheckedChange={toggleSelectAllGrouped}
+                                />
+                              </TableHead>
                               <TableHead>Diarista</TableHead>
                               <TableHead>Cliente</TableHead>
                               <TableHead className="hidden md:table-cell">
@@ -4105,27 +4160,25 @@ const createStatusPage = ({
                                     openGroupDetailsDialog(group.key)
                                   }
                                 >
-                                  {!isPagaPage && (
-                                    <TableCell
-                                      onClick={(event) =>
-                                        event.stopPropagation()
+                                  <TableCell
+                                    onClick={(event) =>
+                                      event.stopPropagation()
+                                    }
+                                  >
+                                    <Checkbox
+                                      aria-label={`Selecionar grupo ${group.diaristaNome}`}
+                                      checked={
+                                        groupAllSelected
+                                          ? true
+                                          : groupPartiallySelected
+                                          ? "indeterminate"
+                                          : false
                                       }
-                                    >
-                                      <Checkbox
-                                        aria-label={`Selecionar grupo ${group.diaristaNome}`}
-                                        checked={
-                                          groupAllSelected
-                                            ? true
-                                            : groupPartiallySelected
-                                            ? "indeterminate"
-                                            : false
-                                        }
-                                        onCheckedChange={() =>
-                                          toggleSelectGroup(group.ids)
-                                        }
-                                      />
-                                    </TableCell>
-                                  )}
+                                      onCheckedChange={() =>
+                                        toggleSelectGroup(group.ids)
+                                      }
+                                    />
+                                  </TableCell>
                                   <TableCell>
                                     <div className="flex flex-col gap-1">
                                       <div className="flex flex-wrap items-center gap-2">
@@ -4245,7 +4298,48 @@ const createStatusPage = ({
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900">
+                        Total selecionado: {selectedTotalLabel}
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
+                        <Checkbox
+                          id={`ordenar-lista-${normalizedKey}`}
+                          checked={ordenarListaAlfabetica}
+                          onCheckedChange={(checked) => {
+                            const next = checked === true;
+                            setOrdenarListaAlfabetica(next);
+                            if (next) {
+                              setOrdenarListaPorDataDesc(false);
+                            }
+                          }}
+                        />
+                        <Label
+                          htmlFor={`ordenar-lista-${normalizedKey}`}
+                          className="cursor-pointer"
+                        >
+                          Ordenar A-Z
+                        </Label>
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
+                        <Checkbox
+                          id={`ordenar-data-${normalizedKey}`}
+                          checked={ordenarListaPorDataDesc}
+                          onCheckedChange={(checked) => {
+                            const next = checked === true;
+                            setOrdenarListaPorDataDesc(next);
+                            if (next) {
+                              setOrdenarListaAlfabetica(false);
+                            }
+                          }}
+                        />
+                        <Label
+                          htmlFor={`ordenar-data-${normalizedKey}`}
+                          className="cursor-pointer"
+                        >
+                          Mais recentes
+                        </Label>
+                      </div>
                       <Button variant="outline" onClick={handleExportXlsx}>
                         Exportar XLSX
                       </Button>
@@ -4296,15 +4390,13 @@ const createStatusPage = ({
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              {!isPagaPage && (
-                                <TableHead className="w-12">
-                                  <Checkbox
-                                    aria-label="Selecionar todas"
-                                    checked={allVisibleSelected}
-                                    onCheckedChange={toggleSelectAllVisible}
-                                  />
-                                </TableHead>
-                              )}
+                              <TableHead className="w-12">
+                                <Checkbox
+                                  aria-label="Selecionar todas"
+                                  checked={allVisibleSelected}
+                                  onCheckedChange={toggleSelectAllVisible}
+                                />
+                              </TableHead>
                               <TableHead className="whitespace-nowrap">
                                 ID
                               </TableHead>
@@ -4331,7 +4423,7 @@ const createStatusPage = ({
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {diariasFiltradas.map((diaria) => {
+                            {diariasOrdenadas.map((diaria) => {
                               const colaboradorInfo =
                                 diaria.colaborador ||
                                 (diaria.colaborador_ausente
@@ -4399,24 +4491,22 @@ const createStatusPage = ({
                                   style={rowStyle}
                                   onClick={() => handleRowClick(diaria)}
                                 >
-                                  {!isPagaPage && (
-                                    <TableCell
-                                      onClick={(event) =>
-                                        event.stopPropagation()
+                                  <TableCell
+                                    onClick={(event) =>
+                                      event.stopPropagation()
+                                    }
+                                  >
+                                    <Checkbox
+                                      aria-label="Selecionar diaria"
+                                      checked={selectedIds.has(
+                                        diaria.id.toString()
+                                      )}
+                                      onCheckedChange={() =>
+                                        toggleSelect(diaria.id.toString())
                                       }
-                                    >
-                                      <Checkbox
-                                        aria-label="Selecionar diaria"
-                                        checked={selectedIds.has(
-                                          diaria.id.toString()
-                                        )}
-                                        onCheckedChange={() =>
-                                          toggleSelect(diaria.id.toString())
-                                        }
-                                        className={checkboxClass}
-                                      />
-                                    </TableCell>
-                                  )}
+                                      className={checkboxClass}
+                                    />
+                                  </TableCell>
                                   <TableCell className="whitespace-nowrap">
                                     {diaria.id}
                                   </TableCell>
@@ -6176,7 +6266,8 @@ const createStatusPage = ({
                     const upperValue = value.toUpperCase();
                     const isSemColaborador =
                       upperValue === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase() ||
-                      upperValue === MOTIVO_VAGO_SERVICO_EXTRA;
+                      upperValue === MOTIVO_VAGO_SERVICO_EXTRA ||
+                      upperValue === MOTIVO_VAGO_DIARIA_BONUS;
                     setEditForm((prev) => ({
                       ...prev,
                       motivoVago: value,

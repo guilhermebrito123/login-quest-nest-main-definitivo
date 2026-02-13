@@ -23,12 +23,14 @@ import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
 const MOTIVO_VAGO_SERVICO_EXTRA = "SERVIÇO EXTRA";
+const MOTIVO_VAGO_DIARIA_BONUS = "DIÁRIA BÔNUS";
 const RESERVA_TECNICA_NAME = "RESERVA TÉCNICA";
 
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
   MOTIVO_VAGO_SERVICO_EXTRA,
   "FALTA INJUSTIFICADA",
+  MOTIVO_VAGO_DIARIA_BONUS,
   "LICENÇA MATERNIDADE",
   "LICENÇA PATERNIDADE",
   "LICENÇA CASAMENTO",
@@ -211,10 +213,12 @@ const Diarias2 = () => {
   };
 
   const motivoVagoUpper = formState.motivoVago.toUpperCase();
-  const isMotivoVagaEmAberto =
-    motivoVagoUpper === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
-  const isMotivoSemColaborador =
-    isMotivoVagaEmAberto || motivoVagoUpper === MOTIVO_VAGO_SERVICO_EXTRA;
+const isMotivoVagaEmAberto =
+  motivoVagoUpper === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+const isMotivoSemColaborador =
+  isMotivoVagaEmAberto ||
+  motivoVagoUpper === MOTIVO_VAGO_SERVICO_EXTRA ||
+  motivoVagoUpper === MOTIVO_VAGO_DIARIA_BONUS;
   const normalizedCancelada = normalizeStatus(STATUS.cancelada);
   const normalizedReprovada = normalizeStatus(STATUS.reprovada);
   const normalizedPaga = normalizeStatus(STATUS.paga);
@@ -382,12 +386,18 @@ const Diarias2 = () => {
     const observacaoValue = toUpperOrNull(formState.observacao);
     const motivoVagoValue = (formState.motivoVago || "").toUpperCase();
 
-    const diaristaOcupado = diarias.some(
-      (diaria) =>
-        diaria.diarista_id === formState.diaristaId && diaria.data_diaria === formState.dataDiaria,
-    );
+    const diaristaOcupado = diarias.some((diaria) => {
+      if (
+        diaria.diarista_id !== formState.diaristaId ||
+        diaria.data_diaria !== formState.dataDiaria
+      ) {
+        return false;
+      }
+      const statusNorm = normalizeStatus(diaria.status);
+      return statusNorm !== normalizedCancelada && statusNorm !== normalizedReprovada;
+    });
     if (diaristaOcupado) {
-      toast.error("O diarista escolhido ja tem diarias cadastradas para essa data");
+      toast.error("Este diarista ja possui uma diaria ativa para esta data");
       return;
     }
 
@@ -554,7 +564,8 @@ const Diarias2 = () => {
                     const upperValue = value.toUpperCase();
                     const isSemColaborador =
                       upperValue === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase() ||
-                      upperValue === MOTIVO_VAGO_SERVICO_EXTRA;
+                      upperValue === MOTIVO_VAGO_SERVICO_EXTRA ||
+                      upperValue === MOTIVO_VAGO_DIARIA_BONUS;
                     setFormState((prev) => ({
                       ...prev,
                       motivoVago: value,
