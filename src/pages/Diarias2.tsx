@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import {
   STATUS,
   currentMonthValue,
@@ -25,6 +26,14 @@ const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
 const MOTIVO_VAGO_SERVICO_EXTRA = "SERVIÇO EXTRA";
 const MOTIVO_VAGO_DIARIA_BONUS = "DIÁRIA BÔNUS";
 const RESERVA_TECNICA_NAME = "RESERVA TÉCNICA";
+type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
+const DIARIAS_TEMPORARIAS_INSERT_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+  "assistente_operacoes",
+  "tecnico",
+];
 
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
@@ -123,6 +132,8 @@ const Diarias2 = () => {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
   const [formState, setFormState] = useState(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [accessLevel, setAccessLevel] = useState<AccessLevel | null>(null);
+  const [accessLoading, setAccessLoading] = useState(true);
   const navigate = useNavigate();
 
   const {
@@ -138,6 +149,21 @@ const Diarias2 = () => {
     postoMap,
     diarias,
   } = useDiariasTemporariasData(selectedMonth);
+  useEffect(() => {
+    const loadAccessLevel = async () => {
+      try {
+        const { data, error } = await supabase.rpc("current_internal_access_level");
+        if (error) throw error;
+        setAccessLevel(data ?? null);
+      } catch (error) {
+        console.error("Erro ao carregar nivel de acesso interno", error);
+        setAccessLevel(null);
+      } finally {
+        setAccessLoading(false);
+      }
+    };
+    loadAccessLevel();
+  }, []);
   const diariaMap = useMemo(() => {
     const map = new Map<string, any>();
     diarias.forEach((diaria) => {
@@ -213,12 +239,20 @@ const Diarias2 = () => {
   };
 
   const motivoVagoUpper = formState.motivoVago.toUpperCase();
-const isMotivoVagaEmAberto =
-  motivoVagoUpper === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
-const isMotivoSemColaborador =
-  isMotivoVagaEmAberto ||
-  motivoVagoUpper === MOTIVO_VAGO_SERVICO_EXTRA ||
-  motivoVagoUpper === MOTIVO_VAGO_DIARIA_BONUS;
+  const isMotivoVagaEmAberto =
+    motivoVagoUpper === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+  const isMotivoSemColaborador =
+    isMotivoVagaEmAberto ||
+    motivoVagoUpper === MOTIVO_VAGO_SERVICO_EXTRA ||
+    motivoVagoUpper === MOTIVO_VAGO_DIARIA_BONUS;
+  const canCreateDiaria = useMemo(
+    () =>
+      Boolean(
+        accessLevel &&
+          DIARIAS_TEMPORARIAS_INSERT_LEVELS.includes(accessLevel),
+      ),
+    [accessLevel],
+  );
   const normalizedCancelada = normalizeStatus(STATUS.cancelada);
   const normalizedReprovada = normalizeStatus(STATUS.reprovada);
   const normalizedPaga = normalizeStatus(STATUS.paga);
@@ -286,6 +320,10 @@ const isMotivoSemColaborador =
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!canCreateDiaria) {
+      toast.error("Sem permissao para cadastrar diarias temporarias.");
+      return;
+    }
     if (!formState.dataDiaria || !formState.horarioInicio || !formState.horarioFim) {
       toast.error("Preencha data e horarios da diaria.");
       return;
@@ -478,6 +516,11 @@ const isMotivoSemColaborador =
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {!accessLoading && !canCreateDiaria && (
+              <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                Voce nao possui permissao para cadastrar diarias temporarias.
+              </div>
+            )}
             <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <TooltipLabel label="Data da diaria" tooltip="Dia em que a diaria sera realizada." />
@@ -850,7 +893,7 @@ const isMotivoSemColaborador =
               </div>
 
               <div className="md:col-span-2 flex justify-end">
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting || accessLoading || !canCreateDiaria}>
                   {isSubmitting ? "Registrando..." : "Cadastrar diaria"}
                 </Button>
               </div>

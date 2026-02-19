@@ -29,7 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Constants } from "@/integrations/supabase/types";
+import { Constants, type Database } from "@/integrations/supabase/types";
 import {
   STATUS,
   STATUS_LABELS,
@@ -94,6 +94,7 @@ type NaoOkTarget =
       count: number;
       totalValor: number;
     };
+type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
 
 const STATUS_CONFIGS: StatusPageConfig[] = [
   {
@@ -144,6 +145,37 @@ const MOTIVO_VAGO_DIARIA_BONUS = "DIÁRIA BÔNUS";
 const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
 const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
 const RESERVA_TECNICA_NAME = "RESERVA TÉCNICA";
+const DIARIAS_TEMPORARIAS_UPDATE_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+  "assistente_operacoes",
+  "tecnico",
+  "analista_centro_controle",
+  "assistente_financeiro",
+  "gestor_financeiro",
+];
+const DIARIAS_CONFIRMAR_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+  "assistente_operacoes",
+  "tecnico",
+];
+const DIARIAS_APROVAR_LEVELS: AccessLevel[] = ["admin", "gestor_operacoes"];
+const DIARIAS_LANCAR_LEVELS: AccessLevel[] = [
+  "admin",
+  "assistente_financeiro",
+  "gestor_financeiro",
+];
+const DIARIAS_CANCELAR_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+  "assistente_operacoes",
+];
+const DIARIAS_REPROVAR_LEVELS: AccessLevel[] = ["admin"];
+const DIARIAS_OK_PAGAMENTO_LEVELS: AccessLevel[] = ["admin"];
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_VAGO_VAGA_EM_ABERTO,
   MOTIVO_VAGO_SERVICO_EXTRA,
@@ -376,6 +408,23 @@ const createStatusPage = ({
       });
       return map;
     }, [blacklist]);
+    useEffect(() => {
+      const loadAccessLevel = async () => {
+        try {
+          const { data, error } = await supabase.rpc(
+            "current_internal_access_level"
+          );
+          if (error) throw error;
+          setAccessLevel(data ?? null);
+        } catch (error) {
+          console.error("Erro ao carregar nivel de acesso interno", error);
+          setAccessLevel(null);
+        } finally {
+          setAccessLoading(false);
+        }
+      };
+      loadAccessLevel();
+    }, []);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
     const [selectedDiaria, setSelectedDiaria] =
@@ -391,6 +440,8 @@ const createStatusPage = ({
       useState("");
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [accessLevel, setAccessLevel] = useState<AccessLevel | null>(null);
+    const [accessLoading, setAccessLoading] = useState(true);
     const [groupOkSavingKey, setGroupOkSavingKey] = useState<string | null>(
       null
     );
@@ -549,12 +600,52 @@ const createStatusPage = ({
     const normalizedReprovadaStatus = normalizeStatus(STATUS.reprovada);
     const isCancelPage = normalizedKey === normalizedCancelStatus;
     const isReprovadaPage = normalizedKey === normalizedReprovadaStatus;
-    const allowDelete = isCancelPage || isReprovadaPage;
     const isPagaPage = normalizedKey === normalizeStatus(STATUS.paga);
     const isLancadaPage = normalizedKey === normalizeStatus(STATUS.lancada);
     const isAprovadaPage = normalizedKey === normalizeStatus(STATUS.aprovada);
-    const showReprovarMenu = isAprovadaPage || isLancadaPage;
+    const isAdmin = accessLevel === "admin";
+    const canUpdateDiaria =
+      !!accessLevel && DIARIAS_TEMPORARIAS_UPDATE_LEVELS.includes(accessLevel);
+    const canConfirmStatus =
+      !!accessLevel && DIARIAS_CONFIRMAR_LEVELS.includes(accessLevel);
+    const canApproveStatus =
+      !!accessLevel && DIARIAS_APROVAR_LEVELS.includes(accessLevel);
+    const canLaunchStatus =
+      !!accessLevel && DIARIAS_LANCAR_LEVELS.includes(accessLevel);
+    const canCancelStatus =
+      !!accessLevel && DIARIAS_CANCELAR_LEVELS.includes(accessLevel);
+    const canReprovarStatus =
+      !!accessLevel && DIARIAS_REPROVAR_LEVELS.includes(accessLevel);
+    const canOkPagamento =
+      !!accessLevel && DIARIAS_OK_PAGAMENTO_LEVELS.includes(accessLevel);
+    const showReprovarMenu =
+      (isAprovadaPage || isLancadaPage) && canReprovarStatus;
+    const canChangeToStatus = (status: string) => {
+      if (accessLoading) return false;
+      const normalized = normalizeStatus(status);
+      if (normalized === normalizeStatus(STATUS.confirmada)) {
+        return canConfirmStatus;
+      }
+      if (normalized === normalizeStatus(STATUS.aprovada)) {
+        return canApproveStatus;
+      }
+      if (normalized === normalizeStatus(STATUS.lancada)) {
+        return canLaunchStatus;
+      }
+      if (normalized === normalizeStatus(STATUS.paga)) {
+        return canOkPagamento;
+      }
+      if (normalized === normalizeStatus(STATUS.cancelada)) {
+        return canCancelStatus;
+      }
+      if (normalized === normalizeStatus(STATUS.reprovada)) {
+        return canReprovarStatus;
+      }
+      return false;
+    };
+    const allowDelete = isAdmin && (isCancelPage || isReprovadaPage);
     const canEditDiaria = (diaria?: DiariaTemporaria | null) =>
+      canUpdateDiaria &&
       normalizeStatus(diaria?.status || "") === normalizedAguardandoStatus;
     const statusResponsavelField = useMemo(() => {
       const map = new Map<string, keyof DiariaTemporaria>([
@@ -624,10 +715,19 @@ const createStatusPage = ({
       return map.get(normalizedKey) || "Responsavel status";
     }, [normalizedKey]);
 
-    const pageDefaultAction = useMemo(
-      () => NEXT_STATUS_ACTIONS[normalizedKey] || null,
-      [normalizedKey]
-    );
+    const pageDefaultAction = useMemo(() => {
+      const action = NEXT_STATUS_ACTIONS[normalizedKey] || null;
+      if (!action) return null;
+      return canChangeToStatus(action.nextStatus) ? action : null;
+    }, [
+      normalizedKey,
+      canConfirmStatus,
+      canApproveStatus,
+      canLaunchStatus,
+      canOkPagamento,
+      canCancelStatus,
+      canReprovarStatus,
+    ]);
 
     const statusDateConfig = useMemo(
       () => STATUS_DATE_FILTERS.get(normalizedKey) || null,
@@ -2574,6 +2674,10 @@ const createStatusPage = ({
     };
 
     const handleDeleteDiaria = async (id: string) => {
+      if (!isAdmin) {
+        toast.error("Somente admin pode excluir diarias.");
+        return;
+      }
       if (typeof window !== "undefined") {
         const statusLabelDelete = isCancelPage
           ? "cancelada"
@@ -2606,6 +2710,10 @@ const createStatusPage = ({
       nextStatus: string,
       extraFields: Record<string, unknown> = {}
     ) => {
+      if (!canChangeToStatus(nextStatus)) {
+        toast.error("Sem permissao para alterar o status desta diaria.");
+        return;
+      }
       setUpdatingId(id);
       try {
         const { error } = await supabase
@@ -2623,6 +2731,10 @@ const createStatusPage = ({
     };
 
     const handleOkPagamento = async (id: string) => {
+      if (!canOkPagamento) {
+        toast.error("Somente admin pode alterar OK de pagamento.");
+        return;
+      }
       if (typeof window !== "undefined") {
         const confirmed = window.confirm(
           "Marcar OK de pagamento para esta diaria?"
@@ -2716,6 +2828,10 @@ const createStatusPage = ({
 
     const handleNaoOkPagamento = async (withOutroMotivo: boolean) => {
       if (!naoOkTarget) return;
+      if (!canOkPagamento) {
+        toast.error("Somente admin pode reprovar pagamento.");
+        return;
+      }
       if (naoOkObservacao.length === 0) {
         toast.error(
           "Selecione ao menos um motivo para a reprovacao do pagamento."
@@ -2776,6 +2892,10 @@ const createStatusPage = ({
       diaristaNome: string;
       pendingOkIds: Array<string | number>;
     }) => {
+      if (!canOkPagamento) {
+        toast.error("Somente admin pode alterar OK de pagamento.");
+        return;
+      }
       if (group.pendingOkIds.length === 0) {
         toast.info("Todas as diarias deste grupo ja estao com OK.");
         return;
@@ -2806,6 +2926,10 @@ const createStatusPage = ({
       diaristaNome: string;
       ids: Array<string | number>;
     }) => {
+      if (!canLaunchStatus) {
+        toast.error("Sem permissao para lancar diarias para pagamento.");
+        return;
+      }
       if (group.ids.length === 0) {
         toast.info("Nenhuma diaria para lancar.");
         return;
@@ -2889,6 +3013,10 @@ const createStatusPage = ({
     };
 
     const requestStatusChange = (id: string, nextStatus: string) => {
+      if (!canChangeToStatus(nextStatus)) {
+        toast.error("Sem permissao para alterar o status desta diaria.");
+        return;
+      }
       if (requiresReasonForStatus(nextStatus)) {
         openReasonDialog(id, nextStatus);
       } else {
@@ -2904,6 +3032,7 @@ const createStatusPage = ({
       const beforeAction = options?.onBeforeAction;
       const normalizedStatus = normalizeStatus(diaria.status);
       if (normalizedStatus === normalizeStatus(STATUS.lancada)) {
+        if (!canOkPagamento) return null;
         const isNaoOkSaving =
           naoOkSaving &&
           naoOkTarget?.type === "single" &&
@@ -2947,7 +3076,7 @@ const createStatusPage = ({
         );
       }
       const action = NEXT_STATUS_ACTIONS[normalizedStatus];
-      if (!action) return null;
+      if (!action || !canChangeToStatus(action.nextStatus)) return null;
       return (
         <Button
           size="sm"
@@ -3042,6 +3171,10 @@ const createStatusPage = ({
 
     const handleEditSubmit = async () => {
       if (!editingDiariaId) return;
+      if (!canUpdateDiaria) {
+        toast.error("Sem permissao para editar esta diaria.");
+        return;
+      }
       const editingDiaria = diarias.find(
         (item) => item.id.toString() === editingDiariaId
       );
@@ -3344,6 +3477,10 @@ const createStatusPage = ({
         toast.error("Selecione um status para aplicar.");
         return;
       }
+      if (!canChangeToStatus(status)) {
+        toast.error("Sem permissao para aplicar este status.");
+        return;
+      }
       if (requiresReasonForStatus(status)) {
         toast.error("Reprovar ou cancelar não estão disponíveis em massa.");
         return;
@@ -3431,6 +3568,10 @@ const createStatusPage = ({
 
     const handleBulkDeleteCancelled = async () => {
       if (!allowDelete) return;
+      if (!isAdmin) {
+        toast.error("Somente admin pode excluir diarias.");
+        return;
+      }
       const ids = Array.from(selectedIds);
       if (ids.length === 0) {
         toast.info("Nenhuma diaria selecionada para excluir.");
@@ -4057,13 +4198,12 @@ const createStatusPage = ({
                       >
                         Filtragem Avançada
                       </Button>
-                      {!isPagaPage && (
+                      {!isPagaPage && pageDefaultAction && (
                         <Button
                           variant="default"
                           className="bg-emerald-600 text-white hover:bg-emerald-700"
                           disabled={
                             updatingId === "bulk" ||
-                            !pageDefaultAction ||
                             !canGroupedBulkAction
                           }
                           onClick={handleGroupedBulkDefaultAction}
@@ -4219,7 +4359,7 @@ const createStatusPage = ({
                                   <TableCell className="hidden md:table-cell">
                                     {currencyFormatter.format(group.totalValor)}
                                   </TableCell>
-                                  {isLancadaPage && (
+                                  {isLancadaPage && canOkPagamento && (
                                     <TableCell className="text-right">
                                       <div className="flex justify-end gap-2">
                                         <Button
@@ -4259,7 +4399,7 @@ const createStatusPage = ({
                                       </div>
                                     </TableCell>
                                   )}
-                                  {isAprovadaPage && (
+                                  {isAprovadaPage && canLaunchStatus && (
                                     <TableCell className="text-right">
                                       <Button
                                         size="sm"
@@ -4349,14 +4489,13 @@ const createStatusPage = ({
                       >
                         Filtragem Avançada
                       </Button>
-                      {!isPagaPage && (
+                      {!isPagaPage && pageDefaultAction && (
                         <Button
                           variant="default"
                           className="bg-emerald-600 text-white hover:bg-emerald-700"
                           disabled={
                             updatingId === "bulk" ||
-                            selectedIds.size === 0 ||
-                            !pageDefaultAction
+                            selectedIds.size === 0
                           }
                           onClick={handleBulkDefaultAction}
                         >
@@ -4553,7 +4692,8 @@ const createStatusPage = ({
                                   >
                                     <div className="flex flex-col items-end gap-2">
                                       <div className="flex flex-wrap justify-end gap-2">
-                                        {statusKey === STATUS.confirmada && (
+                                        {statusKey === STATUS.confirmada &&
+                                          canReprovarStatus && (
                                           <Button
                                             size="sm"
                                             variant="destructive"
@@ -4563,7 +4703,7 @@ const createStatusPage = ({
                                             }
                                             onClick={(event) => {
                                               event.stopPropagation();
-                                              openReasonDialog(
+                                              requestStatusChange(
                                                 diaria.id.toString(),
                                                 STATUS.reprovada
                                               );
@@ -4579,14 +4719,14 @@ const createStatusPage = ({
                                               diaria.id.toString()
                                             }
                                             onReprovar={() =>
-                                              openReasonDialog(
+                                              requestStatusChange(
                                                 diaria.id.toString(),
                                                 STATUS.reprovada
                                               )
                                             }
                                           />
                                         )}
-                                        {isAguardandoPage && (
+                                        {isAguardandoPage && canCancelStatus && (
                                           <Button
                                             size="sm"
                                             variant="destructive"
@@ -4596,7 +4736,7 @@ const createStatusPage = ({
                                             }
                                             onClick={(event) => {
                                               event.stopPropagation();
-                                              openReasonDialog(
+                                              requestStatusChange(
                                                 diaria.id.toString(),
                                                 STATUS.cancelada
                                               );
@@ -6040,14 +6180,14 @@ const createStatusPage = ({
                   </div>
                 </div>
                 <div className="mt-6 flex flex-col gap-2 md:hidden">
-                  {statusKey === STATUS.confirmada && (
+                  {statusKey === STATUS.confirmada && canReprovarStatus && (
                     <Button
                       size="sm"
                       variant="destructive"
                       disabled={updatingId === selectedDiaria.id.toString()}
                       onClick={() => {
                         closeDetailsDialog();
-                        openReasonDialog(
+                        requestStatusChange(
                           selectedDiaria.id.toString(),
                           STATUS.reprovada
                         );
@@ -6062,7 +6202,7 @@ const createStatusPage = ({
                         disabled={updatingId === selectedDiaria.id.toString()}
                         onReprovar={() => {
                           closeDetailsDialog();
-                          openReasonDialog(
+                          requestStatusChange(
                             selectedDiaria.id.toString(),
                             STATUS.reprovada
                           );
@@ -6070,14 +6210,14 @@ const createStatusPage = ({
                       />
                     </div>
                   )}
-                  {isAguardandoPage && (
+                  {isAguardandoPage && canCancelStatus && (
                     <Button
                       size="sm"
                       variant="destructive"
                       disabled={updatingId === selectedDiaria.id.toString()}
                       onClick={() => {
                         closeDetailsDialog();
-                        openReasonDialog(
+                        requestStatusChange(
                           selectedDiaria.id.toString(),
                           STATUS.cancelada
                         );
