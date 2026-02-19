@@ -59,8 +59,11 @@ const accessLevelOptions: AccessLevel[] = [
   "admin",
   "gestor_operacoes",
   "supervisor",
+  "assistente_operacoes",
   "analista_centro_controle",
   "tecnico",
+  "assistente_financeiro",
+  "gestor_financeiro",
   "cliente_view",
 ];
 
@@ -68,8 +71,11 @@ const accessLevelLabels: Record<AccessLevel, string> = {
   admin: "Administrador",
   gestor_operacoes: "Gestor de Operacoes",
   supervisor: "Supervisor",
+  assistente_operacoes: "Assistente de Operacoes",
   analista_centro_controle: "Analista Centro Controle",
   tecnico: "Tecnico",
+  assistente_financeiro: "Assistente Financeiro",
+  gestor_financeiro: "Gestor Financeiro",
   cliente_view: "Cliente (Visualizacao)",
 };
 
@@ -78,8 +84,11 @@ const getAccessBadgeColor = (level: AccessLevel) => {
     admin: "bg-red-500",
     gestor_operacoes: "bg-purple-500",
     supervisor: "bg-blue-500",
+    assistente_operacoes: "bg-sky-500",
     analista_centro_controle: "bg-cyan-500",
     tecnico: "bg-green-500",
+    assistente_financeiro: "bg-amber-500",
+    gestor_financeiro: "bg-orange-600",
     cliente_view: "bg-gray-500",
   };
   return colors[level] || "bg-gray-500";
