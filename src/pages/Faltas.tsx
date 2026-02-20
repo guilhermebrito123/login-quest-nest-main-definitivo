@@ -18,21 +18,15 @@ import { toast } from "sonner";
 
 const BUCKET = "atestados";
 const CLIENTE_FILTER_ALL = "__all__";
+const COLABORADOR_FILTER_ALL = "__all__";
 const ADVANCED_FILTER_ALL = "__all__";
 const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
 const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
 const FALTAS_PAGE_SIZE = 10;
 const FALTAS_CONVENIA_EXPORT_COLUMNS = [
-  "id",
   "colaborador_convenia_id",
-  "diaria_temporaria_id",
   "data_falta",
   "motivo",
-  "atestado_path",
-  "justificada_em",
-  "justificada_por",
-  "created_at",
-  "updated_at",
 ];
 
 type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
@@ -130,6 +124,7 @@ const Faltas = () => {
   const [statusFilter, setStatusFilter] = useState("pendente");
   const [searchTerm, setSearchTerm] = useState("");
   const [clienteFilter, setClienteFilter] = useState(CLIENTE_FILTER_ALL);
+  const [colaboradorFilter, setColaboradorFilter] = useState(COLABORADOR_FILTER_ALL);
   const [faltaType, setFaltaType] = useState<FaltaTipo>("convenia");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedFalta, setSelectedFalta] = useState<FaltaData | null>(null);
@@ -141,20 +136,18 @@ const Faltas = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [advancedDialogOpen, setAdvancedDialogOpen] = useState(false);
-  const [advancedTotalRange, setAdvancedTotalRange] = useState({
-    colaboradorId: "",
+  const [advancedDateRange, setAdvancedDateRange] = useState({
     startDate: "",
     endDate: "",
+  });
+  const [advancedTotalRange, setAdvancedTotalRange] = useState({
+    colaboradorId: "",
   });
   const [advancedInjustificadaRange, setAdvancedInjustificadaRange] = useState({
     colaboradorId: "",
-    startDate: "",
-    endDate: "",
   });
   const [advancedJustificadaRange, setAdvancedJustificadaRange] = useState({
     colaboradorId: "",
-    startDate: "",
-    endDate: "",
   });
 
   const [accessLevel, setAccessLevel] = useState<AccessLevel | null>(null);
@@ -319,14 +312,53 @@ const Faltas = () => {
   );
 
   const advancedColaboradorOptions = useMemo(() => {
+    const startDate = advancedDateRange.startDate
+      ? new Date(`${advancedDateRange.startDate}T00:00:00`)
+      : null;
+    const endDate = advancedDateRange.endDate
+      ? new Date(`${advancedDateRange.endDate}T23:59:59.999`)
+      : null;
+    const hasRange =
+      startDate &&
+      endDate &&
+      !Number.isNaN(startDate.getTime()) &&
+      !Number.isNaN(endDate.getTime()) &&
+      startDate <= endDate;
+
+    const idsInRange = new Set<string>();
+    if (hasRange) {
+      faltasConvenia.forEach((falta) => {
+        if (!falta.data_falta) return;
+        const faltaDate = new Date(`${falta.data_falta}T00:00:00`);
+        if (Number.isNaN(faltaDate.getTime())) return;
+        if (faltaDate < startDate || faltaDate > endDate) return;
+        if (falta.colaborador_convenia_id) {
+          idsInRange.add(falta.colaborador_convenia_id);
+        }
+      });
+    }
+
     return colaboradoresConvenia
       .map((colaborador) => ({
         id: colaborador.id,
         label: getConveniaColaboradorNome(colaborador),
       }))
       .filter((item) => item.id)
+      .filter((item) => (!hasRange ? true : idsInRange.has(item.id)))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [colaboradoresConvenia]);
+  }, [advancedDateRange, colaboradoresConvenia, faltasConvenia]);
+
+  useEffect(() => {
+    const validIds = new Set(advancedColaboradorOptions.map((item) => item.id));
+    const normalize = (prev: { colaboradorId: string }) =>
+      prev.colaboradorId && !validIds.has(prev.colaboradorId)
+        ? { ...prev, colaboradorId: "" }
+        : prev;
+
+    setAdvancedTotalRange((prev) => normalize(prev));
+    setAdvancedInjustificadaRange((prev) => normalize(prev));
+    setAdvancedJustificadaRange((prev) => normalize(prev));
+  }, [advancedColaboradorOptions]);
 
   const getFaltasConveniaByRange = (
     range: { colaboradorId: string; startDate: string; endDate: string },
@@ -364,17 +396,100 @@ const Faltas = () => {
   };
 
   const advancedTotalCount = useMemo(
-    () => computeFaltasCount(advancedTotalRange),
-    [faltasConvenia, advancedTotalRange],
+    () =>
+      computeFaltasCount({
+        colaboradorId: advancedTotalRange.colaboradorId,
+        ...advancedDateRange,
+      }),
+    [faltasConvenia, advancedTotalRange.colaboradorId, advancedDateRange],
   );
   const advancedInjustificadaCount = useMemo(
-    () => computeFaltasCount(advancedInjustificadaRange, MOTIVO_FALTA_INJUSTIFICADA),
-    [faltasConvenia, advancedInjustificadaRange],
+    () =>
+      computeFaltasCount(
+        {
+          colaboradorId: advancedInjustificadaRange.colaboradorId,
+          ...advancedDateRange,
+        },
+        MOTIVO_FALTA_INJUSTIFICADA,
+      ),
+    [
+      faltasConvenia,
+      advancedInjustificadaRange.colaboradorId,
+      advancedDateRange,
+    ],
   );
   const advancedJustificadaCount = useMemo(
-    () => computeFaltasCount(advancedJustificadaRange, MOTIVO_FALTA_JUSTIFICADA),
-    [faltasConvenia, advancedJustificadaRange],
+    () =>
+      computeFaltasCount(
+        {
+          colaboradorId: advancedJustificadaRange.colaboradorId,
+          ...advancedDateRange,
+        },
+        MOTIVO_FALTA_JUSTIFICADA,
+      ),
+    [faltasConvenia, advancedJustificadaRange.colaboradorId, advancedDateRange],
   );
+
+  const colaboradorFilterOptions = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const startDate = dateRangeFilter.startDate
+      ? new Date(`${dateRangeFilter.startDate}T00:00:00`)
+      : null;
+    const endDate = dateRangeFilter.endDate
+      ? new Date(`${dateRangeFilter.endDate}T23:59:59.999`)
+      : null;
+    const hasInvalidRange =
+      (startDate && Number.isNaN(startDate.getTime())) ||
+      (endDate && Number.isNaN(endDate.getTime())) ||
+      (startDate && endDate && startDate > endDate);
+    if (hasInvalidRange) return [];
+
+    const map = new Map<string, string>();
+    faltasAtivas.forEach((falta) => {
+      if (statusFilter === "pendente" && falta.justificada_em) return;
+      if (statusFilter === "justificada" && !falta.justificada_em) return;
+
+      if (clienteFilter !== CLIENTE_FILTER_ALL) {
+        const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
+        const centroCustoId = diaria?.centro_custo_id;
+        if (!centroCustoId || String(centroCustoId) !== clienteFilter) return;
+      }
+
+      if (startDate || endDate) {
+        const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
+        const dataFalta =
+          diaria?.data_diaria || (falta.tipo === "convenia" ? falta.data_falta : null);
+        if (!dataFalta) return;
+        const faltaDate = new Date(`${dataFalta}T00:00:00`);
+        if (Number.isNaN(faltaDate.getTime())) return;
+        if (startDate && faltaDate < startDate) return;
+        if (endDate && faltaDate > endDate) return;
+      }
+
+      if (term) {
+        const colaboradorNome = getFaltaColaboradorNome(falta).toLowerCase();
+        const diariaId = String(falta.diaria_temporaria_id);
+        if (!colaboradorNome.includes(term) && !diariaId.includes(term)) return;
+      }
+
+      const colaboradorId = getFaltaColaboradorId(falta);
+      if (!colaboradorId) return;
+      map.set(colaboradorId, getFaltaColaboradorNome(falta));
+    });
+
+    return Array.from(map.entries())
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [
+    faltasAtivas,
+    statusFilter,
+    clienteFilter,
+    dateRangeFilter,
+    searchTerm,
+    diariaMap,
+    colaboradoresMap,
+    colaboradoresConveniaMap,
+  ]);
 
   const filteredFaltas = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -410,6 +525,11 @@ const Faltas = () => {
         if (endDate && faltaDate > endDate) return false;
       }
 
+      if (colaboradorFilter !== COLABORADOR_FILTER_ALL) {
+        const colaboradorId = getFaltaColaboradorId(falta);
+        if (!colaboradorId || colaboradorId !== colaboradorFilter) return false;
+      }
+
       if (!term) return true;
       const colaboradorNome = getFaltaColaboradorNome(falta).toLowerCase();
       const diariaId = String(falta.diaria_temporaria_id);
@@ -420,6 +540,7 @@ const Faltas = () => {
     searchTerm,
     statusFilter,
     clienteFilter,
+    colaboradorFilter,
     dateRangeFilter,
     diariaMap,
     colaboradoresMap,
@@ -434,7 +555,7 @@ const Faltas = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, clienteFilter, dateRangeFilter, faltaType]);
+  }, [searchTerm, statusFilter, clienteFilter, colaboradorFilter, dateRangeFilter, faltaType]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -446,27 +567,19 @@ const Faltas = () => {
     setSearchTerm("");
     setStatusFilter("pendente");
     setClienteFilter(CLIENTE_FILTER_ALL);
+    setColaboradorFilter(COLABORADOR_FILTER_ALL);
     setDateRangeFilter({ startDate: "", endDate: "" });
     setCurrentPage(1);
   };
 
   const buildFaltasConveniaExportRows = (faltas: FaltaConveniaRow[]) =>
     faltas.map((falta) => ({
-      id: falta.id,
       colaborador_convenia_id:
         getConveniaColaboradorNome(
           colaboradoresConveniaMap.get(falta.colaborador_convenia_id),
         ) || falta.colaborador_convenia_id,
-      diaria_temporaria_id: falta.diaria_temporaria_id,
       data_falta: falta.data_falta,
       motivo: falta.motivo,
-      atestado_path: falta.atestado_path || "",
-      justificada_em: falta.justificada_em || "",
-      justificada_por: falta.justificada_por
-        ? usuarioMap.get(falta.justificada_por) || falta.justificada_por
-        : "",
-      created_at: falta.created_at,
-      updated_at: falta.updated_at,
     }));
 
   const exportFaltasConveniaXlsx = (faltas: FaltaConveniaRow[], filePrefix: string) => {
@@ -497,7 +610,7 @@ const Faltas = () => {
   ) => {
     const faltas = getFaltasConveniaByRange(range, motivoFiltro);
     if (faltas === null) {
-      toast.error("Preencha colaborador e periodo para exportar.");
+      toast.error("Preencha periodo e colaborador para exportar.");
       return;
     }
     exportFaltasConveniaXlsx(faltas, `faltas-convenia-${fileSuffix}`);
@@ -723,6 +836,22 @@ const Faltas = () => {
                 <SelectContent>
                   {STATUS_FILTERS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <span className="text-sm text-muted-foreground">Colaborador</span>
+              <Select value={colaboradorFilter} onValueChange={setColaboradorFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={COLABORADOR_FILTER_ALL}>Todos</SelectItem>
+                  {colaboradorFilterOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
                       {option.label}
                     </SelectItem>
                   ))}
@@ -1066,15 +1195,46 @@ const Faltas = () => {
           <DialogHeader>
             <DialogTitle>Filtragem avancada</DialogTitle>
             <DialogDescription>
-              Consulte quantidades de faltas por colaborador e periodo (data da falta).
+              Selecione o periodo (data da falta) e consulte quantidades por colaborador.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+              <p className="text-sm font-semibold text-muted-foreground">Periodo das faltas</p>
+              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2">
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Data inicial</span>
+                  <Input
+                    type="date"
+                    value={advancedDateRange.startDate}
+                    onChange={(event) =>
+                      setAdvancedDateRange((prev) => ({
+                        ...prev,
+                        startDate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Data final</span>
+                  <Input
+                    type="date"
+                    value={advancedDateRange.endDate}
+                    onChange={(event) =>
+                      setAdvancedDateRange((prev) => ({
+                        ...prev,
+                        endDate: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2 rounded-md border bg-muted/30 p-4">
               <p className="text-sm font-semibold text-muted-foreground">
                 Quantidade de faltas (justificadas + injustificadas)
               </p>
-              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-1">
                 <div className="space-y-1">
                   <span className="text-sm text-muted-foreground">Colaborador</span>
                   <Select
@@ -1099,35 +1259,11 @@ const Faltas = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Data inicial</span>
-                  <Input
-                    type="date"
-                    value={advancedTotalRange.startDate}
-                    onChange={(event) =>
-                      setAdvancedTotalRange((prev) => ({
-                        ...prev,
-                        startDate: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Data final</span>
-                  <Input
-                    type="date"
-                    value={advancedTotalRange.endDate}
-                    onChange={(event) =>
-                      setAdvancedTotalRange((prev) => ({
-                        ...prev,
-                        endDate: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
               </div>
               <div className="rounded-md border bg-background/80 p-3">
-                <p className="text-sm text-muted-foreground">Quantidade indicando periodo</p>
+                <p className="text-sm text-muted-foreground">
+                  Quantidade no periodo selecionado
+                </p>
                 <p className="text-2xl font-semibold">
                   {advancedTotalCount !== null ? advancedTotalCount : "--"}
                 </p>
@@ -1136,7 +1272,16 @@ const Faltas = () => {
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => handleExportAdvancedRange(advancedTotalRange, undefined, "total")}
+                    onClick={() =>
+                      handleExportAdvancedRange(
+                        {
+                          colaboradorId: advancedTotalRange.colaboradorId,
+                          ...advancedDateRange,
+                        },
+                        undefined,
+                        "total",
+                      )
+                    }
                   >
                     Exportar XLSX
                   </Button>
@@ -1148,7 +1293,7 @@ const Faltas = () => {
               <p className="text-sm font-semibold text-muted-foreground">
                 Quantidade de faltas - {MOTIVO_FALTA_INJUSTIFICADA}
               </p>
-              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-1">
                 <div className="space-y-1">
                   <span className="text-sm text-muted-foreground">Colaborador</span>
                   <Select
@@ -1173,35 +1318,11 @@ const Faltas = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Data inicial</span>
-                  <Input
-                    type="date"
-                    value={advancedInjustificadaRange.startDate}
-                    onChange={(event) =>
-                      setAdvancedInjustificadaRange((prev) => ({
-                        ...prev,
-                        startDate: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Data final</span>
-                  <Input
-                    type="date"
-                    value={advancedInjustificadaRange.endDate}
-                    onChange={(event) =>
-                      setAdvancedInjustificadaRange((prev) => ({
-                        ...prev,
-                        endDate: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
               </div>
               <div className="rounded-md border bg-background/80 p-3">
-                <p className="text-sm text-muted-foreground">Quantidade indicando periodo</p>
+                <p className="text-sm text-muted-foreground">
+                  Quantidade no periodo selecionado
+                </p>
                 <p className="text-2xl font-semibold">
                   {advancedInjustificadaCount !== null ? advancedInjustificadaCount : "--"}
                 </p>
@@ -1212,7 +1333,10 @@ const Faltas = () => {
                     variant="outline"
                     onClick={() =>
                       handleExportAdvancedRange(
-                        advancedInjustificadaRange,
+                        {
+                          colaboradorId: advancedInjustificadaRange.colaboradorId,
+                          ...advancedDateRange,
+                        },
                         MOTIVO_FALTA_INJUSTIFICADA,
                         "injustificadas",
                       )
@@ -1228,7 +1352,7 @@ const Faltas = () => {
               <p className="text-sm font-semibold text-muted-foreground">
                 Quantidade de faltas - {MOTIVO_FALTA_JUSTIFICADA}
               </p>
-              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-1">
                 <div className="space-y-1">
                   <span className="text-sm text-muted-foreground">Colaborador</span>
                   <Select
@@ -1253,35 +1377,11 @@ const Faltas = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Data inicial</span>
-                  <Input
-                    type="date"
-                    value={advancedJustificadaRange.startDate}
-                    onChange={(event) =>
-                      setAdvancedJustificadaRange((prev) => ({
-                        ...prev,
-                        startDate: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-sm text-muted-foreground">Data final</span>
-                  <Input
-                    type="date"
-                    value={advancedJustificadaRange.endDate}
-                    onChange={(event) =>
-                      setAdvancedJustificadaRange((prev) => ({
-                        ...prev,
-                        endDate: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
               </div>
               <div className="rounded-md border bg-background/80 p-3">
-                <p className="text-sm text-muted-foreground">Quantidade indicando periodo</p>
+                <p className="text-sm text-muted-foreground">
+                  Quantidade no periodo selecionado
+                </p>
                 <p className="text-2xl font-semibold">
                   {advancedJustificadaCount !== null ? advancedJustificadaCount : "--"}
                 </p>
@@ -1292,7 +1392,10 @@ const Faltas = () => {
                     variant="outline"
                     onClick={() =>
                       handleExportAdvancedRange(
-                        advancedJustificadaRange,
+                        {
+                          colaboradorId: advancedJustificadaRange.colaboradorId,
+                          ...advancedDateRange,
+                        },
                         MOTIVO_FALTA_JUSTIFICADA,
                         "justificadas",
                       )
