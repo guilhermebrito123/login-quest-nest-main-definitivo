@@ -387,6 +387,7 @@ const createStatusPage = ({
       postoMap,
       clienteMap,
       costCenterMap,
+      clienteCostCenterMap,
       usuarioMap,
     } = useDiariasTemporariasData();
     const { data: blacklist = [] } = useQuery({
@@ -563,13 +564,14 @@ const createStatusPage = ({
           const { data, error } = await supabase
             .from("faltas_colaboradores_convenia")
             .select(
-              "motivo, atestado_path, justificada_em, justificada_por, diaria_temporaria_id"
+              "id, motivo, atestado_path, justificada_em, justificada_por, diaria_temporaria_id"
             )
             .eq("diaria_temporaria_id", selectedDiaria.id)
             .maybeSingle();
           if (error) throw error;
           if (!data) return null;
           return {
+            id: data.id,
             motivo: data.motivo,
             documento_url: data.atestado_path,
             justificada_em: data.justificada_em,
@@ -581,7 +583,7 @@ const createStatusPage = ({
         const { data, error } = await supabase
           .from("colaborador_faltas")
           .select(
-            "motivo, documento_url, justificada_em, justificada_por, diaria_temporaria_id"
+            "id, motivo, documento_url, justificada_em, justificada_por, diaria_temporaria_id"
           )
           .eq("diaria_temporaria_id", selectedDiaria.id)
           .maybeSingle();
@@ -1129,27 +1131,49 @@ const createStatusPage = ({
       return null;
     };
 
+    const getCostCenterLinkFromClienteId = (
+      clienteId?: number | string | null
+    ) => {
+      if (clienteId === null || clienteId === undefined) return null;
+      const idNumber =
+        typeof clienteId === "number" ? clienteId : Number(clienteId);
+      if (!Number.isFinite(idNumber)) return null;
+      const link = clienteCostCenterMap.get(idNumber);
+      if (!link) return null;
+      const name = costCenterMap.get(link.id) || link.name || "";
+      return { id: link.id, name };
+    };
+
     const getClienteNomeFromDiaria = (
       diaria: DiariaTemporaria,
       postoInfo: any
     ) => {
+      const clienteInfoFromPosto = getClienteInfoFromPosto(postoInfo);
+      const nomePorCostCenter =
+        getCostCenterLinkFromClienteId(diaria.cliente_id)?.name ||
+        getCostCenterLinkFromClienteId(clienteInfoFromPosto?.id)?.name ||
+        "";
+      if (toTrimOrNull(nomePorCostCenter)) return nomePorCostCenter;
+
       const nomePorId =
-        typeof diaria.cliente_id === "number"
+        (typeof diaria.cliente_id === "number"
           ? clienteMap.get(diaria.cliente_id) || ""
-          : "";
-      const nome = nomePorId || getClienteInfoFromPosto(postoInfo)?.nome || "";
-      return nome || "";
+          : "") || clienteInfoFromPosto?.nome || "";
+      return nomePorId || "";
     };
 
     const getClienteKeyFromDiaria = (
       diaria: DiariaTemporaria,
       postoInfo: any
     ) => {
+      const clienteInfoFromPosto = getClienteInfoFromPosto(postoInfo);
       const key =
+        getCostCenterLinkFromClienteId(diaria.cliente_id)?.id ||
+        getCostCenterLinkFromClienteId(clienteInfoFromPosto?.id)?.id ||
         (typeof diaria.cliente_id === "number" &&
           diaria.cliente_id.toString()) ||
-        (getClienteInfoFromPosto(postoInfo)?.id
-          ? String(getClienteInfoFromPosto(postoInfo)?.id)
+        (clienteInfoFromPosto?.id
+          ? String(clienteInfoFromPosto.id)
           : "");
       return key;
     };
@@ -1238,7 +1262,14 @@ const createStatusPage = ({
       return Array.from(map.entries())
         .map(([id, nome]) => ({ id, nome }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
-    }, [diariasDoStatusFull, postoMap, totalRangeCliente.diaristaId]);
+    }, [
+      diariasDoStatusFull,
+      postoMap,
+      totalRangeCliente.diaristaId,
+      clienteCostCenterMap,
+      costCenterMap,
+      clienteMap,
+    ]);
 
     useEffect(() => {
       const clienteValido = clienteOptions.some(
@@ -1429,7 +1460,14 @@ const createStatusPage = ({
       return Array.from(map.entries())
         .map(([id, nome]) => ({ id, nome }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
-    }, [diariasDoStatus, diariasDoStatusFull, postoMap]);
+    }, [
+      diariasDoStatus,
+      diariasDoStatusFull,
+      postoMap,
+      clienteCostCenterMap,
+      costCenterMap,
+      clienteMap,
+    ]);
 
     const costCenterFilterOptions = useMemo(() => {
       const map = new Map<string, string>();
@@ -1658,6 +1696,7 @@ const createStatusPage = ({
       statusDateConfig,
       statusResponsavelField,
       diaristaMap,
+      clienteCostCenterMap,
     ]);
 
     const diariasOrdenadas = useMemo(() => {
@@ -1784,12 +1823,14 @@ const createStatusPage = ({
     }, [
       diariasFiltradas,
       diaristaMap,
-      clienteMap,
       postoMap,
       ordenarAgrupadasAlfabetica,
       isLancadaPage,
       isAprovadaPage,
       isPagaPage,
+      clienteCostCenterMap,
+      costCenterMap,
+      clienteMap,
     ]);
 
     const selectedGroup = useMemo(() => {
@@ -2222,7 +2263,12 @@ const createStatusPage = ({
             : Number(diaria.valor_diaria) || 0;
         return acc + valorDiaria;
       }, 0);
-    }, [diariasDoStatusFull, totalRangeCliente, postoMap]);
+    }, [
+      diariasDoStatusFull,
+      totalRangeCliente,
+      postoMap,
+      clienteCostCenterMap,
+    ]);
 
     const clienteTotal = useMemo(() => {
       if (
@@ -2261,7 +2307,12 @@ const createStatusPage = ({
             : Number(diaria.valor_diaria) || 0;
         return acc + valorDiaria;
       }, 0);
-    }, [diariasDoStatusFull, postoMap, totalRangeClienteOnly]);
+    }, [
+      diariasDoStatusFull,
+      postoMap,
+      totalRangeClienteOnly,
+      clienteCostCenterMap,
+    ]);
 
     const filterDiariasClienteOnly = (
       clienteId: string,
@@ -2394,14 +2445,8 @@ const createStatusPage = ({
         if (diaria.posto_servico) postos.add(diaria.posto_servico);
         if (postoInfo?.nome) postos.add(postoInfo.nome);
         if (unidadeNome) unidades.add(unidadeNome);
-        const contratoInfo = getContratoInfoFromPosto(postoInfo);
-        const clienteNomeDiaria =
-          (typeof diaria.cliente_id === "number" &&
-            clienteMap.get(diaria.cliente_id)) ||
-          contratoInfo?.clienteNome ||
-          "";
+        const clienteNomeDiaria = getClienteNomeFromDiaria(diaria, postoInfo);
         if (clienteNomeDiaria) clientes.add(clienteNomeDiaria);
-        if (contratoInfo?.clienteNome) clientes.add(contratoInfo.clienteNome);
         statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
       });
 
@@ -2480,14 +2525,8 @@ const createStatusPage = ({
         if (diaria.posto_servico) postos.add(diaria.posto_servico);
         if (postoInfo?.nome) postos.add(postoInfo.nome);
         if (unidadeNome) unidades.add(unidadeNome);
-        const contratoInfo = getContratoInfoFromPosto(postoInfo);
-        const clienteNomeDiaria =
-          (typeof diaria.cliente_id === "number" &&
-            clienteMap.get(diaria.cliente_id)) ||
-          contratoInfo?.clienteNome ||
-          "";
+        const clienteNomeDiaria = getClienteNomeFromDiaria(diaria, postoInfo);
         if (clienteNomeDiaria) clientes.add(clienteNomeDiaria);
-        if (contratoInfo?.clienteNome) clientes.add(contratoInfo.clienteNome);
         statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
       });
 

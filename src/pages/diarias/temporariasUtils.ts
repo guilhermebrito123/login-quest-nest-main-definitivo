@@ -42,6 +42,7 @@ export type ClienteResumo = {
   id: number;
   razao_social: string;
   nome_fantasia: string | null;
+  convenia_cost_center_id: string | null;
 };
 
 export type CostCenterResumo = {
@@ -129,7 +130,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clientes")
-        .select("id, razao_social, nome_fantasia")
+        .select("id, razao_social, nome_fantasia, convenia_cost_center_id")
         .order("razao_social");
       if (error) throw error;
       return (data || []) as ClienteResumo[];
@@ -429,6 +430,18 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
     return map;
   }, [costCenters]);
 
+  const clienteCostCenterMap = useMemo(() => {
+    const map = new Map<number, { id: string; name: string }>();
+    clientes.forEach((cliente) => {
+      if (!cliente?.id || !cliente?.convenia_cost_center_id) return;
+      map.set(cliente.id, {
+        id: cliente.convenia_cost_center_id,
+        name: "",
+      });
+    });
+    return map;
+  }, [clientes]);
+
   const usuarioMap = useMemo(() => {
     const map = new Map<string, string>();
     usuarios.forEach((usuario: any) => {
@@ -453,6 +466,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
     postoMap,
     clienteMap,
     costCenterMap,
+    clienteCostCenterMap,
     usuarioMap,
     refetchDiarias,
     loadingDiarias: sessionLoading || loadingDiariasRaw,
