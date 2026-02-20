@@ -112,7 +112,7 @@ const getConveniaColaboradorNome = (colaborador?: {
 
 const STATUS_FILTERS = [
   { value: "todos", label: "Todas" },
-  { value: "pendente", label: "Pendentes" },
+  { value: "pendente", label: "Injustificadas" },
   { value: "justificada", label: "Justificadas" },
 ];
 
