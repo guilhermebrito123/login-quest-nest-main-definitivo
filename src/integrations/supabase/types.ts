@@ -3523,6 +3523,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      reverter_justificativa_falta_convenia: {
+        Args: {
+          p_bucket_id?: string
+          p_falta_id: number
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       limpar_diarias_antigas: { Args: never; Returns: undefined }
       limpar_diarias_temporarias_antigas: { Args: never; Returns: undefined }
       limpar_posto_dias_vagos_antigos: { Args: never; Returns: undefined }

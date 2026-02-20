@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
 import { formatDate, formatDateTime } from "./diarias/utils";
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
@@ -33,6 +34,30 @@ const FALTAS_CONVENIA_EXPORT_COLUMNS = [
   "created_at",
   "updated_at",
 ];
+
+type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
+
+const FALTAS_COLABORADOR_JUSTIFICAR_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+];
+
+const FALTAS_CONVENIA_JUSTIFICAR_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+  "assistente_operacoes",
+];
+
+const FALTAS_CONVENIA_REVERTER_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+  "assistente_operacoes",
+  "analista_centro_controle",
+];
+
 
 type FaltaTipo = "convenia";
 
@@ -131,6 +156,26 @@ const Faltas = () => {
     startDate: "",
     endDate: "",
   });
+
+  const [accessLevel, setAccessLevel] = useState<AccessLevel | null>(null);
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [revertingId, setRevertingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const loadAccessLevel = async () => {
+      try {
+        const { data, error } = await supabase.rpc("current_internal_access_level");
+        if (error) throw error;
+        setAccessLevel(data ?? null);
+      } catch (error) {
+        console.error("Erro ao carregar nivel de acesso interno", error);
+        setAccessLevel(null);
+      } finally {
+        setAccessLoading(false);
+      }
+    };
+    loadAccessLevel();
+  }, []);
 
   const {
     diarias,
@@ -234,6 +279,21 @@ const Faltas = () => {
     });
     return map;
   }, [usuarios]);
+
+  const canJustifyFalta = (falta: FaltaData) => {
+    if (!accessLevel) return false;
+    const allowed =
+      falta.tipo === "convenia"
+        ? FALTAS_CONVENIA_JUSTIFICAR_LEVELS
+        : FALTAS_COLABORADOR_JUSTIFICAR_LEVELS;
+    return allowed.includes(accessLevel);
+  };
+
+  const canRevertFalta = (falta: FaltaData) => {
+    if (!accessLevel) return false;
+    if (falta.tipo !== "convenia") return false;
+    return FALTAS_CONVENIA_REVERTER_LEVELS.includes(accessLevel);
+  };
 
   const getFaltaColaboradorNome = (falta: FaltaData) => {
     if (falta.tipo === "colaborador") {
@@ -461,8 +521,95 @@ const Faltas = () => {
   };
 
   const openJustificarDialog = (falta: FaltaData) => {
+    if (accessLoading) return;
+    if (!canJustifyFalta(falta)) {
+      toast.error("Sem permissao para justificar faltas.");
+      return;
+    }
     setSelectedFalta(falta);
     setDialogOpen(true);
+  };
+
+  const handleReverterJustificativa = async (falta: FaltaData) => {
+    if (accessLoading) return;
+    if (falta.tipo !== "convenia") {
+      toast.error("Reversao disponivel apenas para faltas convenia.");
+      return;
+    }
+    if (!falta.justificada_em) {
+      toast.error("Falta nao esta justificada.");
+      return;
+    }
+    if (!canRevertFalta(falta)) {
+      toast.error("Sem permissao para reverter justificativas.");
+      return;
+    }
+    const documentoPath = getFaltaDocumentoPath(falta);
+    if (!documentoPath) {
+      toast.error("Atestado nao encontrado.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Deseja reverter a justificativa desta falta? O atestado sera removido."
+    );
+    if (!confirmed) return;
+
+    try {
+      setRevertingId(falta.id);
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData?.user) {
+        throw authError || new Error("Usuario nao autenticado.");
+      }
+
+      const { error: rpcError } = await supabase.rpc(
+        "reverter_justificativa_falta_convenia",
+        {
+          p_falta_id: falta.id,
+          p_user_id: authData.user.id,
+          p_bucket_id: BUCKET,
+        }
+      );
+      if (rpcError) throw rpcError;
+
+      const { error: storageError } = await supabase.storage
+        .from(BUCKET)
+        .remove([documentoPath]);
+      if (storageError) {
+        toast.error(
+          "Justificativa revertida, mas nao foi possivel remover o atestado."
+        );
+      } else {
+        toast.success("Justificativa revertida com sucesso.");
+      }
+
+      await Promise.all([refetchFaltasConvenia(), refetchDiarias()]);
+
+      const applyLocalUpdate = (prev: FaltaData | null) => {
+        if (!prev || prev.id !== falta.id) return prev;
+        if (prev.tipo === "convenia") {
+          return {
+            ...prev,
+            motivo: MOTIVO_FALTA_INJUSTIFICADA,
+            justificada_em: null,
+            justificada_por: null,
+            atestado_path: null,
+          };
+        }
+        return {
+          ...prev,
+          motivo: MOTIVO_FALTA_INJUSTIFICADA,
+          justificada_em: null,
+          justificada_por: null,
+          documento_url: null,
+        };
+      };
+      setSelectedFalta(applyLocalUpdate);
+      setDetailsFalta(applyLocalUpdate);
+    } catch (error: any) {
+      toast.error(error?.message || "Nao foi possivel reverter a justificativa.");
+    } finally {
+      setRevertingId(null);
+    }
   };
 
   const handleDetailsDialogOpenChange = (open: boolean) => {
@@ -676,6 +823,18 @@ const Faltas = () => {
                         : "-";
                       const colaboradorNome = getFaltaColaboradorNome(falta);
                       const documentoPath = getFaltaDocumentoPath(falta);
+                      const isJustificada = !!falta.justificada_em;
+                      const canJustify = canJustifyFalta(falta);
+                      const canRevert = isJustificada && canRevertFalta(falta);
+                      const isReverting = revertingId === falta.id;
+                      const actionLabel = isJustificada
+                        ? canRevert
+                          ? "Reverter"
+                          : "Justificada"
+                        : "Justificar";
+                      const actionDisabled = accessLoading || isReverting || (
+                        isJustificada ? !canRevert : !canJustify
+                      );
                       return (
                         <TableRow
                           key={falta.id}
@@ -720,13 +879,19 @@ const Faltas = () => {
                             <Button
                               type="button"
                               size="sm"
-                              disabled={!!falta.justificada_em}
+                              disabled={actionDisabled}
                               onClick={(event) => {
                                 event.stopPropagation();
+                                if (isJustificada) {
+                                  if (canRevert) {
+                                    handleReverterJustificativa(falta);
+                                  }
+                                  return;
+                                }
                                 openJustificarDialog(falta);
                               }}
                             >
-                              Justificar
+                              {isReverting ? "Revertendo..." : actionLabel}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -864,17 +1029,32 @@ const Faltas = () => {
                   </div>
                 </div>
                 <DialogFooter className="sm:justify-start">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!!detailsFalta.justificada_em}
-                    onClick={() => {
-                      handleDetailsDialogOpenChange(false);
-                      openJustificarDialog(detailsFalta);
-                    }}
-                  >
-                    Justificar
-                  </Button>
+                  {!detailsFalta.justificada_em && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={accessLoading || !canJustifyFalta(detailsFalta)}
+                      onClick={() => {
+                        handleDetailsDialogOpenChange(false);
+                        openJustificarDialog(detailsFalta);
+                      }}
+                    >
+                      Justificar
+                    </Button>
+                  )}
+                  {detailsFalta.justificada_em &&
+                    canRevertFalta(detailsFalta) && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={accessLoading || revertingId === detailsFalta.id}
+                        onClick={() => handleReverterJustificativa(detailsFalta)}
+                      >
+                        {revertingId === detailsFalta.id
+                          ? "Revertendo..."
+                          : "Reverter justificativa"}
+                      </Button>
+                    )}
                 </DialogFooter>
               </div>
             );
