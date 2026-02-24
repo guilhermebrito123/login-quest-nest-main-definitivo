@@ -23,15 +23,89 @@ const ADVANCED_FILTER_ALL = "__all__";
 const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
 const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
 const FALTAS_PAGE_SIZE = 10;
-const FALTAS_CONVENIA_EXPORT_COLUMNS = [
+const BASE_FALTAS_EXPORT_HEADERS = [
   "COLABORADOR",
   "COLABORADOR ID",
-  "DATA",
+  "DATA DA FALTA",
   "MOTIVO",
-  "CENTRO DE CUSTO",
-  "CARGO",
   "JUSTIFICADA POR",
 ];
+
+const CONVENIA_FIELD_DEFS = [
+  { key: "id", label: "ID colaborador convenia" },
+  { key: "convenia_id", label: "ID convenia" },
+  { key: "name", label: "Nome" },
+  { key: "last_name", label: "Sobrenome" },
+  { key: "social_name", label: "Nome social" },
+  { key: "cpf", label: "CPF" },
+  { key: "registration", label: "Matricula" },
+  { key: "pis", label: "PIS" },
+  { key: "birth_date", label: "Data de nascimento" },
+  { key: "email", label: "Email" },
+  { key: "personal_email", label: "Email pessoal" },
+  { key: "personal_phone", label: "Telefone pessoal" },
+  { key: "residential_phone", label: "Telefone residencial" },
+  { key: "address_zip_code", label: "CEP" },
+  { key: "address_street", label: "Logradouro" },
+  { key: "address_number", label: "Numero" },
+  { key: "address_complement", label: "Complemento" },
+  { key: "address_district", label: "Bairro" },
+  { key: "address_city", label: "Cidade" },
+  { key: "address_state", label: "Estado" },
+  { key: "job_id", label: "ID cargo" },
+  { key: "job_name", label: "Cargo" },
+  { key: "department_id", label: "ID departamento" },
+  { key: "department_name", label: "Departamento" },
+  { key: "team_id", label: "ID equipe" },
+  { key: "team_name", label: "Equipe" },
+  { key: "supervisor_id", label: "ID supervisor" },
+  { key: "supervisor_name", label: "Supervisor nome" },
+  { key: "supervisor_last_name", label: "Supervisor sobrenome" },
+  { key: "cost_center_id", label: "Centro de custo ID" },
+  { key: "cost_center_name", label: "Centro de custo" },
+  { key: "cost_center", label: "Centro de custo (detalhes)" },
+  { key: "salary", label: "Salario" },
+  { key: "status", label: "Status" },
+  { key: "hiring_date", label: "Data de admissao" },
+  { key: "ctps_number", label: "CTPS numero" },
+  { key: "ctps_serial_number", label: "CTPS serie" },
+  { key: "ctps_emission_date", label: "CTPS emissao" },
+  { key: "rg_number", label: "RG numero" },
+  { key: "rg_issuing_agency", label: "RG orgao emissor" },
+  { key: "rg_emission_date", label: "RG emissao" },
+  { key: "driver_license_number", label: "CNH numero" },
+  { key: "driver_license_category", label: "CNH categoria" },
+  { key: "driver_license_emission_date", label: "CNH emissao" },
+  { key: "driver_license_validate_date", label: "CNH validade" },
+  { key: "annotations", label: "Anotacoes" },
+  { key: "aso", label: "ASO" },
+  { key: "bank_accounts", label: "Contas bancarias" },
+  { key: "disability", label: "Deficiencia" },
+  { key: "educations", label: "Educacoes" },
+  { key: "electoral_card", label: "Titulo de eleitor" },
+  { key: "emergency_contacts", label: "Contatos de emergencia" },
+  { key: "experience_period", label: "Periodo de experiencia" },
+  { key: "foreign_data", label: "Dados estrangeiro" },
+  { key: "intern_data", label: "Dados estagiario" },
+  { key: "nationalities", label: "Nacionalidades" },
+  { key: "payroll", label: "Folha de pagamento" },
+  { key: "raw_data", label: "Dados brutos" },
+  { key: "reservist", label: "Reservista" },
+  { key: "synced_at", label: "Sincronizado em" },
+  { key: "created_at", label: "Criado em" },
+  { key: "updated_at", label: "Atualizado em" },
+] as const;
+
+const CONVENIA_EXPORT_FIELDS = CONVENIA_FIELD_DEFS.filter(
+  (field) => field.key !== "id",
+);
+
+const FALTAS_CONVENIA_EXPORT_COLUMNS = Array.from(
+  new Set([
+    ...BASE_FALTAS_EXPORT_HEADERS,
+    ...CONVENIA_EXPORT_FIELDS.map((field) => field.label.toUpperCase()),
+  ]),
+);
 
 type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
 
@@ -352,6 +426,54 @@ const Faltas = () => {
     );
   };
 
+  const CONVENIA_JSON_FIELDS = new Set([
+    "annotations",
+    "aso",
+    "bank_accounts",
+    "cost_center",
+    "disability",
+    "educations",
+    "electoral_card",
+    "emergency_contacts",
+    "experience_period",
+    "foreign_data",
+    "intern_data",
+    "nationalities",
+    "payroll",
+    "raw_data",
+    "reservist",
+  ]);
+
+  const CONVENIA_DATE_FIELDS = new Set([
+    "birth_date",
+    "ctps_emission_date",
+    "driver_license_emission_date",
+    "driver_license_validate_date",
+    "hiring_date",
+    "rg_emission_date",
+  ]);
+
+  const CONVENIA_DATETIME_FIELDS = new Set(["created_at", "updated_at", "synced_at"]);
+
+  const formatConveniaValue = (value: unknown, key?: string) => {
+    if (value === null || value === undefined || value === "") return "-";
+    if (key && CONVENIA_JSON_FIELDS.has(key)) {
+      if (typeof value === "string") return value;
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }
+    if (key && CONVENIA_DATE_FIELDS.has(key) && typeof value === "string") {
+      return formatDate(value);
+    }
+    if (key && CONVENIA_DATETIME_FIELDS.has(key) && typeof value === "string") {
+      return formatDateTime(value);
+    }
+    return String(value);
+  };
+
   const getFaltaColaboradorId = (falta: FaltaData) =>
     falta.tipo === "colaborador" ? falta.colaborador_id : falta.colaborador_convenia_id;
 
@@ -633,26 +755,30 @@ const Faltas = () => {
       const colaborador = colaboradoresConveniaMap.get(falta.colaborador_convenia_id);
       const colaboradorNome =
         getConveniaColaboradorNome(colaborador) || falta.colaborador_convenia_id;
-      const costCenterLabel =
-        colaborador?.cost_center_name ||
-        (colaborador?.cost_center_id
-          ? costCenterMap.get(colaborador.cost_center_id)
-          : null) ||
-        "-";
-      const cargo = colaborador?.job_name || "-";
       const justificadaPorNome = falta.justificada_por
         ? usuarioMap.get(falta.justificada_por) || falta.justificada_por
         : "-";
 
-      return {
+      const row: Record<string, string> = {
         COLABORADOR: colaboradorNome,
         "COLABORADOR ID": falta.colaborador_convenia_id,
-        DATA: falta.data_falta,
+        "DATA DA FALTA": falta.data_falta,
         MOTIVO: falta.motivo,
-        "CENTRO DE CUSTO": costCenterLabel,
-        CARGO: cargo,
         "JUSTIFICADA POR": justificadaPorNome,
       };
+
+      CONVENIA_EXPORT_FIELDS.forEach((field) => {
+        const header = field.label.toUpperCase();
+        if (row[header] !== undefined) return;
+        if (field.key === "cost_center_name") {
+          row[header] = getConveniaCostCenterName(falta.colaborador_convenia_id);
+          return;
+        }
+        const value = colaborador ? (colaborador as any)[field.key] : null;
+        row[header] = formatConveniaValue(value, field.key);
+      });
+
+      return row;
     });
 
   const exportFaltasConveniaXlsx = (faltas: FaltaConveniaRow[], filePrefix: string) => {
@@ -1527,6 +1653,33 @@ const Faltas = () => {
                     )}
                   </div>
                 </div>
+
+                {detailsFalta.tipo === "convenia" && (
+                  <div className="space-y-3 rounded-md border bg-muted/20 p-4">
+                    <p className="text-sm font-semibold text-muted-foreground">
+                      Dados do colaborador Convenia
+                    </p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {CONVENIA_FIELD_DEFS.map((field) => {
+                        const value =
+                          conveniaInfo && field.key in conveniaInfo
+                            ? (conveniaInfo as any)[field.key]
+                            : null;
+                        return (
+                          <div key={field.key}>
+                            <p className="text-xs text-muted-foreground">{field.label}</p>
+                            <p className="text-sm font-medium">
+                              {field.key === "cost_center_name"
+                                ? getConveniaCostCenterName(detailsFalta.colaborador_convenia_id)
+                                : formatConveniaValue(value, field.key)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <DialogFooter className="sm:justify-start">
                   {!detailsFalta.justificada_em && (
                     <Button
