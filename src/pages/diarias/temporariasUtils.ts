@@ -56,6 +56,7 @@ export type ColaboradorConvenia = {
   name: string | null;
   last_name: string | null;
   social_name: string | null;
+  job_name?: string | null;
   cost_center_id: string | null;
   cost_center_name: string | null;
 };
@@ -223,7 +224,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("colaboradores_convenia")
-        .select("id, name, last_name, social_name, cost_center_id, cost_center_name")
+        .select("id, name, last_name, social_name, job_name, cost_center_id, cost_center_name")
         .order("name");
       if (error) throw error;
       return (data || []) as ColaboradorConvenia[];

@@ -1963,7 +1963,7 @@ export type Database = {
           colaborador_convenia_id: string
           created_at: string
           data_falta: string
-          diaria_temporaria_id: number
+          diaria_temporaria_id: number | null
           id: number
           justificada_em: string | null
           justificada_por: string | null
@@ -1975,7 +1975,7 @@ export type Database = {
           colaborador_convenia_id: string
           created_at?: string
           data_falta: string
-          diaria_temporaria_id: number
+          diaria_temporaria_id?: number | null
           id?: number
           justificada_em?: string | null
           justificada_por?: string | null
@@ -1987,7 +1987,7 @@ export type Database = {
           colaborador_convenia_id?: string
           created_at?: string
           data_falta?: string
-          diaria_temporaria_id?: number
+          diaria_temporaria_id?: number | null
           id?: number
           justificada_em?: string | null
           justificada_por?: string | null
@@ -2005,7 +2005,7 @@ export type Database = {
           {
             foreignKeyName: "faltas_colaboradores_convenia_diaria_temporaria_id_fkey"
             columns: ["diaria_temporaria_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "diarias_temporarias"
             referencedColumns: ["id"]
           },
@@ -3523,20 +3523,16 @@ export type Database = {
         }
         Returns: undefined
       }
-      reverter_justificativa_falta_convenia: {
-        Args: {
-          p_bucket_id?: string
-          p_falta_id: number
-          p_user_id: string
-        }
-        Returns: undefined
-      }
       limpar_diarias_antigas: { Args: never; Returns: undefined }
       limpar_diarias_temporarias_antigas: { Args: never; Returns: undefined }
       limpar_posto_dias_vagos_antigos: { Args: never; Returns: undefined }
       limpar_presencas_antigas: { Args: never; Returns: undefined }
       limpar_tokens_expirados: { Args: never; Returns: undefined }
       processar_movimentacoes_agendadas: { Args: never; Returns: undefined }
+      reverter_justificativa_falta_convenia: {
+        Args: { p_bucket_id?: string; p_falta_id: number; p_user_id: string }
+        Returns: string
+      }
     }
     Enums: {
       acumulo_funcao_options: "Sim" | "Não" | "Especial"

@@ -24,9 +24,13 @@ const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
 const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
 const FALTAS_PAGE_SIZE = 10;
 const FALTAS_CONVENIA_EXPORT_COLUMNS = [
-  "colaborador_convenia_id",
-  "data_falta",
-  "motivo",
+  "COLABORADOR",
+  "COLABORADOR ID",
+  "DATA",
+  "MOTIVO",
+  "CENTRO DE CUSTO",
+  "CARGO",
+  "JUSTIFICADA POR",
 ];
 
 type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
@@ -52,6 +56,19 @@ const FALTAS_CONVENIA_REVERTER_LEVELS: AccessLevel[] = [
   "analista_centro_controle",
 ];
 
+const FALTAS_CONVENIA_CREATE_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+];
+
+const FALTAS_CONVENIA_UPDATE_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+];
+
+const FALTAS_CONVENIA_DELETE_LEVELS: AccessLevel[] = ["admin"];
 
 type FaltaTipo = "convenia";
 
@@ -71,7 +88,7 @@ type FaltaRow = {
 type FaltaConveniaRow = {
   id: number;
   colaborador_convenia_id: string;
-  diaria_temporaria_id: number;
+  diaria_temporaria_id: number | null;
   data_falta: string;
   motivo: string;
   atestado_path: string | null;
@@ -149,6 +166,15 @@ const Faltas = () => {
   const [advancedJustificadaRange, setAdvancedJustificadaRange] = useState({
     colaboradorId: "",
   });
+  const [faltaFormOpen, setFaltaFormOpen] = useState(false);
+  const [faltaFormMode, setFaltaFormMode] = useState<"create" | "edit">("create");
+  const [faltaFormSaving, setFaltaFormSaving] = useState(false);
+  const [faltaFormTarget, setFaltaFormTarget] = useState<FaltaConveniaRow | null>(null);
+  const [faltaForm, setFaltaForm] = useState({
+    colaboradorId: "",
+    dataFalta: "",
+    diariaId: "",
+  });
 
   const [accessLevel, setAccessLevel] = useState<AccessLevel | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
@@ -178,6 +204,7 @@ const Faltas = () => {
     colaboradoresConveniaMap,
     postoMap,
     clienteMap,
+    costCenterMap,
     refetchDiarias,
   } = useDiariasTemporariasData();
 
@@ -272,6 +299,25 @@ const Faltas = () => {
     });
     return map;
   }, [usuarios]);
+
+  const colaboradorConveniaOptions = useMemo(
+    () =>
+      colaboradoresConvenia
+        .map((colaborador) => ({
+          id: colaborador.id,
+          label: getConveniaColaboradorNome(colaborador),
+        }))
+        .filter((item) => item.id)
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [colaboradoresConvenia],
+  );
+
+  const canCreateFaltaConvenia = () =>
+    !!accessLevel && FALTAS_CONVENIA_CREATE_LEVELS.includes(accessLevel);
+  const canUpdateFaltaConvenia = () =>
+    !!accessLevel && FALTAS_CONVENIA_UPDATE_LEVELS.includes(accessLevel);
+  const canDeleteFaltaConvenia = () =>
+    !!accessLevel && FALTAS_CONVENIA_DELETE_LEVELS.includes(accessLevel);
 
   const canJustifyFalta = (falta: FaltaData) => {
     if (!accessLevel) return false;
@@ -468,8 +514,8 @@ const Faltas = () => {
 
       if (term) {
         const colaboradorNome = getFaltaColaboradorNome(falta).toLowerCase();
-        const diariaId = String(falta.diaria_temporaria_id);
-        if (!colaboradorNome.includes(term) && !diariaId.includes(term)) return;
+        const referenciaId = String(falta.diaria_temporaria_id ?? falta.id);
+        if (!colaboradorNome.includes(term) && !referenciaId.includes(term)) return;
       }
 
       const colaboradorId = getFaltaColaboradorId(falta);
@@ -532,8 +578,8 @@ const Faltas = () => {
 
       if (!term) return true;
       const colaboradorNome = getFaltaColaboradorNome(falta).toLowerCase();
-      const diariaId = String(falta.diaria_temporaria_id);
-      return colaboradorNome.includes(term) || diariaId.includes(term);
+      const referenciaId = String(falta.diaria_temporaria_id ?? falta.id);
+      return colaboradorNome.includes(term) || referenciaId.includes(term);
     });
   }, [
     faltasAtivas,
@@ -573,14 +619,31 @@ const Faltas = () => {
   };
 
   const buildFaltasConveniaExportRows = (faltas: FaltaConveniaRow[]) =>
-    faltas.map((falta) => ({
-      colaborador_convenia_id:
-        getConveniaColaboradorNome(
-          colaboradoresConveniaMap.get(falta.colaborador_convenia_id),
-        ) || falta.colaborador_convenia_id,
-      data_falta: falta.data_falta,
-      motivo: falta.motivo,
-    }));
+    faltas.map((falta) => {
+      const colaborador = colaboradoresConveniaMap.get(falta.colaborador_convenia_id);
+      const colaboradorNome =
+        getConveniaColaboradorNome(colaborador) || falta.colaborador_convenia_id;
+      const costCenterLabel =
+        colaborador?.cost_center_name ||
+        (colaborador?.cost_center_id
+          ? costCenterMap.get(colaborador.cost_center_id)
+          : null) ||
+        "-";
+      const cargo = colaborador?.job_name || "-";
+      const justificadaPorNome = falta.justificada_por
+        ? usuarioMap.get(falta.justificada_por) || falta.justificada_por
+        : "-";
+
+      return {
+        COLABORADOR: colaboradorNome,
+        "COLABORADOR ID": falta.colaborador_convenia_id,
+        DATA: falta.data_falta,
+        MOTIVO: falta.motivo,
+        "CENTRO DE CUSTO": costCenterLabel,
+        CARGO: cargo,
+        "JUSTIFICADA POR": justificadaPorNome,
+      };
+    });
 
   const exportFaltasConveniaXlsx = (faltas: FaltaConveniaRow[], filePrefix: string) => {
     if (!faltas.length) {
@@ -625,6 +688,158 @@ const Faltas = () => {
       window.open(data.signedUrl, "_blank", "noopener,noreferrer");
     } catch (error: any) {
       toast.error(error?.message || "Nao foi possivel abrir o documento.");
+    }
+  };
+
+  const parseOptionalDiariaId = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) return undefined;
+    return parsed;
+  };
+
+  const resetFaltaForm = (falta?: FaltaConveniaRow | null) => {
+    setFaltaForm({
+      colaboradorId: falta?.colaborador_convenia_id ?? "",
+      dataFalta: falta?.data_falta ?? "",
+      diariaId: falta?.diaria_temporaria_id ? String(falta.diaria_temporaria_id) : "",
+    });
+  };
+
+  const handleFaltaFormOpenChange = (open: boolean) => {
+    setFaltaFormOpen(open);
+    if (!open) {
+      setFaltaFormSaving(false);
+      setFaltaFormTarget(null);
+      setFaltaFormMode("create");
+      resetFaltaForm(null);
+    }
+  };
+
+  const openCreateFaltaForm = () => {
+    if (accessLoading) return;
+    if (!canCreateFaltaConvenia()) {
+      toast.error("Sem permissao para cadastrar faltas.");
+      return;
+    }
+    setFaltaFormMode("create");
+    setFaltaFormTarget(null);
+    resetFaltaForm(null);
+    setFaltaFormOpen(true);
+  };
+
+  const openEditFaltaForm = (falta: FaltaConveniaRow) => {
+    if (accessLoading) return;
+    if (!canUpdateFaltaConvenia()) {
+      toast.error("Sem permissao para editar faltas.");
+      return;
+    }
+    if (falta.justificada_em) {
+      toast.error("Reverta a justificativa antes de editar a falta.");
+      return;
+    }
+    setFaltaFormMode("edit");
+    setFaltaFormTarget(falta);
+    resetFaltaForm(falta);
+    setFaltaFormOpen(true);
+  };
+
+  const handleSubmitFaltaForm = async () => {
+    if (accessLoading) return;
+    if (!faltaForm.colaboradorId) {
+      toast.error("Selecione o colaborador.");
+      return;
+    }
+    if (!faltaForm.dataFalta) {
+      toast.error("Informe a data da falta.");
+      return;
+    }
+    const parsedDiariaId = parseOptionalDiariaId(faltaForm.diariaId);
+    if (parsedDiariaId === undefined) {
+      toast.error("ID da diaria invalido.");
+      return;
+    }
+
+    try {
+      setFaltaFormSaving(true);
+      if (faltaFormMode === "create") {
+        const { error } = await supabase.from("faltas_colaboradores_convenia").insert({
+          colaborador_convenia_id: faltaForm.colaboradorId,
+          data_falta: faltaForm.dataFalta,
+          diaria_temporaria_id: parsedDiariaId,
+          motivo: MOTIVO_FALTA_INJUSTIFICADA,
+        });
+        if (error) throw error;
+        toast.success("Falta cadastrada com sucesso.");
+      } else {
+        if (!faltaFormTarget) {
+          throw new Error("Falta nao selecionada.");
+        }
+        const { error } = await supabase
+          .from("faltas_colaboradores_convenia")
+          .update({
+            colaborador_convenia_id: faltaForm.colaboradorId,
+            data_falta: faltaForm.dataFalta,
+            diaria_temporaria_id: parsedDiariaId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", faltaFormTarget.id);
+        if (error) throw error;
+        toast.success("Falta atualizada com sucesso.");
+      }
+
+      await Promise.all([refetchFaltasConvenia(), refetchDiarias()]);
+      handleFaltaFormOpenChange(false);
+    } catch (error: any) {
+      toast.error(error?.message || "Nao foi possivel salvar a falta.");
+    } finally {
+      setFaltaFormSaving(false);
+    }
+  };
+
+  const handleDeleteFaltaConvenia = async (falta: FaltaConveniaRow) => {
+    if (accessLoading) return;
+    if (!canDeleteFaltaConvenia()) {
+      toast.error("Sem permissao para excluir faltas.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Deseja excluir esta falta? Esta acao nao podera ser desfeita."
+    );
+    if (!confirmed) return;
+
+    try {
+      const documentoPath = falta.atestado_path;
+      const { error } = await supabase
+        .from("faltas_colaboradores_convenia")
+        .delete()
+        .eq("id", falta.id);
+      if (error) throw error;
+
+      if (documentoPath) {
+        const { error: storageError } = await supabase.storage
+          .from(BUCKET)
+          .remove([documentoPath]);
+        if (storageError) {
+          toast.error(
+            "Falta removida, mas nao foi possivel excluir o atestado."
+          );
+        }
+      }
+
+      if (detailsFalta?.id === falta.id) {
+        setDetailsDialogOpen(false);
+        setDetailsFalta(null);
+      }
+      if (selectedFalta?.id === falta.id) {
+        setSelectedFalta(null);
+      }
+
+      await Promise.all([refetchFaltasConvenia(), refetchDiarias()]);
+      toast.success("Falta excluida com sucesso.");
+    } catch (error: any) {
+      toast.error(error?.message || "Nao foi possivel excluir a falta.");
     }
   };
 
@@ -674,7 +889,7 @@ const Faltas = () => {
         throw authError || new Error("Usuario nao autenticado.");
       }
 
-      const { error: rpcError } = await supabase.rpc(
+      const { data: revertedPath, error: rpcError } = await supabase.rpc(
         "reverter_justificativa_falta_convenia",
         {
           p_falta_id: falta.id,
@@ -684,13 +899,18 @@ const Faltas = () => {
       );
       if (rpcError) throw rpcError;
 
-      const { error: storageError } = await supabase.storage
-        .from(BUCKET)
-        .remove([documentoPath]);
-      if (storageError) {
-        toast.error(
-          "Justificativa revertida, mas nao foi possivel remover o atestado."
-        );
+      const pathToRemove = revertedPath || documentoPath;
+      if (pathToRemove) {
+        const { error: storageError } = await supabase.storage
+          .from(BUCKET)
+          .remove([pathToRemove]);
+        if (storageError) {
+          toast.error(
+            "Justificativa revertida, mas nao foi possivel remover o atestado."
+          );
+        } else {
+          toast.success("Justificativa revertida com sucesso.");
+        }
       } else {
         toast.success("Justificativa revertida com sucesso.");
       }
@@ -739,8 +959,18 @@ const Faltas = () => {
   const selectedColaboradorNome = selectedFalta ? getFaltaColaboradorNome(selectedFalta) : null;
   const selectedRpcName =
     selectedFalta?.tipo === "convenia"
-      ? "justificar_falta_convenia"
+      ? selectedFalta.diaria_temporaria_id
+        ? "justificar_falta_convenia"
+        : "justificar_falta_convenia_por_falta_id"
       : "justificar_falta_diaria_temporaria";
+  const selectedFaltaDataLabel = selectedFalta
+    ? formatDate(
+        selectedFalta.tipo === "convenia"
+          ? diariaMap.get(String(selectedFalta.diaria_temporaria_id))?.data_diaria ||
+              selectedFalta.data_falta
+          : diariaMap.get(String(selectedFalta.diaria_temporaria_id))?.data_diaria,
+      )
+    : null;
 
   return (
     <DashboardLayout>
@@ -762,7 +992,7 @@ const Faltas = () => {
               <CardTitle className="text-2xl">{faltasAtivas.length}</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
-              Registradas via diarias temporarias.
+              Registradas via diarias temporarias ou manualmente.
             </CardContent>
           </Card>
           <Card className="shadow-lg border border-amber-200">
@@ -789,7 +1019,7 @@ const Faltas = () => {
           <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle>Filtros</CardTitle>
-              <CardDescription>Busque faltas por colaborador ou ID da diaria.</CardDescription>
+              <CardDescription>Busque faltas por colaborador ou ID da diaria/falta.</CardDescription>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" variant="outline" onClick={handleClearFilters}>
@@ -904,9 +1134,16 @@ const Faltas = () => {
         </Card>
 
         <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Faltas registradas</CardTitle>
-            <CardDescription>Selecione uma falta para justificar com anexo.</CardDescription>
+          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>Faltas registradas</CardTitle>
+              <CardDescription>Selecione uma falta para justificar com anexo.</CardDescription>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="button" variant="outline" onClick={openCreateFaltaForm}>
+                Nova falta
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingFaltas ? (
@@ -944,6 +1181,10 @@ const Faltas = () => {
                           clienteMap.get(diaria.cliente_id)) ||
                         getClienteInfoFromPosto(postoInfo)?.nome ||
                         "-";
+                      const dataFaltaLabel = formatDate(
+                        diaria?.data_diaria ||
+                          (falta.tipo === "convenia" ? falta.data_falta : null),
+                      );
                       const statusLabel = falta.justificada_em ? "Justificada" : "Pendente";
                       const statusVariant: "default" | "destructive" =
                         falta.justificada_em ? "default" : "destructive";
@@ -970,7 +1211,7 @@ const Faltas = () => {
                           className="cursor-pointer"
                           onClick={() => openDetailsDialog(falta)}
                         >
-                          <TableCell>{formatDate(diaria?.data_diaria)}</TableCell>
+                          <TableCell>{dataFaltaLabel}</TableCell>
                           <TableCell>{colaboradorNome}</TableCell>
                           <TableCell className="hidden sm:table-cell">{clienteNome}</TableCell>
                           <TableCell className="hidden sm:table-cell">{falta.motivo || "-"}</TableCell>
@@ -1059,17 +1300,104 @@ const Faltas = () => {
         </Card>
       </div>
 
+      <Dialog open={faltaFormOpen} onOpenChange={handleFaltaFormOpenChange}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {faltaFormMode === "create" ? "Nova falta" : "Editar falta"}
+            </DialogTitle>
+            <DialogDescription>
+              {faltaFormMode === "create"
+                ? "Registre faltas manualmente quando nao houver diaria vinculada."
+                : "Atualize os dados da falta selecionada."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <span className="text-sm text-muted-foreground">Colaborador</span>
+              <Select
+                value={faltaForm.colaboradorId}
+                onValueChange={(value) =>
+                  setFaltaForm((prev) => ({ ...prev, colaboradorId: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o colaborador" />
+                </SelectTrigger>
+                <SelectContent>
+                  {colaboradorConveniaOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <span className="text-sm text-muted-foreground">Data da falta</span>
+              <Input
+                type="date"
+                value={faltaForm.dataFalta}
+                onChange={(event) =>
+                  setFaltaForm((prev) => ({
+                    ...prev,
+                    dataFalta: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <span className="text-sm text-muted-foreground">
+                ID da diaria temporaria (opcional)
+              </span>
+              <Input
+                value={faltaForm.diariaId}
+                onChange={(event) =>
+                  setFaltaForm((prev) => ({
+                    ...prev,
+                    diariaId: event.target.value,
+                  }))
+                }
+                placeholder="Ex.: 12345"
+              />
+              <p className="text-xs text-muted-foreground">
+                Se a falta estiver vinculada a uma diaria, informe o ID. Caso
+                contrario, deixe em branco.
+              </p>
+            </div>
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              A falta sera registrada como{" "}
+              <span className="font-semibold">{MOTIVO_FALTA_INJUSTIFICADA}</span>
+              . Para justificar, utilize o botao "Justificar" com atestado.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleFaltaFormOpenChange(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleSubmitFaltaForm} disabled={faltaFormSaving}>
+              {faltaFormSaving
+                ? "Salvando..."
+                : faltaFormMode === "create"
+                  ? "Cadastrar"
+                  : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <FaltaJustificarDialog
         open={dialogOpen}
         onOpenChange={handleDialogOpenChange}
         diariaId={selectedFalta?.diaria_temporaria_id ?? null}
+        faltaId={selectedFalta?.tipo === "convenia" ? selectedFalta.id : null}
         colaboradorId={selectedColaboradorId}
         colaboradorNome={selectedColaboradorNome}
-        dataDiariaLabel={
-          selectedFalta
-            ? formatDate(diariaMap.get(String(selectedFalta.diaria_temporaria_id))?.data_diaria)
-            : null
-        }
+        dataDiariaLabel={selectedFaltaDataLabel}
         rpcName={selectedRpcName}
         onSuccess={async () => {
           await Promise.all([
@@ -1107,13 +1435,28 @@ const Faltas = () => {
               : "-";
             const colaboradorNome = getFaltaColaboradorNome(detailsFalta);
             const documentoPath = getFaltaDocumentoPath(detailsFalta);
+            const conveniaInfo =
+              detailsFalta.tipo === "convenia"
+                ? colaboradoresConveniaMap.get(detailsFalta.colaborador_convenia_id)
+                : null;
+            const cargoLabel = conveniaInfo?.job_name || "-";
+            const costCenterLabel =
+              conveniaInfo?.cost_center_name ||
+              (conveniaInfo?.cost_center_id
+                ? costCenterMap.get(conveniaInfo.cost_center_id)
+                : null) ||
+              "-";
+            const dataFaltaLabel = formatDate(
+              diaria?.data_diaria ||
+                (detailsFalta.tipo === "convenia" ? detailsFalta.data_falta : null),
+            );
 
             return (
               <div className="space-y-4">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <p className="text-xs text-muted-foreground">Data</p>
-                    <p className="text-sm font-medium">{formatDate(diaria?.data_diaria)}</p>
+                    <p className="text-sm font-medium">{dataFaltaLabel}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Colaborador</p>
@@ -1123,6 +1466,18 @@ const Faltas = () => {
                     <p className="text-xs text-muted-foreground">Cliente</p>
                     <p className="text-sm font-medium">{clienteNome}</p>
                   </div>
+                  {detailsFalta.tipo === "convenia" && (
+                    <>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Centro de custo</p>
+                        <p className="text-sm font-medium">{costCenterLabel}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Cargo</p>
+                        <p className="text-sm font-medium">{cargoLabel}</p>
+                      </div>
+                    </>
+                  )}
                   <div>
                     <p className="text-xs text-muted-foreground">Motivo</p>
                     <p className="text-sm font-medium">{detailsFalta.motivo || "-"}</p>
@@ -1184,6 +1539,31 @@ const Faltas = () => {
                           : "Reverter justificativa"}
                       </Button>
                     )}
+                  {detailsFalta.tipo === "convenia" && (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={accessLoading || !canUpdateFaltaConvenia()}
+                        onClick={() => {
+                          handleDetailsDialogOpenChange(false);
+                          openEditFaltaForm(detailsFalta);
+                        }}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        disabled={accessLoading || !canDeleteFaltaConvenia()}
+                        onClick={() => handleDeleteFaltaConvenia(detailsFalta)}
+                      >
+                        Excluir
+                      </Button>
+                    </>
+                  )}
                 </DialogFooter>
               </div>
             );

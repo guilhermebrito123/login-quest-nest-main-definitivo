@@ -24,17 +24,22 @@ type FaltaJustificarDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   diariaId: number | null;
+  faltaId?: number | null;
   colaboradorId: string | null;
   colaboradorNome?: string | null;
   dataDiariaLabel?: string | null;
   onSuccess?: () => Promise<void> | void;
-  rpcName?: "justificar_falta_diaria_temporaria" | "justificar_falta_convenia";
+  rpcName?:
+    | "justificar_falta_diaria_temporaria"
+    | "justificar_falta_convenia"
+    | "justificar_falta_convenia_por_falta_id";
 };
 
 export const FaltaJustificarDialog = ({
   open,
   onOpenChange,
   diariaId,
+  faltaId = null,
   colaboradorId,
   colaboradorNome,
   dataDiariaLabel,
@@ -70,7 +75,16 @@ export const FaltaJustificarDialog = ({
   };
 
   const handleSubmit = async () => {
-    if (!diariaId || !colaboradorId) {
+    const isByFaltaId = rpcName === "justificar_falta_convenia_por_falta_id";
+    if (!colaboradorId) {
+      toast.error("Falta sem vinculo valido.");
+      return;
+    }
+    if (isByFaltaId && !faltaId) {
+      toast.error("Falta sem identificador valido.");
+      return;
+    }
+    if (!isByFaltaId && !diariaId) {
       toast.error("Falta sem vinculo valido.");
       return;
     }
@@ -87,18 +101,25 @@ export const FaltaJustificarDialog = ({
       }
 
       const sanitizedFileName = sanitizeFileName(file.name);
-      const storagePath = `${colaboradorId}/${diariaId}/${Date.now()}-${sanitizedFileName}`;
+      const pathKey = isByFaltaId ? `falta-${faltaId}` : `${diariaId}`;
+      const storagePath = `${colaboradorId}/${pathKey}/${Date.now()}-${sanitizedFileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from(BUCKET)
         .upload(storagePath, file, { upsert: false });
       if (uploadError) throw uploadError;
 
-      const { error: rpcError } = await supabase.rpc(rpcName, {
-        p_diaria_temporaria_id: diariaId,
-        p_atestado_path: storagePath,
-        p_user_id: authData.user.id,
-      });
+      const { error: rpcError } = isByFaltaId
+        ? await supabase.rpc("justificar_falta_convenia_por_falta_id", {
+            p_falta_id: faltaId,
+            p_atestado_path: storagePath,
+            p_user_id: authData.user.id,
+          })
+        : await supabase.rpc(rpcName, {
+            p_diaria_temporaria_id: diariaId,
+            p_atestado_path: storagePath,
+            p_user_id: authData.user.id,
+          });
 
       if (rpcError) {
         await supabase.storage.from(BUCKET).remove([storagePath]);
@@ -134,7 +155,7 @@ export const FaltaJustificarDialog = ({
               <span className="font-medium">{colaboradorNome || "-"}</span>
             </p>
             <p>
-              <span className="text-muted-foreground">Data da diaria:</span>{" "}
+              <span className="text-muted-foreground">Data da falta:</span>{" "}
               <span className="font-medium">{dataDiariaLabel || "-"}</span>
             </p>
           </div>
