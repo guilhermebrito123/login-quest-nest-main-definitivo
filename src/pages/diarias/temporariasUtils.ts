@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { parseISO, isWithinInterval } from "date-fns";
 import { getMonthRange, Diarista } from "./utils";
 import { useSession } from "@/hooks/useSession";
@@ -51,15 +52,8 @@ export type CostCenterResumo = {
   convenia_id: string;
 };
 
-export type ColaboradorConvenia = {
-  id: string;
-  name: string | null;
-  last_name: string | null;
-  social_name: string | null;
-  job_name?: string | null;
-  cost_center_id: string | null;
-  cost_center_name: string | null;
-};
+export type ColaboradorConvenia =
+  Database["public"]["Tables"]["colaboradores_convenia"]["Row"];
 
 export type DiariaTemporaria = {
   id: number;
@@ -224,7 +218,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("colaboradores_convenia")
-        .select("id, name, last_name, social_name, job_name, cost_center_id, cost_center_name")
+        .select("*")
         .order("name");
       if (error) throw error;
       return (data || []) as ColaboradorConvenia[];
