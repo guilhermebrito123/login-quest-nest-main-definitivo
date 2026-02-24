@@ -385,7 +385,6 @@ const createStatusPage = ({
       colaboradoresConvenia,
       colaboradoresConveniaMap,
       postoMap,
-      clienteMap,
       costCenterMap,
       clienteCostCenterMap,
       usuarioMap,
@@ -1100,82 +1099,26 @@ const createStatusPage = ({
       STATUS_LABELS[statusKey] || statusKey
     ).toLowerCase();
 
-    const getContratoInfoFromPosto = (postoInfo: any) => {
-      const contrato = postoInfo?.unidade?.contrato;
-      if (contrato?.id || contrato?.negocio) {
-        return {
-          id: contrato.id,
-          negocio: contrato.negocio ?? null,
-          clienteId: contrato.cliente_id ?? null,
-          clienteNome: contrato.clientes?.razao_social ?? null,
-        };
-      }
-      return null;
-    };
-
-    const getClienteInfoFromPosto = (postoInfo: any) => {
-      const contratoInfo = getContratoInfoFromPosto(postoInfo);
-      if (contratoInfo?.clienteId && contratoInfo.clienteNome) {
-        return { id: contratoInfo.clienteId, nome: contratoInfo.clienteNome };
+    const getClienteIdFromPosto = (postoInfo: any) => {
+      const contratoClienteId = postoInfo?.unidade?.contrato?.cliente_id;
+      if (contratoClienteId !== null && contratoClienteId !== undefined) {
+        return contratoClienteId;
       }
       if (postoInfo?.cliente_id !== null && postoInfo?.cliente_id !== undefined) {
-        const clienteId = Number(postoInfo.cliente_id);
-        const nome = Number.isFinite(clienteId)
-          ? clienteMap.get(clienteId) || ""
-          : "";
-        return {
-          id: postoInfo.cliente_id ?? "",
-          nome: nome || "Cliente nao informado",
-        };
+        return postoInfo.cliente_id;
       }
       return null;
     };
 
-    const getCostCenterLinkFromClienteId = (
+    const getCentroCustoIdFromClienteId = (
       clienteId?: number | string | null
     ) => {
-      if (clienteId === null || clienteId === undefined) return null;
+      if (clienteId === null || clienteId === undefined) return "";
       const idNumber =
         typeof clienteId === "number" ? clienteId : Number(clienteId);
-      if (!Number.isFinite(idNumber)) return null;
+      if (!Number.isFinite(idNumber)) return "";
       const link = clienteCostCenterMap.get(idNumber);
-      if (!link) return null;
-      const name = costCenterMap.get(link.id) || link.name || "";
-      return { id: link.id, name };
-    };
-
-    const getClienteNomeFromDiaria = (
-      diaria: DiariaTemporaria,
-      postoInfo: any
-    ) => {
-      const clienteInfoFromPosto = getClienteInfoFromPosto(postoInfo);
-      const nomePorCostCenter =
-        getCostCenterLinkFromClienteId(diaria.cliente_id)?.name ||
-        getCostCenterLinkFromClienteId(clienteInfoFromPosto?.id)?.name ||
-        "";
-      if (toTrimOrNull(nomePorCostCenter)) return nomePorCostCenter;
-
-      const nomePorId =
-        (typeof diaria.cliente_id === "number"
-          ? clienteMap.get(diaria.cliente_id) || ""
-          : "") || clienteInfoFromPosto?.nome || "";
-      return nomePorId || "";
-    };
-
-    const getClienteKeyFromDiaria = (
-      diaria: DiariaTemporaria,
-      postoInfo: any
-    ) => {
-      const clienteInfoFromPosto = getClienteInfoFromPosto(postoInfo);
-      const key =
-        getCostCenterLinkFromClienteId(diaria.cliente_id)?.id ||
-        getCostCenterLinkFromClienteId(clienteInfoFromPosto?.id)?.id ||
-        (typeof diaria.cliente_id === "number" &&
-          diaria.cliente_id.toString()) ||
-        (clienteInfoFromPosto?.id
-          ? String(clienteInfoFromPosto.id)
-          : "");
-      return key;
+      return link?.id ? String(link.id) : "";
     };
 
     const getCentroCustoIdFromDiaria = (
@@ -1184,8 +1127,27 @@ const createStatusPage = ({
     ) => {
       if (diaria.centro_custo_id) return diaria.centro_custo_id.toString();
       if (postoInfo?.cost_center_id) return postoInfo.cost_center_id.toString();
+      const fromClienteId = getCentroCustoIdFromClienteId(diaria.cliente_id);
+      if (fromClienteId) return fromClienteId;
+      const clienteIdFromPosto = getClienteIdFromPosto(postoInfo);
+      const fromPostoCliente = getCentroCustoIdFromClienteId(clienteIdFromPosto);
+      if (fromPostoCliente) return fromPostoCliente;
       return "";
     };
+
+    const getClienteNomeFromDiaria = (
+      diaria: DiariaTemporaria,
+      postoInfo: any
+    ) => {
+      const centroId = getCentroCustoIdFromDiaria(diaria, postoInfo);
+      if (!centroId) return "";
+      return costCenterMap.get(centroId) || centroId;
+    };
+
+    const getClienteKeyFromDiaria = (
+      diaria: DiariaTemporaria,
+      postoInfo: any
+    ) => getCentroCustoIdFromDiaria(diaria, postoInfo);
 
     const getCentroCustoNomeFromDiaria = (
       diaria: DiariaTemporaria,
@@ -1268,7 +1230,6 @@ const createStatusPage = ({
       totalRangeCliente.diaristaId,
       clienteCostCenterMap,
       costCenterMap,
-      clienteMap,
     ]);
 
     useEffect(() => {
@@ -1466,7 +1427,6 @@ const createStatusPage = ({
       postoMap,
       clienteCostCenterMap,
       costCenterMap,
-      clienteMap,
     ]);
 
     const costCenterFilterOptions = useMemo(() => {
@@ -1486,7 +1446,13 @@ const createStatusPage = ({
       return Array.from(map.entries())
         .map(([id, nome]) => ({ id, nome }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
-    }, [diariasDoStatus, diariasDoStatusFull, postoMap, costCenterMap]);
+    }, [
+      diariasDoStatus,
+      diariasDoStatusFull,
+      postoMap,
+      costCenterMap,
+      clienteCostCenterMap,
+    ]);
 
     const diariasBase = useMemo(
       () =>
@@ -1830,7 +1796,6 @@ const createStatusPage = ({
       isPagaPage,
       clienteCostCenterMap,
       costCenterMap,
-      clienteMap,
     ]);
 
     const selectedGroup = useMemo(() => {
@@ -3336,9 +3301,11 @@ const createStatusPage = ({
       const postoInfo = editForm.postoServicoId
         ? postoMap.get(editForm.postoServicoId)
         : null;
-      const clienteInfoFromPosto = getClienteInfoFromPosto(postoInfo);
-      const clienteIdValue = clienteInfoFromPosto?.id ?? "";
-      const clienteIdNumber = Number(clienteIdValue);
+      const clienteIdValue = getClienteIdFromPosto(postoInfo);
+      const clienteIdNumber =
+        clienteIdValue === null || clienteIdValue === undefined
+          ? Number.NaN
+          : Number(clienteIdValue);
       if (!Number.isFinite(clienteIdNumber)) {
         toast.error("Cliente invalido.");
         return;
@@ -3659,7 +3626,6 @@ const createStatusPage = ({
     );
     const selectedDiaristaReservaTecnica =
       selectedDiaristaInfo?.reserva_tecnica === true;
-    const selectedContratoInfo = getContratoInfoFromPosto(selectedPostoInfo);
     const selectedClienteDisplay = selectedDiaria
       ? getClienteOuCentroCustoDisplay(selectedDiaria, selectedPostoInfo)
       : { label: "Cliente", value: "-" };
@@ -6772,6 +6738,7 @@ const createStatusPage = ({
           open={faltaDialogOpen}
           onOpenChange={handleFaltaDialogOpenChange}
           diariaId={faltaDialogDiaria?.id ?? null}
+          faltaId={faltaInfo?.id ?? null}
           colaboradorId={
             faltaDialogDiaria?.colaborador_ausente_convenia ??
             faltaDialogDiaria?.colaborador_ausente ??
@@ -6793,7 +6760,9 @@ const createStatusPage = ({
           }
           rpcName={
             faltaDialogDiaria?.colaborador_ausente_convenia
-              ? "justificar_falta_convenia"
+              ? faltaDialogDiaria?.id
+                ? "justificar_falta_convenia"
+                : "justificar_falta_convenia_por_falta_id"
               : "justificar_falta_diaria_temporaria"
           }
           onSuccess={async () => {
