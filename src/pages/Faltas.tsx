@@ -342,6 +342,16 @@ const Faltas = () => {
     return getConveniaColaboradorNome(convenia) || falta.colaborador_convenia_id;
   };
 
+  const getConveniaCostCenterName = (colaboradorId: string) => {
+    const convenia = colaboradoresConveniaMap.get(colaboradorId);
+    if (!convenia) return "-";
+    return (
+      convenia.cost_center_name ||
+      (convenia.cost_center_id ? costCenterMap.get(convenia.cost_center_id) : null) ||
+      "-"
+    );
+  };
+
   const getFaltaColaboradorId = (falta: FaltaData) =>
     falta.tipo === "colaborador" ? falta.colaborador_id : falta.colaborador_convenia_id;
 
@@ -1177,10 +1187,12 @@ const Faltas = () => {
                           ? postoMap.get(diaria.posto_servico_id)
                           : colaborador?.posto || null;
                       const clienteNome =
-                        (typeof diaria?.cliente_id === "number" &&
-                          clienteMap.get(diaria.cliente_id)) ||
-                        getClienteInfoFromPosto(postoInfo)?.nome ||
-                        "-";
+                        falta.tipo === "convenia"
+                          ? getConveniaCostCenterName(falta.colaborador_convenia_id)
+                          : (typeof diaria?.cliente_id === "number" &&
+                              clienteMap.get(diaria.cliente_id)) ||
+                            getClienteInfoFromPosto(postoInfo)?.nome ||
+                            "-";
                       const dataFaltaLabel = formatDate(
                         diaria?.data_diaria ||
                           (falta.tipo === "convenia" ? falta.data_falta : null),
@@ -1424,9 +1436,12 @@ const Faltas = () => {
                 ? postoMap.get(diaria.posto_servico_id)
                 : colaborador?.posto || null;
             const clienteNome =
-              (typeof diaria?.cliente_id === "number" && clienteMap.get(diaria.cliente_id)) ||
-              getClienteInfoFromPosto(postoInfo)?.nome ||
-              "-";
+              detailsFalta.tipo === "convenia"
+                ? getConveniaCostCenterName(detailsFalta.colaborador_convenia_id)
+                : (typeof diaria?.cliente_id === "number" &&
+                    clienteMap.get(diaria.cliente_id)) ||
+                  getClienteInfoFromPosto(postoInfo)?.nome ||
+                  "-";
             const statusLabel = detailsFalta.justificada_em ? "Justificada" : "Pendente";
             const statusVariant: "default" | "destructive" =
               detailsFalta.justificada_em ? "default" : "destructive";
