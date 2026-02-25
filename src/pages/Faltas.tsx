@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
@@ -95,6 +96,125 @@ const CONVENIA_FIELD_DEFS = [
   { key: "created_at", label: "Criado em" },
   { key: "updated_at", label: "Atualizado em" },
 ] as const;
+
+const CONVENIA_FIELD_LABEL_MAP = new Map(
+  CONVENIA_FIELD_DEFS.map((field) => [field.key, field.label]),
+);
+
+const CONVENIA_FIELD_GROUPS = [
+  {
+    id: "identificacao",
+    label: "Identificacao",
+    keys: [
+      "id",
+      "convenia_id",
+      "name",
+      "last_name",
+      "social_name",
+      "cpf",
+      "registration",
+      "pis",
+      "birth_date",
+      "status",
+    ],
+  },
+  {
+    id: "contato",
+    label: "Contato",
+    keys: ["email", "personal_email", "personal_phone", "residential_phone"],
+  },
+  {
+    id: "endereco",
+    label: "Endereco",
+    keys: [
+      "address_zip_code",
+      "address_street",
+      "address_number",
+      "address_complement",
+      "address_district",
+      "address_city",
+      "address_state",
+    ],
+  },
+  {
+    id: "organizacao",
+    label: "Organizacao",
+    keys: [
+      "job_id",
+      "job_name",
+      "department_id",
+      "department_name",
+      "team_id",
+      "team_name",
+      "supervisor_id",
+      "supervisor_name",
+      "supervisor_last_name",
+      "cost_center_id",
+      "cost_center_name",
+      "cost_center",
+      "salary",
+      "hiring_date",
+    ],
+  },
+  {
+    id: "documentos",
+    label: "Documentos",
+    keys: [
+      "ctps_number",
+      "ctps_serial_number",
+      "ctps_emission_date",
+      "rg_number",
+      "rg_issuing_agency",
+      "rg_emission_date",
+      "driver_license_number",
+      "driver_license_category",
+      "driver_license_emission_date",
+      "driver_license_validate_date",
+      "electoral_card",
+      "reservist",
+      "aso",
+    ],
+  },
+  {
+    id: "financeiro",
+    label: "Financeiro",
+    keys: ["bank_accounts", "payroll"],
+  },
+  {
+    id: "pessoal",
+    label: "Pessoal",
+    keys: [
+      "disability",
+      "educations",
+      "nationalities",
+      "foreign_data",
+      "intern_data",
+      "experience_period",
+      "emergency_contacts",
+    ],
+  },
+  {
+    id: "sistema",
+    label: "Sistema",
+    keys: ["annotations", "raw_data", "synced_at", "created_at", "updated_at"],
+  },
+];
+
+const CONVENIA_FIELD_GROUPS_WITH_FALLBACK = (() => {
+  const groupedKeys = new Set(CONVENIA_FIELD_GROUPS.flatMap((group) => group.keys));
+  const remainingKeys = CONVENIA_FIELD_DEFS.map((field) => field.key).filter(
+    (key) => !groupedKeys.has(key),
+  );
+  if (remainingKeys.length === 0) return CONVENIA_FIELD_GROUPS;
+  return [
+    ...CONVENIA_FIELD_GROUPS,
+    {
+      id: "outros",
+      label: "Outros",
+      keys: remainingKeys,
+    },
+  ];
+})();
 
 const CONVENIA_EXPORT_FIELDS = CONVENIA_FIELD_DEFS.filter(
   (field) => field.key !== "id",
@@ -453,11 +573,137 @@ const Faltas = () => {
     "rg_emission_date",
   ]);
 
-  const CONVENIA_DATETIME_FIELDS = new Set(["created_at", "updated_at", "synced_at"]);
+const CONVENIA_DATETIME_FIELDS = new Set(["created_at", "updated_at", "synced_at"]);
 
-  const formatConveniaValue = (value: unknown, key?: string) => {
-    if (value === null || value === undefined || value === "") return "-";
-    if (key && CONVENIA_JSON_FIELDS.has(key)) {
+const humanizeConveniaKey = (value: string) =>
+  value
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const parseConveniaJsonValue = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  ) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+};
+
+const formatConveniaLeafValue = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+type ConveniaFieldEntry = {
+  id: string;
+  label: string;
+  value: string;
+};
+
+const buildConveniaEntryId = (fieldKey: string, pathParts: string[]) => {
+  const suffix = pathParts.length > 0 ? pathParts.join("__") : "root";
+  return `${fieldKey}__${suffix}`.replace(/\s+/g, "_");
+};
+
+const buildConveniaJsonEntries = (
+  fieldKey: string,
+  baseLabel: string,
+  value: unknown,
+  pathParts: string[] = [],
+): ConveniaFieldEntry[] => {
+  const labelSuffix = pathParts.length > 0 ? ` - ${pathParts.join(" - ")}` : "";
+  const label = `${baseLabel}${labelSuffix}`;
+  if (value === null || value === undefined || value === "") {
+    return [
+      {
+        id: buildConveniaEntryId(fieldKey, pathParts),
+        label,
+        value: "-",
+      },
+    ];
+  }
+  if (typeof value !== "object") {
+    return [
+      {
+        id: buildConveniaEntryId(fieldKey, pathParts),
+        label,
+        value: formatConveniaLeafValue(value),
+      },
+    ];
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return [
+        {
+          id: buildConveniaEntryId(fieldKey, pathParts),
+          label,
+          value: "-",
+        },
+      ];
+    }
+    return value.flatMap((item, index) =>
+      buildConveniaJsonEntries(fieldKey, baseLabel, item, [
+        ...pathParts,
+        `Item ${index + 1}`,
+      ]),
+    );
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) {
+    return [
+      {
+        id: buildConveniaEntryId(fieldKey, pathParts),
+        label,
+        value: "-",
+      },
+    ];
+  }
+  return entries.flatMap(([key, entryValue]) =>
+    buildConveniaJsonEntries(fieldKey, baseLabel, entryValue, [
+      ...pathParts,
+      humanizeConveniaKey(key),
+    ]),
+  );
+};
+
+const buildConveniaFieldEntries = (
+  fieldKey: string,
+  label: string,
+  value: unknown,
+): ConveniaFieldEntry[] => {
+  if (!CONVENIA_JSON_FIELDS.has(fieldKey)) {
+    return [
+      {
+        id: buildConveniaEntryId(fieldKey, []),
+        label,
+        value: formatConveniaValue(value, fieldKey),
+      },
+    ];
+  }
+  const normalized = parseConveniaJsonValue(value);
+  return buildConveniaJsonEntries(fieldKey, label, normalized);
+};
+
+const formatConveniaValue = (value: unknown, key?: string) => {
+  if (value === null || value === undefined || value === "") return "-";
+  if (key && CONVENIA_JSON_FIELDS.has(key)) {
       if (typeof value === "string") return value;
       try {
         return JSON.stringify(value);
@@ -1546,7 +1792,7 @@ const Faltas = () => {
         }}
       />
       <Dialog open={detailsDialogOpen} onOpenChange={handleDetailsDialogOpenChange}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-5xl max-h-[90vh] w-full overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhes da falta</DialogTitle>
             <DialogDescription>Informacoes completas da falta selecionada.</DialogDescription>
@@ -1591,6 +1837,24 @@ const Faltas = () => {
               diaria?.data_diaria ||
                 (detailsFalta.tipo === "convenia" ? detailsFalta.data_falta : null),
             );
+            const conveniaFieldEntriesByGroup =
+              detailsFalta.tipo === "convenia"
+                ? CONVENIA_FIELD_GROUPS_WITH_FALLBACK.map((group) => {
+                    const entries = group.keys.flatMap((key) => {
+                      const label = CONVENIA_FIELD_LABEL_MAP.get(key) ?? key;
+                      const rawValue =
+                        key === "cost_center_name"
+                          ? costCenterLabel
+                          : conveniaInfo && key in conveniaInfo
+                            ? (conveniaInfo as any)[key]
+                            : null;
+                      return buildConveniaFieldEntries(key, label, rawValue);
+                    });
+                    return { ...group, entries };
+                  })
+                : [];
+            const conveniaTabsDefault =
+              conveniaFieldEntriesByGroup[0]?.id ?? "identificacao";
 
             return (
               <div className="space-y-4">
@@ -1659,24 +1923,31 @@ const Faltas = () => {
                     <p className="text-sm font-semibold text-muted-foreground">
                       Dados do colaborador Convenia
                     </p>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {CONVENIA_FIELD_DEFS.map((field) => {
-                        const value =
-                          conveniaInfo && field.key in conveniaInfo
-                            ? (conveniaInfo as any)[field.key]
-                            : null;
-                        return (
-                          <div key={field.key}>
-                            <p className="text-xs text-muted-foreground">{field.label}</p>
-                            <p className="text-sm font-medium">
-                              {field.key === "cost_center_name"
-                                ? getConveniaCostCenterName(detailsFalta.colaborador_convenia_id)
-                                : formatConveniaValue(value, field.key)}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <Tabs defaultValue={conveniaTabsDefault} className="w-full">
+                      <TabsList className="w-full justify-start gap-1 overflow-x-auto">
+                        {conveniaFieldEntriesByGroup.map((group) => (
+                          <TabsTrigger key={group.id} value={group.id} className="shrink-0">
+                            {group.label}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                      {conveniaFieldEntriesByGroup.map((group) => (
+                        <TabsContent key={group.id} value={group.id} className="mt-4">
+                          {group.entries.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">Sem informacoes.</p>
+                          ) : (
+                            <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2">
+                              {group.entries.map((entry) => (
+                                <div key={entry.id}>
+                                  <p className="text-xs text-muted-foreground">{entry.label}</p>
+                                  <p className="text-sm font-medium">{entry.value}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </TabsContent>
+                      ))}
+                    </Tabs>
                   </div>
                 )}
 
