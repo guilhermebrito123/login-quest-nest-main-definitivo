@@ -21,10 +21,10 @@ import {
 } from "./diarias/utils";
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 
-const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
+const MOTIVO_VAGO_DIARIA_SALARIO = "DIÁRIA - SALÁRIO";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
-const MOTIVO_VAGO_SERVICO_EXTRA = "SERVIÇO EXTRA";
-const MOTIVO_VAGO_DIARIA_BONUS = "DIÁRIA BÔNUS";
+const MOTIVO_VAGO_DEMANDA_EXTRA = "DIÁRIA - DEMANDA EXTRA";
+const MOTIVO_VAGO_DIARIA_BONUS = "DIÁRIA - BÔNUS";
 const RESERVA_TECNICA_NAME = "RESERVA TÉCNICA";
 type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
 const DIARIAS_TEMPORARIAS_INSERT_LEVELS: AccessLevel[] = [
@@ -36,17 +36,17 @@ const DIARIAS_TEMPORARIAS_INSERT_LEVELS: AccessLevel[] = [
 ];
 
 const MOTIVO_VAGO_OPTIONS = [
-  MOTIVO_VAGO_VAGA_EM_ABERTO,
-  MOTIVO_VAGO_SERVICO_EXTRA,
-  "FALTA INJUSTIFICADA",
-  MOTIVO_VAGO_DIARIA_BONUS,
+  "DIÁRIA - FALTA",
+  "AFASTAMENTO INSS",
+  "DIÁRIA - FÉRIAS",
+  "SUSPENSÃO",
+  MOTIVO_VAGO_DIARIA_SALARIO,
   "LICENÇA MATERNIDADE",
   "LICENÇA PATERNIDADE",
   "LICENÇA CASAMENTO",
   MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO,
-  "AFASTAMENTO INSS",
-  "FÉRIAS",
-  "SUSPENSÃO",
+  MOTIVO_VAGO_DEMANDA_EXTRA,
+  MOTIVO_VAGO_DIARIA_BONUS,
 ];
 const toUpperOrNull = (value: string | null | undefined) => {
   const trimmed = (value ?? "").trim();
@@ -240,10 +240,10 @@ const Diarias2 = () => {
 
   const motivoVagoUpper = formState.motivoVago.toUpperCase();
   const isMotivoVagaEmAberto =
-    motivoVagoUpper === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+    motivoVagoUpper === MOTIVO_VAGO_DIARIA_SALARIO.toUpperCase();
   const isMotivoSemColaborador =
     isMotivoVagaEmAberto ||
-    motivoVagoUpper === MOTIVO_VAGO_SERVICO_EXTRA ||
+    motivoVagoUpper === MOTIVO_VAGO_DEMANDA_EXTRA ||
     motivoVagoUpper === MOTIVO_VAGO_DIARIA_BONUS;
   const canCreateDiaria = useMemo(
     () =>
@@ -606,8 +606,8 @@ const Diarias2 = () => {
                   onValueChange={(value) => {
                     const upperValue = value.toUpperCase();
                     const isSemColaborador =
-                      upperValue === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase() ||
-                      upperValue === MOTIVO_VAGO_SERVICO_EXTRA ||
+                      upperValue === MOTIVO_VAGO_DIARIA_SALARIO.toUpperCase() ||
+                      upperValue === MOTIVO_VAGO_DEMANDA_EXTRA ||
                       upperValue === MOTIVO_VAGO_DIARIA_BONUS;
                     setFormState((prev) => ({
                       ...prev,
