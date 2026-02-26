@@ -138,12 +138,12 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
   },
 ];
 
-const MOTIVO_VAGO_VAGA_EM_ABERTO = "VAGA EM ABERTO (COBERTURA SALÁRIO)";
+const MOTIVO_VAGO_DIARIA_SALARIO = "DIÁRIA - SALÁRIO";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
-const MOTIVO_VAGO_SERVICO_EXTRA = "SERVIÇO EXTRA";
-const MOTIVO_VAGO_DIARIA_BONUS = "DIÁRIA BÔNUS";
-const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
-const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
+const MOTIVO_VAGO_DEMANDA_EXTRA = "DIÁRIA - DEMANDA EXTRA";
+const MOTIVO_VAGO_DIARIA_BONUS = "DIÁRIA - BÔNUS";
+const MOTIVO_FALTA_INJUSTIFICADA = "DIÁRIA - FALTA";
+const MOTIVO_FALTA_JUSTIFICADA = "DIÁRIA - FALTA ATESTADO";
 const RESERVA_TECNICA_NAME = "RESERVA TÉCNICA";
 const DIARIAS_TEMPORARIAS_UPDATE_LEVELS: AccessLevel[] = [
   "admin",
@@ -177,18 +177,18 @@ const DIARIAS_CANCELAR_LEVELS: AccessLevel[] = [
 const DIARIAS_REPROVAR_LEVELS: AccessLevel[] = ["admin"];
 const DIARIAS_OK_PAGAMENTO_LEVELS: AccessLevel[] = ["admin"];
 const MOTIVO_VAGO_OPTIONS = [
-  MOTIVO_VAGO_VAGA_EM_ABERTO,
-  MOTIVO_VAGO_SERVICO_EXTRA,
   MOTIVO_FALTA_INJUSTIFICADA,
   MOTIVO_FALTA_JUSTIFICADA,
-  MOTIVO_VAGO_DIARIA_BONUS,
+  "AFASTAMENTO INSS",
+  "DIÁRIA - FÉRIAS",
+  "SUSPENSÃO",
+  MOTIVO_VAGO_DIARIA_SALARIO,
   "LICENÇA MATERNIDADE",
   "LICENÇA PATERNIDADE",
   "LICENÇA CASAMENTO",
   MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO,
-  "AFASTAMENTO INSS",
-  "FÉRIAS",
-  "SUSPENSÃO",
+  MOTIVO_VAGO_DEMANDA_EXTRA,
+  MOTIVO_VAGO_DIARIA_BONUS,
 ];
 
 const CADASTRO_INCOMPLETO_MESSAGE =
@@ -1046,12 +1046,12 @@ const createStatusPage = ({
         return normalized;
       });
 
-    const isVagaEmAberto = (motivo?: string | null) =>
-      (motivo || "").toUpperCase().includes("VAGA EM ABERTO");
-    const isServicoExtra = (motivo?: string | null) =>
-      (motivo || "").toUpperCase() === MOTIVO_VAGO_SERVICO_EXTRA;
-    const isDiariaBonus = (motivo?: string | null) =>
-      (motivo || "").toUpperCase() === MOTIVO_VAGO_DIARIA_BONUS;
+  const isVagaEmAberto = (motivo?: string | null) =>
+    (motivo || "").toUpperCase() === MOTIVO_VAGO_DIARIA_SALARIO.toUpperCase();
+  const isServicoExtra = (motivo?: string | null) =>
+    (motivo || "").toUpperCase() === MOTIVO_VAGO_DEMANDA_EXTRA.toUpperCase();
+  const isDiariaBonus = (motivo?: string | null) =>
+    (motivo || "").toUpperCase() === MOTIVO_VAGO_DIARIA_BONUS.toUpperCase();
     const isMotivoSemColaborador = (motivo?: string | null) =>
       isVagaEmAberto(motivo) || isServicoExtra(motivo) || isDiariaBonus(motivo);
 
@@ -3383,10 +3383,10 @@ const createStatusPage = ({
 
     const editMotivoUpper = editForm.motivoVago.toUpperCase();
     const isEditMotivoVaga =
-      editMotivoUpper === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase();
+      editMotivoUpper === MOTIVO_VAGO_DIARIA_SALARIO.toUpperCase();
     const isEditMotivoSemColaborador =
       isEditMotivoVaga ||
-      editMotivoUpper === MOTIVO_VAGO_SERVICO_EXTRA ||
+      editMotivoUpper === MOTIVO_VAGO_DEMANDA_EXTRA.toUpperCase() ||
       editMotivoUpper === MOTIVO_VAGO_DIARIA_BONUS;
     const demissaoSelectValue =
       editForm.demissao === null
@@ -6410,8 +6410,8 @@ const createStatusPage = ({
                   onValueChange={(value) => {
                     const upperValue = value.toUpperCase();
                     const isSemColaborador =
-                      upperValue === MOTIVO_VAGO_VAGA_EM_ABERTO.toUpperCase() ||
-                      upperValue === MOTIVO_VAGO_SERVICO_EXTRA ||
+                      upperValue === MOTIVO_VAGO_DIARIA_SALARIO.toUpperCase() ||
+                      upperValue === MOTIVO_VAGO_DEMANDA_EXTRA.toUpperCase() ||
                       upperValue === MOTIVO_VAGO_DIARIA_BONUS;
                     setEditForm((prev) => ({
                       ...prev,
