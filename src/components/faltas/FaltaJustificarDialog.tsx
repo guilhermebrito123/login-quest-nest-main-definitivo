@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const BUCKET = "atestados";
+const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
+const MOTIVO_DIARIA_FALTA_ATESTADO = "DIÁRIA - FALTA ATESTADO";
 const ALLOWED_ATTACHMENT_EXTENSIONS = [
   ".pdf",
   ".doc",
@@ -124,6 +126,52 @@ export const FaltaJustificarDialog = ({
       if (rpcError) {
         await supabase.storage.from(BUCKET).remove([storagePath]);
         throw rpcError;
+      }
+
+      const isConveniaRpc =
+        rpcName === "justificar_falta_convenia" || rpcName === "justificar_falta_convenia_por_falta_id";
+      if (isConveniaRpc) {
+        const updateErrors: string[] = [];
+        let diariaTemporariaId = diariaId;
+
+        if (!diariaTemporariaId && faltaId) {
+          const { data, error } = await supabase
+            .from("faltas_colaboradores_convenia")
+            .select("diaria_temporaria_id")
+            .eq("id", faltaId)
+            .maybeSingle();
+          if (error) {
+            updateErrors.push("diaria");
+          } else {
+            diariaTemporariaId = data?.diaria_temporaria_id ?? null;
+          }
+        }
+
+        if (faltaId) {
+          const { error } = await supabase
+            .from("faltas_colaboradores_convenia")
+            .update({ motivo: MOTIVO_FALTA_JUSTIFICADA })
+            .eq("id", faltaId);
+          if (error) updateErrors.push("falta");
+        } else if (diariaId) {
+          const { error } = await supabase
+            .from("faltas_colaboradores_convenia")
+            .update({ motivo: MOTIVO_FALTA_JUSTIFICADA })
+            .eq("diaria_temporaria_id", diariaId);
+          if (error) updateErrors.push("falta");
+        }
+
+        if (diariaTemporariaId) {
+          const { error } = await supabase
+            .from("diarias_temporarias")
+            .update({ motivo_vago: MOTIVO_DIARIA_FALTA_ATESTADO })
+            .eq("id", diariaTemporariaId);
+          if (error) updateErrors.push("diaria");
+        }
+
+        if (updateErrors.length > 0) {
+          toast.error("Falta justificada, mas nao foi possivel atualizar o motivo da falta/diaria.");
+        }
       }
 
       toast.success("Falta justificada com sucesso.");

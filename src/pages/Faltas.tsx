@@ -21,8 +21,10 @@ const BUCKET = "atestados";
 const CLIENTE_FILTER_ALL = "__all__";
 const COLABORADOR_FILTER_ALL = "__all__";
 const ADVANCED_FILTER_ALL = "__all__";
-const MOTIVO_FALTA_INJUSTIFICADA = "DIÁRIA - FALTA";
-const MOTIVO_FALTA_JUSTIFICADA = "DIÁRIA - FALTA ATESTADO";
+const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
+const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
+const MOTIVO_DIARIA_FALTA = "DIÁRIA - FALTA";
+const MOTIVO_DIARIA_FALTA_ATESTADO = "DIÁRIA - FALTA ATESTADO";
 const FALTAS_PAGE_SIZE = 10;
 const BASE_FALTAS_EXPORT_HEADERS = [
   "COLABORADOR",
@@ -1281,43 +1283,63 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       );
       if (rpcError) throw rpcError;
 
-      const pathToRemove = revertedPath || documentoPath;
-      if (pathToRemove) {
-        const { error: storageError } = await supabase.storage
-          .from(BUCKET)
-          .remove([pathToRemove]);
-        if (storageError) {
-          toast.error(
-            "Justificativa revertida, mas nao foi possivel remover o atestado."
-          );
+        const pathToRemove = revertedPath || documentoPath;
+        if (pathToRemove) {
+          const { error: storageError } = await supabase.storage
+            .from(BUCKET)
+            .remove([pathToRemove]);
+          if (storageError) {
+            toast.error(
+              "Justificativa revertida, mas nao foi possivel remover o atestado."
+            );
+          } else {
+            toast.success("Justificativa revertida com sucesso.");
+          }
         } else {
           toast.success("Justificativa revertida com sucesso.");
         }
-      } else {
-        toast.success("Justificativa revertida com sucesso.");
-      }
 
-      await Promise.all([refetchFaltasConvenia(), refetchDiarias()]);
+        const updateErrors: string[] = [];
+        const { error: faltaUpdateError } = await supabase
+          .from("faltas_colaboradores_convenia")
+          .update({ motivo: MOTIVO_FALTA_INJUSTIFICADA })
+          .eq("id", falta.id);
+        if (faltaUpdateError) updateErrors.push("falta");
+
+        if (falta.diaria_temporaria_id) {
+          const { error: diariaUpdateError } = await supabase
+            .from("diarias_temporarias")
+            .update({ motivo_vago: MOTIVO_DIARIA_FALTA })
+            .eq("id", falta.diaria_temporaria_id);
+          if (diariaUpdateError) updateErrors.push("diaria");
+        }
+        if (updateErrors.length > 0) {
+          toast.error(
+            "Justificativa revertida, mas nao foi possivel atualizar o motivo da falta/diaria."
+          );
+        }
+
+        await Promise.all([refetchFaltasConvenia(), refetchDiarias()]);
 
       const applyLocalUpdate = (prev: FaltaData | null) => {
         if (!prev || prev.id !== falta.id) return prev;
-        if (prev.tipo === "convenia") {
+          if (prev.tipo === "convenia") {
+            return {
+              ...prev,
+              motivo: MOTIVO_FALTA_INJUSTIFICADA,
+              justificada_em: null,
+              justificada_por: null,
+              atestado_path: null,
+            };
+          }
           return {
             ...prev,
             motivo: MOTIVO_FALTA_INJUSTIFICADA,
             justificada_em: null,
             justificada_por: null,
-            atestado_path: null,
+            documento_url: null,
           };
-        }
-        return {
-          ...prev,
-          motivo: MOTIVO_FALTA_INJUSTIFICADA,
-          justificada_em: null,
-          justificada_por: null,
-          documento_url: null,
         };
-      };
       setSelectedFalta(applyLocalUpdate);
       setDetailsFalta(applyLocalUpdate);
     } catch (error: any) {

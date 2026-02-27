@@ -62,6 +62,16 @@ const BRAZIL_BANKS = [
 
 const stripNonDigits = (value: string) => value.replace(/\D/g, "");
 
+type PixKeyType = "aleatoria" | "cpf" | "cnpj" | "email" | "celular";
+
+const PIX_KEY_TYPES: { value: PixKeyType; label: string }[] = [
+  { value: "aleatoria", label: "Chave aleatoria" },
+  { value: "cpf", label: "CPF" },
+  { value: "cnpj", label: "CNPJ" },
+  { value: "email", label: "Email" },
+  { value: "celular", label: "Celular" },
+];
+
 const formatCpf = (value: string) => {
   const digits = stripNonDigits(value).slice(0, 11);
   const part1 = digits.slice(0, 3);
@@ -72,6 +82,21 @@ const formatCpf = (value: string) => {
   if (part2) result += `.${part2}`;
   if (part3) result += `.${part3}`;
   if (part4) result += `-${part4}`;
+  return result;
+};
+
+const formatCnpj = (value: string) => {
+  const digits = stripNonDigits(value).slice(0, 14);
+  const part1 = digits.slice(0, 2);
+  const part2 = digits.slice(2, 5);
+  const part3 = digits.slice(5, 8);
+  const part4 = digits.slice(8, 12);
+  const part5 = digits.slice(12, 14);
+  let result = part1;
+  if (part2) result += `.${part2}`;
+  if (part3) result += `.${part3}`;
+  if (part4) result += `/${part4}`;
+  if (part5) result += `-${part5}`;
   return result;
 };
 
@@ -91,6 +116,99 @@ const formatTelefone = (value: string) => {
   const first = rest.slice(0, splitIndex);
   const second = rest.slice(splitIndex);
   return `(${ddd}) ${first}${second ? `-${second}` : ""}`;
+};
+
+const normalizePixCelularDigits = (value: string) => {
+  const digits = stripNonDigits(value);
+  if (digits.length >= 10) {
+    const ddd = digits.slice(0, 2);
+    let number = digits.slice(2);
+    if (number.length === 8) {
+      number = `9${number}`;
+    }
+    return `${ddd}${number}`.slice(0, 11);
+  }
+  return digits.slice(0, 11);
+};
+
+const formatPixForInput = (value: string, type: PixKeyType) => {
+  switch (type) {
+    case "cpf":
+      return formatCpf(value);
+    case "cnpj":
+      return formatCnpj(value);
+    case "celular":
+      return formatTelefone(normalizePixCelularDigits(value));
+    default:
+      return value;
+  }
+};
+
+const formatPixForSave = (value: string, type: PixKeyType) => {
+  const trimmed = value.trim();
+  switch (type) {
+    case "cpf":
+      return formatCpf(trimmed);
+    case "cnpj":
+      return formatCnpj(trimmed);
+    case "celular":
+      return formatTelefone(normalizePixCelularDigits(trimmed));
+    case "email":
+      return trimmed.toLowerCase();
+    default:
+      return trimmed;
+  }
+};
+
+const normalizePixForCompare = (value: string, type: PixKeyType) => {
+  const trimmed = value.trim();
+  switch (type) {
+    case "cpf":
+    case "cnpj":
+    case "celular":
+      return stripNonDigits(trimmed);
+    case "email":
+      return trimmed.toLowerCase();
+    default:
+      return trimmed;
+  }
+};
+
+const inferPixType = (value: string): PixKeyType => {
+  const trimmed = value.trim();
+  if (!trimmed) return "aleatoria";
+  if (trimmed.includes("@")) return "email";
+
+  const digits = stripNonDigits(trimmed);
+  if (digits.length === 14) return "cnpj";
+  if (digits.length === 11) {
+    if (trimmed.includes("(") || trimmed.includes(")") || digits[2] === "9") return "celular";
+    if (trimmed.includes(".")) return "cpf";
+    return "cpf";
+  }
+  if (digits.length === 10) return "celular";
+  return "aleatoria";
+};
+
+const getPixPlaceholder = (type: PixKeyType) => {
+  switch (type) {
+    case "cpf":
+      return "000.000.000-00";
+    case "cnpj":
+      return "00.000.000/0000-00";
+    case "email":
+      return "email@exemplo.com";
+    case "celular":
+      return "(00) 90000-0000";
+    default:
+      return "Chave aleatoria";
+  }
+};
+
+const getPixInputType = (type: PixKeyType) => {
+  if (type === "email") return "email";
+  if (type === "celular") return "tel";
+  return "text";
 };
 
 const isBlank = (value: string) => value.trim() === "";
@@ -113,6 +231,7 @@ interface DiaristaFormState {
   tipo_conta: "conta corrente" | "conta poupanca" | "conta salario";
   numero_conta: string;
   pix: string;
+  pix_tipo: PixKeyType;
   pix_pertence_beneficiario: boolean | null;
 }
 
@@ -132,6 +251,7 @@ const createInitialFormState = (): DiaristaFormState => ({
   tipo_conta: "conta corrente",
   numero_conta: "",
   pix: "",
+  pix_tipo: "aleatoria",
   pix_pertence_beneficiario: null,
 });
 
@@ -232,7 +352,8 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
         agencia: diarista.agencia || "",
         tipo_conta: diarista.tipo_conta || "conta corrente",
         numero_conta: diarista.numero_conta || "",
-        pix: diarista.pix || "",
+        pix: formatPixForInput(diarista.pix || "", inferPixType(diarista.pix || "")),
+        pix_tipo: inferPixType(diarista.pix || ""),
         pix_pertence_beneficiario:
           diarista.pix_pertence_beneficiario === null || diarista.pix_pertence_beneficiario === undefined
             ? null
@@ -278,6 +399,22 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     if (digits.length < 8) {
       lastCepLookupRef.current = "";
     }
+  };
+
+  const handlePixTypeChange = (value: string) => {
+    const nextType = value as PixKeyType;
+    setFormData((prev) => ({
+      ...prev,
+      pix_tipo: nextType,
+      pix: formatPixForInput(prev.pix, nextType),
+    }));
+  };
+
+  const handlePixChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      pix: formatPixForInput(value, prev.pix_tipo),
+    }));
   };
 
   useEffect(() => {
@@ -479,11 +616,15 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
       return;
     }
 
+    const { pix_tipo, ...payloadBase } = formData;
     const payload = {
-      ...formData,
+      ...payloadBase,
       cpf: stripNonDigits(formData.cpf),
       cep: stripNonDigits(formData.cep),
       telefone: stripNonDigits(formData.telefone),
+      agencia: stripNonDigits(formData.agencia),
+      numero_conta: stripNonDigits(formData.numero_conta),
+      pix: formatPixForSave(formData.pix, pix_tipo),
     };
     const hasSpecificAttachmentChanges = Object.values(specificFiles).some((file) => Boolean(file));
     const hasNewFiles = newFiles.length > 0;
@@ -499,10 +640,10 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
         Boolean(diarista.reserva_tecnica) !== payload.reserva_tecnica ||
         (diarista.status || "ativo") !== payload.status ||
         (diarista.banco || "") !== payload.banco ||
-        (diarista.agencia || "") !== payload.agencia ||
+        stripNonDigits(String(diarista.agencia ?? "")) !== payload.agencia ||
         (diarista.tipo_conta || "conta corrente") !== payload.tipo_conta ||
-        (diarista.numero_conta || "") !== payload.numero_conta ||
-        (diarista.pix || "") !== payload.pix ||
+        stripNonDigits(String(diarista.numero_conta ?? "")) !== payload.numero_conta ||
+        normalizePixForCompare(diarista.pix || "", pix_tipo) !== normalizePixForCompare(payload.pix || "", pix_tipo) ||
         (diarista.pix_pertence_beneficiario ?? null) !== payload.pix_pertence_beneficiario
       : false;
     const hasUpdateChanges = hasFieldChanges || hasSpecificAttachmentChanges;
@@ -755,12 +896,30 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                   onChange={(e) => setFormData({ ...formData, numero_conta: e.target.value })}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
+                <Label htmlFor="pix_tipo">Tipo de chave PIX</Label>
+                <Select value={formData.pix_tipo} onValueChange={handlePixTypeChange}>
+                  <SelectTrigger id="pix_tipo">
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PIX_KEY_TYPES.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="pix">Chave PIX</Label>
                 <Input
                   id="pix"
+                  type={getPixInputType(formData.pix_tipo)}
+                  inputMode={formData.pix_tipo === "cpf" || formData.pix_tipo === "cnpj" || formData.pix_tipo === "celular" ? "numeric" : undefined}
                   value={formData.pix}
-                  onChange={(e) => setFormData({ ...formData, pix: e.target.value })}
+                  onChange={(e) => handlePixChange(e.target.value)}
+                  placeholder={getPixPlaceholder(formData.pix_tipo)}
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
