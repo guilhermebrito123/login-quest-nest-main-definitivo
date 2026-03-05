@@ -481,8 +481,13 @@ const createStatusPage = ({
       useState<DiariaTemporaria | null>(null);
     const OPTIONAL_VALUE = "__none__";
     const UNSET_BOOL = "__unset__";
-    const observacaoPagamentoOptions =
-      Constants.public.Enums.observacao_pagamento_type;
+    const baseObservacaoPagamentoOptions =
+      Constants.public.Enums.observacao_pagamento_type || [];
+    const observacaoPagamentoOptions = baseObservacaoPagamentoOptions.includes(
+      "Outros"
+    )
+      ? baseObservacaoPagamentoOptions
+      : [...baseObservacaoPagamentoOptions, "Outros"];
     const motivoReprovacaoOptions = Constants.public.Enums.motivo_reprovacao;
     const [editForm, setEditForm] = useState({
       dataDiaria: "",
