@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -605,6 +605,34 @@ const createStatusPage = ({
     const isLancadaPage = normalizedKey === normalizeStatus(STATUS.lancada);
     const isAprovadaPage = normalizedKey === normalizeStatus(STATUS.aprovada);
     const isAdmin = accessLevel === "admin";
+    const nomeCollator = useMemo(
+      () =>
+        new Intl.Collator("pt-BR", {
+          sensitivity: "base",
+          ignorePunctuation: true,
+          numeric: true,
+        }),
+      []
+    );
+    const compareNomes = useCallback(
+      (left?: string | null, right?: string | null) => {
+        const a = (left ?? "").trim();
+        const b = (right ?? "").trim();
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
+        return nomeCollator.compare(a, b);
+      },
+      [nomeCollator]
+    );
+    const getDiaristaNomeForSort = useCallback(
+      (diaria: DiariaTemporaria) => {
+        const diaristaInfo =
+          diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
+        return diaristaInfo?.nome_completo?.trim() || "";
+      },
+      [diaristaMap]
+    );
     const canUpdateDiaria =
       !!accessLevel && DIARIAS_TEMPORARIAS_UPDATE_LEVELS.includes(accessLevel);
     const canConfirmStatus =
@@ -1680,13 +1708,8 @@ const createStatusPage = ({
         return ordenadas;
       }
       if (ordenarListaAlfabetica) {
-        const getDiaristaNomeForSort = (diaria: DiariaTemporaria) => {
-          const diaristaInfo =
-            diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
-          return diaristaInfo?.nome_completo || "";
-        };
         ordenadas.sort((a, b) =>
-          getDiaristaNomeForSort(a).localeCompare(getDiaristaNomeForSort(b))
+          compareNomes(getDiaristaNomeForSort(a), getDiaristaNomeForSort(b))
         );
       }
       return ordenadas;
@@ -1694,7 +1717,8 @@ const createStatusPage = ({
       diariasFiltradas,
       ordenarListaAlfabetica,
       ordenarListaPorDataDesc,
-      diaristaMap,
+      compareNomes,
+      getDiaristaNomeForSort,
     ]);
 
     const okPagamentoById = useMemo(() => {
@@ -1783,7 +1807,9 @@ const createStatusPage = ({
         return { ...group, clienteLabel };
       });
       if (ordenarAgrupadasAlfabetica) {
-        agrupadas.sort((a, b) => a.diaristaNome.localeCompare(b.diaristaNome));
+        agrupadas.sort((a, b) =>
+          compareNomes(a.diaristaNome, b.diaristaNome)
+        );
       }
       return agrupadas;
     }, [
@@ -1791,6 +1817,7 @@ const createStatusPage = ({
       diaristaMap,
       postoMap,
       ordenarAgrupadasAlfabetica,
+      compareNomes,
       isLancadaPage,
       isAprovadaPage,
       isPagaPage,

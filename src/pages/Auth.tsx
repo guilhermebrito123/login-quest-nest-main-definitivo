@@ -101,7 +101,6 @@ const Auth = () => {
           title: "Login realizado!",
           description: "Bem-vindo de volta ao Facilities Hub.",
         });
-        navigate("/dashboard");
       } else {
         // Validate signup data
         const validatedData = signUpSchema.parse({
@@ -135,7 +134,6 @@ const Auth = () => {
           description:
             "Sua conta foi criada com sucesso. Email de boas-vindas enviado!",
         });
-        navigate("/dashboard");
       }
     } catch (error: any) {
       if (error instanceof z.ZodError) {
