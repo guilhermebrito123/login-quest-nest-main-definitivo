@@ -791,13 +791,66 @@ const formatConveniaValue = (value: unknown, key?: string) => {
           "-";
   };
 
+  const faltasParaCards = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const startDate = dateRangeFilter.startDate
+      ? new Date(`${dateRangeFilter.startDate}T00:00:00`)
+      : null;
+    const endDate = dateRangeFilter.endDate
+      ? new Date(`${dateRangeFilter.endDate}T23:59:59.999`)
+      : null;
+    const hasInvalidRange =
+      (startDate && Number.isNaN(startDate.getTime())) ||
+      (endDate && Number.isNaN(endDate.getTime())) ||
+      (startDate && endDate && startDate > endDate);
+    return faltasAtivas.filter((falta) => {
+      if (clienteFilter !== CLIENTE_FILTER_ALL) {
+        const centroCustoId = falta.colaborador_convenia_id
+          ? getConveniaCostCenterId(falta.colaborador_convenia_id)
+          : String(diariaMap.get(String(falta.diaria_temporaria_id))?.centro_custo_id ?? "");
+        if (!centroCustoId || String(centroCustoId) !== clienteFilter) return false;
+      }
+
+      if (startDate || endDate) {
+        if (hasInvalidRange) return false;
+        const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
+        const dataFalta =
+          diaria?.data_diaria || (falta.tipo === "convenia" ? falta.data_falta : null);
+        if (!dataFalta) return false;
+        const faltaDate = new Date(`${dataFalta}T00:00:00`);
+        if (Number.isNaN(faltaDate.getTime())) return false;
+        if (startDate && faltaDate < startDate) return false;
+        if (endDate && faltaDate > endDate) return false;
+      }
+
+      if (colaboradorFilter !== COLABORADOR_FILTER_ALL) {
+        const colaboradorId = getFaltaColaboradorId(falta);
+        if (!colaboradorId || colaboradorId !== colaboradorFilter) return false;
+      }
+
+      if (!term) return true;
+      const colaboradorNome = getFaltaColaboradorNome(falta).toLowerCase();
+      const referenciaId = String(falta.diaria_temporaria_id ?? falta.id);
+      return colaboradorNome.includes(term) || referenciaId.includes(term);
+    });
+  }, [
+    faltasAtivas,
+    searchTerm,
+    clienteFilter,
+    colaboradorFilter,
+    dateRangeFilter,
+    diariaMap,
+    colaboradoresMap,
+    colaboradoresConveniaMap,
+  ]);
+
   const pendingCount = useMemo(
-    () => faltasAtivas.filter((falta) => !falta.justificada_em).length,
-    [faltasAtivas],
+    () => faltasParaCards.filter((falta) => !falta.justificada_em).length,
+    [faltasParaCards],
   );
   const justifiedCount = useMemo(
-    () => faltasAtivas.filter((falta) => !!falta.justificada_em).length,
-    [faltasAtivas],
+    () => faltasParaCards.filter((falta) => !!falta.justificada_em).length,
+    [faltasParaCards],
   );
 
   const advancedColaboradorOptions = useMemo(() => {
@@ -1590,11 +1643,11 @@ const formatConveniaValue = (value: unknown, key?: string) => {
         </div>
 
         <div className="flex flex-col gap-4 md:grid md:grid-cols-3">
-          <Card className="shadow-lg">
-            <CardHeader className="pb-2">
-              <CardDescription>Total de faltas</CardDescription>
-              <CardTitle className="text-2xl">{faltasAtivas.length}</CardTitle>
-            </CardHeader>
+            <Card className="shadow-lg">
+              <CardHeader className="pb-2">
+                <CardDescription>Total de faltas</CardDescription>
+                <CardTitle className="text-2xl">{faltasParaCards.length}</CardTitle>
+              </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
               Registradas via diarias temporarias ou manualmente.
             </CardContent>
