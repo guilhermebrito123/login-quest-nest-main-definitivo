@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +18,7 @@ import { formatDate, formatDateTime } from "./diarias/utils";
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 import { FaltaJustificarDialog } from "@/components/faltas/FaltaJustificarDialog";
 import { toast } from "sonner";
+import { useSession } from "@/hooks/useSession";
 
 const BUCKET = "atestados";
 const CLIENTE_FILTER_ALL = "__all__";
@@ -298,6 +301,19 @@ type FaltaConveniaRow = {
 type FaltaData = FaltaRow | FaltaConveniaRow;
 type FaltaRowDb = Omit<FaltaRow, "tipo">;
 type FaltaConveniaRowDb = Omit<FaltaConveniaRow, "tipo">;
+type FaltaGroup = {
+  key: string;
+  colaboradorId: string;
+  colaboradorNome: string;
+  ids: number[];
+  clientes: Set<string>;
+  count: number;
+  pendentes: number;
+  justificadas: number;
+  lastDateKey: number;
+  lastDateLabel: string;
+  clienteLabel: string;
+};
 
 const getClienteInfoFromPosto = (postoInfo: any) => {
   const contrato = postoInfo?.unidade?.contrato;
@@ -334,6 +350,7 @@ const FALTA_TYPE_OPTIONS: { value: FaltaTipo; label: string }[] = [
 ];
 
 const Faltas = () => {
+  const { session, loading: sessionLoading } = useSession();
   const [statusFilter, setStatusFilter] = useState("pendente");
   const [searchTerm, setSearchTerm] = useState("");
   const [clienteFilter, setClienteFilter] = useState(CLIENTE_FILTER_ALL);
@@ -371,12 +388,20 @@ const Faltas = () => {
     dataFalta: "",
     diariaId: "",
   });
+  const [faltasView, setFaltasView] = useState<"lista" | "agrupadas">("lista");
+  const [ordenarListaAlfabetica, setOrdenarListaAlfabetica] = useState(false);
+  const [ordenarListaPorDataDesc, setOrdenarListaPorDataDesc] = useState(false);
+  const [ordenarAgrupadasAlfabetica, setOrdenarAgrupadasAlfabetica] = useState(true);
+  const [ordenarAgrupadasPorDataDesc, setOrdenarAgrupadasPorDataDesc] = useState(false);
+  const [groupDetailsDialogOpen, setGroupDetailsDialogOpen] = useState(false);
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
 
   const [accessLevel, setAccessLevel] = useState<AccessLevel | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
   const [revertingId, setRevertingId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (sessionLoading || !session) return;
     const loadAccessLevel = async () => {
       try {
         const { data, error } = await supabase.rpc("current_internal_access_level");
@@ -390,7 +415,7 @@ const Faltas = () => {
       }
     };
     loadAccessLevel();
-  }, []);
+  }, [sessionLoading, session?.user?.id]);
 
   const {
     diarias,
@@ -417,7 +442,7 @@ const Faltas = () => {
     isLoading: loadingFaltasColaboradores,
     refetch: refetchFaltasColaboradores,
   } = useQuery({
-    queryKey: ["colaborador-faltas"],
+    queryKey: ["colaborador-faltas", session?.user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("colaborador_faltas")
@@ -426,6 +451,7 @@ const Faltas = () => {
       if (error) throw error;
       return (data || []) as FaltaRowDb[];
     },
+    enabled: !!session,
   });
 
   const {
@@ -433,7 +459,7 @@ const Faltas = () => {
     isLoading: loadingFaltasConvenia,
     refetch: refetchFaltasConvenia,
   } = useQuery({
-    queryKey: ["faltas-convenia"],
+    queryKey: ["faltas-convenia", session?.user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("faltas_colaboradores_convenia")
@@ -442,6 +468,7 @@ const Faltas = () => {
       if (error) throw error;
       return (data || []) as FaltaConveniaRowDb[];
     },
+    enabled: !!session,
   });
 
   const faltasColaboradores = useMemo(
@@ -474,7 +501,7 @@ const Faltas = () => {
   }, [faltasColaboradores, faltasConvenia]);
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ["faltas-usuarios", justificativaIds],
+    queryKey: ["faltas-usuarios", session?.user?.id, justificativaIds],
     queryFn: async () => {
       if (justificativaIds.length === 0) return [];
       const { data, error } = await supabase
@@ -484,7 +511,7 @@ const Faltas = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: justificativaIds.length > 0,
+    enabled: !!session && justificativaIds.length > 0,
   });
 
   const usuarioMap = useMemo(() => {
@@ -541,11 +568,14 @@ const Faltas = () => {
   const getConveniaCostCenterName = (colaboradorId: string) => {
     const convenia = colaboradoresConveniaMap.get(colaboradorId);
     if (!convenia) return "-";
-    return (
-      convenia.cost_center_name ||
-      (convenia.cost_center_id ? costCenterMap.get(convenia.cost_center_id) : null) ||
-      "-"
-    );
+    const costCenterId = convenia.cost_center_id || "";
+    const costCenterName = costCenterId ? costCenterMap.get(costCenterId) : null;
+    return costCenterName || "-";
+  };
+
+  const getConveniaCostCenterId = (colaboradorId: string) => {
+    const convenia = colaboradoresConveniaMap.get(colaboradorId);
+    return convenia?.cost_center_id || "";
   };
 
   const CONVENIA_JSON_FIELDS = new Set([
@@ -728,6 +758,39 @@ const formatConveniaValue = (value: unknown, key?: string) => {
   const getFaltaDocumentoPath = (falta: FaltaData) =>
     falta.tipo === "colaborador" ? falta.documento_url : falta.atestado_path;
 
+  const getFaltaDataValue = (falta: FaltaData) => {
+    const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
+    return diaria?.data_diaria || (falta.tipo === "convenia" ? falta.data_falta : null);
+  };
+
+  const getFaltaDateKey = (falta: FaltaData) => {
+    const dataFalta = getFaltaDataValue(falta);
+    if (dataFalta) {
+      const dateKey = new Date(`${dataFalta}T00:00:00`).getTime();
+      if (!Number.isNaN(dateKey)) return dateKey;
+    }
+    const createdKey = falta.created_at ? new Date(falta.created_at).getTime() : 0;
+    return Number.isNaN(createdKey) ? 0 : createdKey;
+  };
+
+  const getFaltaDataLabel = (falta: FaltaData) => {
+    const dataFalta = getFaltaDataValue(falta);
+    return dataFalta ? formatDate(dataFalta) : "-";
+  };
+
+  const getFaltaClienteNome = (falta: FaltaData) => {
+    const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
+    const colaborador =
+      falta.tipo === "colaborador" ? colaboradoresMap.get(falta.colaborador_id) : null;
+    const postoInfo =
+      diaria?.posto_servico_id ? postoMap.get(diaria.posto_servico_id) : colaborador?.posto || null;
+    return falta.colaborador_convenia_id
+      ? getConveniaCostCenterName(falta.colaborador_convenia_id)
+      : (typeof diaria?.cliente_id === "number" && clienteMap.get(diaria.cliente_id)) ||
+          getClienteInfoFromPosto(postoInfo)?.nome ||
+          "-";
+  };
+
   const pendingCount = useMemo(
     () => faltasAtivas.filter((falta) => !falta.justificada_em).length,
     [faltasAtivas],
@@ -876,8 +939,9 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       if (statusFilter === "justificada" && !falta.justificada_em) return;
 
       if (clienteFilter !== CLIENTE_FILTER_ALL) {
-        const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
-        const centroCustoId = diaria?.centro_custo_id;
+        const centroCustoId = falta.colaborador_convenia_id
+          ? getConveniaCostCenterId(falta.colaborador_convenia_id)
+          : String(diariaMap.get(String(falta.diaria_temporaria_id))?.centro_custo_id ?? "");
         if (!centroCustoId || String(centroCustoId) !== clienteFilter) return;
       }
 
@@ -934,8 +998,9 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       if (statusFilter === "justificada" && !falta.justificada_em) return false;
 
       if (clienteFilter !== CLIENTE_FILTER_ALL) {
-        const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
-        const centroCustoId = diaria?.centro_custo_id;
+        const centroCustoId = falta.colaborador_convenia_id
+          ? getConveniaCostCenterId(falta.colaborador_convenia_id)
+          : String(diariaMap.get(String(falta.diaria_temporaria_id))?.centro_custo_id ?? "");
         if (!centroCustoId || String(centroCustoId) !== clienteFilter) return false;
       }
 
@@ -973,15 +1038,135 @@ const formatConveniaValue = (value: unknown, key?: string) => {
     colaboradoresConveniaMap,
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredFaltas.length / FALTAS_PAGE_SIZE));
+  const faltasOrdenadas = useMemo(() => {
+    if (!ordenarListaAlfabetica && !ordenarListaPorDataDesc) return filteredFaltas;
+    const ordenadas = [...filteredFaltas];
+    if (ordenarListaPorDataDesc) {
+      ordenadas.sort((a, b) => {
+        const keyA = getFaltaDateKey(a);
+        const keyB = getFaltaDateKey(b);
+        if (keyA === keyB) return 0;
+        return keyA < keyB ? 1 : -1;
+      });
+      return ordenadas;
+    }
+    if (ordenarListaAlfabetica) {
+      ordenadas.sort((a, b) =>
+        getFaltaColaboradorNome(a).localeCompare(getFaltaColaboradorNome(b)),
+      );
+    }
+    return ordenadas;
+  }, [
+    filteredFaltas,
+    ordenarListaAlfabetica,
+    ordenarListaPorDataDesc,
+    colaboradoresMap,
+    colaboradoresConveniaMap,
+    costCenterMap,
+    clienteMap,
+    diariaMap,
+    postoMap,
+  ]);
+
+  const faltasAgrupadas = useMemo(() => {
+    const groups = new Map<string, Omit<FaltaGroup, "clienteLabel">>();
+    filteredFaltas.forEach((falta) => {
+      const colaboradorId = getFaltaColaboradorId(falta);
+      if (!colaboradorId) return;
+      const key = String(colaboradorId);
+      const colaboradorNome = getFaltaColaboradorNome(falta);
+      const clienteNome = getFaltaClienteNome(falta);
+      const dataKey = getFaltaDateKey(falta);
+      const dataLabel = getFaltaDataLabel(falta);
+      const group =
+        groups.get(key) || ({
+          key,
+          colaboradorId: key,
+          colaboradorNome,
+          ids: [],
+          clientes: new Set<string>(),
+          count: 0,
+          pendentes: 0,
+          justificadas: 0,
+          lastDateKey: 0,
+          lastDateLabel: "-",
+        } as Omit<FaltaGroup, "clienteLabel">);
+      group.ids.push(falta.id);
+      group.count += 1;
+      if (falta.justificada_em) {
+        group.justificadas += 1;
+      } else {
+        group.pendentes += 1;
+      }
+      group.clientes.add(clienteNome);
+      if (dataKey >= group.lastDateKey) {
+        group.lastDateKey = dataKey;
+        group.lastDateLabel = dataLabel;
+      }
+      groups.set(key, group);
+    });
+
+    const agrupadas = Array.from(groups.values()).map((group) => {
+      let clienteLabel = "-";
+      if (group.clientes.size > 1) {
+        clienteLabel = "Diversos";
+      } else {
+        clienteLabel = Array.from(group.clientes)[0] || "-";
+      }
+      return { ...group, clienteLabel } as FaltaGroup;
+    });
+
+    if (ordenarAgrupadasPorDataDesc) {
+      agrupadas.sort((a, b) => b.lastDateKey - a.lastDateKey);
+      return agrupadas;
+    }
+    if (ordenarAgrupadasAlfabetica) {
+      agrupadas.sort((a, b) => a.colaboradorNome.localeCompare(b.colaboradorNome));
+    }
+    return agrupadas;
+  }, [
+    filteredFaltas,
+    ordenarAgrupadasAlfabetica,
+    ordenarAgrupadasPorDataDesc,
+    colaboradoresMap,
+    colaboradoresConveniaMap,
+    costCenterMap,
+    clienteMap,
+    diariaMap,
+    postoMap,
+  ]);
+
+  const selectedGroup = useMemo(() => {
+    if (!selectedGroupKey) return null;
+    return faltasAgrupadas.find((group) => group.key === selectedGroupKey) || null;
+  }, [faltasAgrupadas, selectedGroupKey]);
+
+  const selectedGroupFaltas = useMemo(() => {
+    if (!selectedGroup) return [];
+    return filteredFaltas
+      .filter((falta) => getFaltaColaboradorId(falta) === selectedGroup.colaboradorId)
+      .sort((a, b) => getFaltaDateKey(b) - getFaltaDateKey(a));
+  }, [filteredFaltas, selectedGroup]);
+
+  const totalPages = Math.max(1, Math.ceil(faltasOrdenadas.length / FALTAS_PAGE_SIZE));
   const paginatedFaltas = useMemo(() => {
     const start = (currentPage - 1) * FALTAS_PAGE_SIZE;
-    return filteredFaltas.slice(start, start + FALTAS_PAGE_SIZE);
-  }, [filteredFaltas, currentPage]);
+    return faltasOrdenadas.slice(start, start + FALTAS_PAGE_SIZE);
+  }, [faltasOrdenadas, currentPage]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, clienteFilter, colaboradorFilter, dateRangeFilter, faltaType]);
+  }, [
+    searchTerm,
+    statusFilter,
+    clienteFilter,
+    colaboradorFilter,
+    dateRangeFilter,
+    faltaType,
+    ordenarListaAlfabetica,
+    ordenarListaPorDataDesc,
+    faltasView,
+  ]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -1359,6 +1544,21 @@ const formatConveniaValue = (value: unknown, key?: string) => {
     setDetailsDialogOpen(true);
   };
 
+  const openGroupDetailsDialog = (groupKey: string) => {
+    setSelectedGroupKey(groupKey);
+    setGroupDetailsDialogOpen(true);
+  };
+
+  const closeGroupDetailsDialog = () => {
+    setGroupDetailsDialogOpen(false);
+    setSelectedGroupKey(null);
+  };
+
+  const handleOpenGroupFaltaDetails = (falta: FaltaData) => {
+    closeGroupDetailsDialog();
+    openDetailsDialog(falta);
+  };
+
   const selectedColaboradorId = selectedFalta ? getFaltaColaboradorId(selectedFalta) : null;
   const selectedColaboradorNome = selectedFalta ? getFaltaColaboradorNome(selectedFalta) : null;
   const selectedRpcName =
@@ -1543,19 +1743,148 @@ const formatConveniaValue = (value: unknown, key?: string) => {
               <CardTitle>Faltas registradas</CardTitle>
               <CardDescription>Selecione uma falta para justificar com anexo.</CardDescription>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="button" variant="outline" onClick={openCreateFaltaForm}>
-                Nova falta
-              </Button>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={faltasView === "lista" ? "default" : "outline"}
+                  onClick={() => setFaltasView("lista")}
+                >
+                  Lista completa
+                </Button>
+                <Button
+                  size="sm"
+                  variant={faltasView === "agrupadas" ? "default" : "outline"}
+                  onClick={() => setFaltasView("agrupadas")}
+                >
+                  Agrupadas
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button type="button" variant="outline" onClick={openCreateFaltaForm}>
+                  Nova falta
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             {loadingFaltas ? (
               <p className="text-sm text-muted-foreground">Carregando faltas...</p>
+            ) : faltasView === "agrupadas" ? (
+              faltasAgrupadas.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma falta encontrada.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
+                      <Checkbox
+                        id="ordenar-agrupadas-az"
+                        checked={ordenarAgrupadasAlfabetica}
+                        onCheckedChange={(checked) => {
+                          const next = checked === true;
+                          setOrdenarAgrupadasAlfabetica(next);
+                          if (next) {
+                            setOrdenarAgrupadasPorDataDesc(false);
+                          }
+                        }}
+                      />
+                      <Label htmlFor="ordenar-agrupadas-az" className="cursor-pointer">
+                        Ordenar A-Z
+                      </Label>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
+                      <Checkbox
+                        id="ordenar-agrupadas-data"
+                        checked={ordenarAgrupadasPorDataDesc}
+                        onCheckedChange={(checked) => {
+                          const next = checked === true;
+                          setOrdenarAgrupadasPorDataDesc(next);
+                          if (next) {
+                            setOrdenarAgrupadasAlfabetica(false);
+                          }
+                        }}
+                      />
+                      <Label htmlFor="ordenar-agrupadas-data" className="cursor-pointer">
+                        Mais recentes
+                      </Label>
+                    </div>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Colaborador</TableHead>
+                        <TableHead className="hidden sm:table-cell">Cliente</TableHead>
+                        <TableHead className="hidden md:table-cell">Mais recente</TableHead>
+                        <TableHead className="text-right">Qtd</TableHead>
+                        <TableHead className="hidden sm:table-cell text-right">Pendentes</TableHead>
+                        <TableHead className="hidden sm:table-cell text-right">Justificadas</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {faltasAgrupadas.map((group) => (
+                        <TableRow
+                          key={group.key}
+                          className="cursor-pointer"
+                          onClick={() => openGroupDetailsDialog(group.key)}
+                        >
+                          <TableCell>{group.colaboradorNome}</TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            {group.clienteLabel}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {group.lastDateLabel}
+                          </TableCell>
+                          <TableCell className="text-right">{group.count}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-right">
+                            {group.pendentes}
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-right">
+                            {group.justificadas}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
             ) : filteredFaltas.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma falta encontrada.</p>
             ) : (
               <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
+                    <Checkbox
+                      id="ordenar-lista-az"
+                      checked={ordenarListaAlfabetica}
+                      onCheckedChange={(checked) => {
+                        const next = checked === true;
+                        setOrdenarListaAlfabetica(next);
+                        if (next) {
+                          setOrdenarListaPorDataDesc(false);
+                        }
+                      }}
+                    />
+                    <Label htmlFor="ordenar-lista-az" className="cursor-pointer">
+                      Ordenar A-Z
+                    </Label>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
+                    <Checkbox
+                      id="ordenar-lista-data"
+                      checked={ordenarListaPorDataDesc}
+                      onCheckedChange={(checked) => {
+                        const next = checked === true;
+                        setOrdenarListaPorDataDesc(next);
+                        if (next) {
+                          setOrdenarListaAlfabetica(false);
+                        }
+                      }}
+                    />
+                    <Label htmlFor="ordenar-lista-data" className="cursor-pointer">
+                      Mais recentes
+                    </Label>
+                  </div>
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1571,26 +1900,8 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                   </TableHeader>
                   <TableBody>
                     {paginatedFaltas.map((falta) => {
-                      const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
-                      const colaborador =
-                        falta.tipo === "colaborador"
-                          ? colaboradoresMap.get(falta.colaborador_id)
-                          : null;
-                      const postoInfo =
-                        diaria?.posto_servico_id
-                          ? postoMap.get(diaria.posto_servico_id)
-                          : colaborador?.posto || null;
-                      const clienteNome =
-                        falta.tipo === "convenia"
-                          ? getConveniaCostCenterName(falta.colaborador_convenia_id)
-                          : (typeof diaria?.cliente_id === "number" &&
-                              clienteMap.get(diaria.cliente_id)) ||
-                            getClienteInfoFromPosto(postoInfo)?.nome ||
-                            "-";
-                      const dataFaltaLabel = formatDate(
-                        diaria?.data_diaria ||
-                          (falta.tipo === "convenia" ? falta.data_falta : null),
-                      );
+                      const clienteNome = getFaltaClienteNome(falta);
+                      const dataFaltaLabel = getFaltaDataLabel(falta);
                       const statusLabel = falta.justificada_em ? "Justificada" : "Pendente";
                       const statusVariant: "default" | "destructive" =
                         falta.justificada_em ? "default" : "destructive";
@@ -1705,6 +2016,121 @@ const formatConveniaValue = (value: unknown, key?: string) => {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog
+        open={groupDetailsDialogOpen}
+        onOpenChange={(open) => (open ? null : closeGroupDetailsDialog())}
+      >
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes do agrupamento</DialogTitle>
+            <DialogDescription>
+              Informacoes completas das faltas deste colaborador.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedGroup ? (
+            <div className="space-y-4 text-sm">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Colaborador</p>
+                  <p className="font-medium">{selectedGroup.colaboradorNome}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Cliente</p>
+                  <p className="font-medium">{selectedGroup.clienteLabel}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Mais recente</p>
+                  <p className="font-medium">{selectedGroup.lastDateLabel}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Quantidade</p>
+                  <p className="font-medium">{selectedGroup.count}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Pendentes</p>
+                  <p className="font-medium">{selectedGroup.pendentes}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Justificadas</p>
+                  <p className="font-medium">{selectedGroup.justificadas}</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                {selectedGroupFaltas.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4">
+                    Nenhuma falta encontrada para este grupo.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead className="hidden sm:table-cell">Motivo</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="hidden md:table-cell">
+                          Justificada em
+                        </TableHead>
+                        <TableHead className="text-right">Acoes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedGroupFaltas.map((falta) => {
+                        const statusLabel = falta.justificada_em ? "Justificada" : "Pendente";
+                        const statusVariant: "default" | "destructive" =
+                          falta.justificada_em ? "default" : "destructive";
+                        const justificadaPorNome = falta.justificada_por
+                          ? usuarioMap.get(falta.justificada_por) || falta.justificada_por
+                          : "-";
+                        return (
+                          <TableRow key={falta.id}>
+                            <TableCell>{getFaltaDataLabel(falta)}</TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              {falta.motivo || "-"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={statusVariant}>{statusLabel}</Badge>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {falta.justificada_em ? (
+                                <div className="text-xs">
+                                  <div>{formatDateTime(falta.justificada_em)}</div>
+                                  <div className="text-muted-foreground">
+                                    {justificadaPorNome}
+                                  </div>
+                                </div>
+                              ) : (
+                                "-"
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenGroupFaltaDetails(falta)}
+                              >
+                                Detalhes
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Grupo nao encontrado.</p>
+          )}
+          <DialogFooter>
+            <Button type="button" onClick={closeGroupDetailsDialog}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={faltaFormOpen} onOpenChange={handleFaltaFormOpenChange}>
         <DialogContent className="max-w-lg">
@@ -1830,7 +2256,7 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                 ? postoMap.get(diaria.posto_servico_id)
                 : colaborador?.posto || null;
             const clienteNome =
-              detailsFalta.tipo === "convenia"
+              detailsFalta.colaborador_convenia_id
                 ? getConveniaCostCenterName(detailsFalta.colaborador_convenia_id)
                 : (typeof diaria?.cliente_id === "number" &&
                     clienteMap.get(diaria.cliente_id)) ||

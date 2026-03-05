@@ -56,7 +56,17 @@ import MinhaConta from "./pages/MinhaConta";
 import DadosEmpresariais from "./pages/DadosEmpresariais";
 import CandidatoCadastro from "./pages/CandidatoCadastro";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 0,
+      gcTime: 0,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

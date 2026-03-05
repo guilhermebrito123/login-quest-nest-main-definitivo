@@ -1967,7 +1967,7 @@ export type Database = {
           id: number
           justificada_em: string | null
           justificada_por: string | null
-          motivo: Database["public"]["Enums"]["motivo_vago_type"]
+          motivo: string
           updated_at: string
         }
         Insert: {
@@ -1979,7 +1979,7 @@ export type Database = {
           id?: number
           justificada_em?: string | null
           justificada_por?: string | null
-          motivo: Database["public"]["Enums"]["motivo_vago_type"]
+          motivo: string
           updated_at?: string
         }
         Update: {
@@ -1991,7 +1991,7 @@ export type Database = {
           id?: number
           justificada_em?: string | null
           justificada_por?: string | null
-          motivo?: Database["public"]["Enums"]["motivo_vago_type"]
+          motivo?: string
           updated_at?: string
         }
         Relationships: [
@@ -3538,23 +3538,10 @@ export type Database = {
         }
         Returns: undefined
       }
-      justificar_falta_convenia_por_falta_id:
-        | {
-            Args: {
-              p_atestado_path: string
-              p_falta_id: number
-              p_user_id: string
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_atestado_path: string
-              p_falta_id: string
-              p_user_id: string
-            }
-            Returns: undefined
-          }
+      justificar_falta_convenia_por_falta_id: {
+        Args: { p_atestado_path: string; p_falta_id: number; p_user_id: string }
+        Returns: undefined
+      }
       justificar_falta_diaria_temporaria: {
         Args: {
           p_atestado_path: string

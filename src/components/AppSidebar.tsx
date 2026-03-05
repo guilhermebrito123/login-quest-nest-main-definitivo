@@ -25,6 +25,7 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSession } from "@/hooks/useSession";
 
 import {
   Sidebar,
@@ -134,6 +135,7 @@ export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
+  const { session } = useSession();
   const currentPath = location.pathname;
   const [diariasCounts, setDiariasCounts] = useState<Record<string, number>>(
     {}
@@ -144,6 +146,11 @@ export function AppSidebar() {
   const [enterprisePending, setEnterprisePending] = useState(false);
   useEffect(() => {
     let isMounted = true;
+    if (!session) {
+      return () => {
+        isMounted = false;
+      };
+    }
 
     const fetchCounts = async (
       children: { title: string; url: string; status?: string }[],
@@ -186,15 +193,13 @@ export function AppSidebar() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     let active = true;
     const checkEnterprisePending = async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const user = session?.user;
         if (!user) return;
 
         const { data: profile } = await supabase
@@ -263,7 +268,7 @@ export function AppSidebar() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [session?.user?.id]);
 
   const computedMenuItems = useMemo(
     () =>
