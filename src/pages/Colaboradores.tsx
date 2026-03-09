@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 
@@ -51,6 +52,8 @@ const STATUS_COLABORADOR_BADGE: Record<string, "default" | "secondary"> = {
 };
 
 const parseDbDate = (date: string) => new Date(`${date}T00:00:00`);
+const formatDate = (date?: string | null) =>
+  date ? format(parseDbDate(date), "dd/MM/yyyy", { locale: ptBR }) : "-";
 const getColaboradorNome = (colaborador: any) => {
   const nomeCompleto = [colaborador?.name, colaborador?.last_name]
     .filter(Boolean)
@@ -106,6 +109,464 @@ const getCostCenterLabel = (colaborador: any) => {
 
 const getStatusBadgeVariant = (status?: string | null): "default" | "secondary" | "outline" =>
   status && STATUS_COLABORADOR_BADGE[status] ? STATUS_COLABORADOR_BADGE[status] : "outline";
+
+const FIELD_LABELS: Record<string, string> = {
+  id: "ID",
+  convenia_id: "ID Convenia",
+  name: "Nome",
+  last_name: "Sobrenome",
+  social_name: "Nome social",
+  status: "Status",
+  registration: "Matrícula",
+  cpf: "CPF",
+  birth_date: "Data de nascimento",
+  hiring_date: "Data de admissão",
+  email: "Email corporativo",
+  personal_email: "Email pessoal",
+  personal_phone: "Telefone pessoal",
+  residential_phone: "Telefone residencial",
+  job_id: "Cargo (ID)",
+  job_name: "Cargo",
+  department_id: "Departamento (ID)",
+  department_name: "Departamento",
+  team_id: "Equipe (ID)",
+  team_name: "Equipe",
+  supervisor_id: "Supervisor (ID)",
+  supervisor_name: "Supervisor (nome)",
+  supervisor_last_name: "Supervisor (sobrenome)",
+  cost_center_id: "Centro de custo (ID)",
+  cost_center_name: "Centro de custo (nome)",
+  cost_center: "Centro de custo (payload)",
+  address_street: "Rua",
+  address_number: "Número",
+  address_complement: "Complemento",
+  address_district: "Bairro",
+  address_city: "Cidade",
+  address_state: "Estado",
+  address_zip_code: "CEP",
+  rg_number: "RG - Número",
+  rg_issuing_agency: "RG - Órgão emissor",
+  rg_emission_date: "RG - Data de emissão",
+  ctps_number: "CTPS - Número",
+  ctps_serial_number: "CTPS - Série",
+  ctps_emission_date: "CTPS - Data de emissão",
+  pis: "PIS",
+  electoral_card: "Título de eleitor",
+  reservist: "Reservista",
+  driver_license_number: "CNH - Número",
+  driver_license_category: "CNH - Categoria",
+  driver_license_emission_date: "CNH - Data de emissão",
+  driver_license_validate_date: "CNH - Validade",
+  salary: "Salário",
+  payroll: "Folha de pagamento",
+  bank_accounts: "Contas bancárias",
+  emergency_contacts: "Contatos de emergência",
+  educations: "Formação",
+  experience_period: "Período de experiência",
+  intern_data: "Dados de estágio",
+  disability: "Deficiência",
+  aso: "ASO",
+  nationalities: "Nacionalidades",
+  annotations: "Anotações",
+  foreign_data: "Dados estrangeiros",
+  raw_data: "Dados brutos",
+  synced_at: "Sincronizado em",
+  created_at: "Criado em",
+  updated_at: "Atualizado em",
+  "cost_center_ref.id": "Centro de custo (ref ID)",
+  "cost_center_ref.name": "Centro de custo (ref nome)",
+  "cost_center_ref.convenia_id": "Centro de custo (ref Convenia ID)",
+};
+
+const BANK_ACCOUNT_LABELS: Record<string, string> = {
+  bank_name: "Banco",
+  bank_code: "Código do banco",
+  branch: "Agência",
+  agency: "Agência",
+  agency_digit: "Dígito da agência",
+  account: "Conta",
+  account_number: "Número da conta",
+  account_digit: "Dígito da conta",
+  account_type: "Tipo de conta",
+  pix_key: "Chave PIX",
+  pix_key_type: "Tipo da chave PIX",
+  holder_name: "Titular",
+  holder_document: "Documento do titular",
+  holder_document_type: "Tipo de documento do titular",
+  is_default: "Conta principal",
+};
+
+const DATE_ONLY_FIELDS = new Set([
+  "birth_date",
+  "hiring_date",
+  "ctps_emission_date",
+  "driver_license_emission_date",
+  "driver_license_validate_date",
+  "rg_emission_date",
+]);
+
+const DATE_TIME_FIELDS = new Set(["created_at", "updated_at", "synced_at"]);
+
+const TABLE_FIELD_ORDER = [
+  "id",
+  "convenia_id",
+  "name",
+  "last_name",
+  "social_name",
+  "status",
+  "registration",
+  "cpf",
+  "birth_date",
+  "hiring_date",
+  "email",
+  "personal_email",
+  "personal_phone",
+  "residential_phone",
+  "job_id",
+  "job_name",
+  "department_id",
+  "department_name",
+  "team_id",
+  "team_name",
+  "supervisor_id",
+  "supervisor_name",
+  "supervisor_last_name",
+  "cost_center_id",
+  "cost_center_name",
+  "cost_center",
+  "address_street",
+  "address_number",
+  "address_complement",
+  "address_district",
+  "address_city",
+  "address_state",
+  "address_zip_code",
+  "rg_number",
+  "rg_issuing_agency",
+  "rg_emission_date",
+  "ctps_number",
+  "ctps_serial_number",
+  "ctps_emission_date",
+  "pis",
+  "electoral_card",
+  "reservist",
+  "driver_license_number",
+  "driver_license_category",
+  "driver_license_emission_date",
+  "driver_license_validate_date",
+  "salary",
+  "payroll",
+  "bank_accounts",
+  "emergency_contacts",
+  "educations",
+  "experience_period",
+  "intern_data",
+  "disability",
+  "aso",
+  "nationalities",
+  "annotations",
+  "foreign_data",
+  "raw_data",
+  "synced_at",
+  "created_at",
+  "updated_at",
+];
+
+const BANK_ACCOUNT_FIELD_ORDER = [
+  "bank_name",
+  "bank_code",
+  "branch",
+  "agency",
+  "agency_digit",
+  "account",
+  "account_number",
+  "account_digit",
+  "account_type",
+  "pix_key",
+  "pix_key_type",
+  "holder_name",
+  "holder_document",
+  "holder_document_type",
+  "is_default",
+];
+
+const TAB_FIELDS = {
+  pessoal: [
+    "name",
+    "last_name",
+    "social_name",
+    "cpf",
+    "birth_date",
+    "nationalities",
+    "disability",
+  ],
+  contato: [
+    "email",
+    "personal_email",
+    "personal_phone",
+    "residential_phone",
+    "address_street",
+    "address_number",
+    "address_complement",
+    "address_district",
+    "address_city",
+    "address_state",
+    "address_zip_code",
+    "emergency_contacts",
+  ],
+  profissional: [
+    "id",
+    "status",
+    "registration",
+    "hiring_date",
+    "job_id",
+    "job_name",
+    "department_id",
+    "department_name",
+    "team_id",
+    "team_name",
+    "supervisor_id",
+    "supervisor_name",
+    "supervisor_last_name",
+    "cost_center_id",
+    "cost_center_name",
+    "cost_center",
+    "cost_center_ref.id",
+    "cost_center_ref.name",
+    "cost_center_ref.convenia_id",
+    "experience_period",
+    "intern_data",
+    "convenia_id",
+  ],
+  documentos: [
+    "rg_number",
+    "rg_issuing_agency",
+    "rg_emission_date",
+    "ctps_number",
+    "ctps_serial_number",
+    "ctps_emission_date",
+    "pis",
+    "electoral_card",
+    "reservist",
+    "driver_license_number",
+    "driver_license_category",
+    "driver_license_emission_date",
+    "driver_license_validate_date",
+  ],
+  financeiro: ["salary", "payroll"],
+  outros: [
+    "aso",
+    "annotations",
+    "educations",
+    "foreign_data",
+    "raw_data",
+    "synced_at",
+    "created_at",
+    "updated_at",
+  ],
+};
+
+const humanizeKey = (key: string) => {
+  const tokenMap: Record<string, string> = {
+    id: "ID",
+    name: "Nome",
+    last: "Sobrenome",
+    social: "Social",
+    status: "Status",
+    registration: "Matrícula",
+    cpf: "CPF",
+    birth: "Nascimento",
+    hiring: "Admissão",
+    email: "Email",
+    personal: "Pessoal",
+    phone: "Telefone",
+    job: "Cargo",
+    department: "Departamento",
+    team: "Equipe",
+    supervisor: "Supervisor",
+    cost: "Custo",
+    center: "Centro",
+    address: "Endereço",
+    street: "Rua",
+    number: "Número",
+    complement: "Complemento",
+    district: "Bairro",
+    city: "Cidade",
+    state: "Estado",
+    zip: "CEP",
+    rg: "RG",
+    issuing: "Emissor",
+    ctps: "CTPS",
+    serial: "Série",
+    pis: "PIS",
+    electoral: "Eleitor",
+    reservist: "Reservista",
+    driver: "CNH",
+    license: "CNH",
+    validate: "Validade",
+    salary: "Salário",
+    payroll: "Folha",
+    bank: "Banco",
+    accounts: "Contas",
+    emergency: "Emergência",
+    contacts: "Contatos",
+    educations: "Formação",
+    experience: "Experiência",
+    intern: "Estágio",
+    disability: "Deficiência",
+    aso: "ASO",
+    nationalities: "Nacionalidades",
+    annotations: "Anotações",
+    foreign: "Estrangeiro",
+    raw: "Brutos",
+    synced: "Sincronizado",
+    created: "Criado",
+    updated: "Atualizado",
+    convenia: "Convenia",
+    ref: "Referência",
+  };
+
+  return key
+    .replace(/\./g, " ")
+    .split("_")
+    .map((segment) => tokenMap[segment] || segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+};
+
+const getFieldLabel = (key: string) => FIELD_LABELS[key] || humanizeKey(key);
+const getBankAccountLabel = (key: string) => BANK_ACCOUNT_LABELS[key] || humanizeKey(key);
+
+const parseJsonSafe = (value: any) => {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+const normalizeBankAccounts = (value: any) => {
+  const parsed = parseJsonSafe(value);
+  if (!parsed) return [];
+  if (Array.isArray(parsed)) {
+    return parsed
+      .filter(Boolean)
+      .map((item) => (item && typeof item === "object" && !Array.isArray(item) ? item : { value: item }));
+  }
+  if (typeof parsed === "object") return [parsed as Record<string, any>];
+  return [{ value: parsed }];
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return format(parsed, "dd/MM/yyyy HH:mm", { locale: ptBR });
+};
+
+const formatPrimitiveValue = (key: string, value: any, emptyValue: string) => {
+  if (value === null || value === undefined || value === "") return emptyValue;
+  if (DATE_ONLY_FIELDS.has(key)) return formatDate(value);
+  if (DATE_TIME_FIELDS.has(key)) return formatDateTime(value);
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  return String(value);
+};
+
+const flattenValueEntries = (
+  label: string,
+  rawValue: any,
+  key: string,
+  emptyValue: string,
+): Array<{ label: string; value: string }> => {
+  const value = parseJsonSafe(rawValue);
+
+  if (value === null || value === undefined || value === "") {
+    return [{ label, value: emptyValue }];
+  }
+
+  if (Array.isArray(value)) {
+    if (!value.length) return [{ label, value: emptyValue }];
+    return value.flatMap((item, index) => {
+      const indexedLabel = `${label} ${index + 1}`;
+      if (item && typeof item === "object") {
+        return flattenValueEntries(indexedLabel, item, key, emptyValue);
+      }
+      return [{ label: indexedLabel, value: formatPrimitiveValue(key, item, emptyValue) }];
+    });
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, any>);
+    if (!entries.length) return [{ label, value: emptyValue }];
+    return entries.flatMap(([subKey, subValue]) =>
+      flattenValueEntries(`${label} - ${humanizeKey(subKey)}`, subValue, subKey, emptyValue),
+    );
+  }
+
+  return [{ label, value: formatPrimitiveValue(key, value, emptyValue) }];
+};
+
+const getFieldValue = (colaborador: any, key: string) => {
+  if (key.startsWith("cost_center_ref.")) {
+    const nestedKey = key.replace("cost_center_ref.", "");
+    return colaborador?.cost_center_ref?.[nestedKey];
+  }
+  return colaborador?.[key];
+};
+
+const buildBankAccountEntries = (
+  account: Record<string, any>,
+  prefix: string,
+  emptyValue: string,
+) => {
+  const orderedKeys = [
+    ...BANK_ACCOUNT_FIELD_ORDER,
+    ...Object.keys(account).filter((key) => !BANK_ACCOUNT_FIELD_ORDER.includes(key)),
+  ];
+  const uniqueKeys = Array.from(new Set(orderedKeys));
+
+  return uniqueKeys.flatMap((key) =>
+    flattenValueEntries(`${prefix}${getBankAccountLabel(key)}`, account[key], key, emptyValue),
+  );
+};
+
+const buildExportRow = (colaborador: any) => {
+  const row: Record<string, any> = {};
+  const includedKeys = new Set<string>();
+  const addEntries = (entries: Array<{ label: string; value: string }>) => {
+    entries.forEach((entry) => {
+      row[entry.label] = entry.value;
+    });
+  };
+
+  TABLE_FIELD_ORDER.forEach((key) => {
+    if (key === "bank_accounts") return;
+    const value = getFieldValue(colaborador, key);
+    addEntries(flattenValueEntries(getFieldLabel(key), value, key, ""));
+    includedKeys.add(key);
+  });
+
+  ["cost_center_ref.id", "cost_center_ref.name", "cost_center_ref.convenia_id"].forEach((key) => {
+    const value = getFieldValue(colaborador, key);
+    if (value === null || value === undefined || value === "") return;
+    addEntries(flattenValueEntries(getFieldLabel(key), value, key, ""));
+  });
+
+  const bankAccounts = normalizeBankAccounts(colaborador?.bank_accounts);
+  bankAccounts.forEach((account, index) => {
+    addEntries(buildBankAccountEntries(account, `Conta bancária ${index + 1} - `, ""));
+  });
+
+  Object.keys(colaborador ?? {}).forEach((key) => {
+    if (includedKeys.has(key)) return;
+    if (key === "bank_accounts" || key === "cost_center_ref") return;
+    addEntries(flattenValueEntries(getFieldLabel(key), colaborador[key], key, ""));
+  });
+
+  return row;
+};
 
 
 
@@ -180,11 +641,29 @@ export default function Colaboradores() {
 
   const totalColaboradores = filteredColaboradores.length;
 
-  const formatDate = (date?: string | null) =>
-    date ? format(parseDbDate(date), "dd/MM/yyyy", { locale: ptBR }) : "-";
+  const bankAccounts = normalizeBankAccounts(colaboradorDetalhe?.bank_accounts);
 
-  const getSupervisorNome = (colaborador: any) =>
-    [colaborador?.supervisor_name, colaborador?.supervisor_last_name].filter(Boolean).join(" ") || "-";
+  const renderFieldGrid = (fields: string[]) => {
+    const entries = fields.flatMap((field) =>
+      flattenValueEntries(
+        getFieldLabel(field),
+        getFieldValue(colaboradorDetalhe, field),
+        field,
+        "-",
+      ),
+    );
+
+    return (
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {entries.map((entry, index) => (
+          <div key={`${entry.label}-${index}`}>
+            <p className="text-xs text-muted-foreground">{entry.label}</p>
+            <p className="font-medium break-words whitespace-pre-wrap">{entry.value}</p>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const handleExportXlsx = () => {
     if (!filteredColaboradores.length) {
@@ -192,30 +671,20 @@ export default function Colaboradores() {
       return;
     }
 
-    const rows = filteredColaboradores.map((colaborador: any) => ({
-      Nome: getColaboradorNome(colaborador),
-      "Email corporativo": colaborador.email || "",
-      "Email pessoal": colaborador.personal_email || "",
-      Telefone:
-        colaborador.personal_phone ||
-        colaborador.residential_phone ||
-        "",
-      Status:
-        STATUS_COLABORADOR_LABELS[colaborador.status] ||
-        colaborador.status ||
-        "",
-      Cargo: colaborador.job_name || "",
-      Departamento: colaborador.department_name || "",
-      "Centro de custo": getCostCenterLabel(colaborador),
-      Equipe: colaborador.team_name || "",
-      Supervisor: getSupervisorNome(colaborador),
-      Matricula: colaborador.registration || "",
-      CPF: colaborador.cpf || "",
-      "Data de nascimento": formatDate(colaborador.birth_date),
-      "Data de admissao": formatDate(colaborador.hiring_date),
-    }));
+    const rows = filteredColaboradores.map((colaborador: any) => buildExportRow(colaborador));
+    const headers: string[] = [];
+    const headerSet = new Set<string>();
 
-    const sheet = XLSX.utils.json_to_sheet(rows);
+    rows.forEach((row) => {
+      Object.keys(row).forEach((key) => {
+        if (!headerSet.has(key)) {
+          headerSet.add(key);
+          headers.push(key);
+        }
+      });
+    });
+
+    const sheet = XLSX.utils.json_to_sheet(rows, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, sheet, "Colaboradores");
     XLSX.writeFile(wb, `colaboradores-convenia-${Date.now()}.xlsx`);
@@ -410,7 +879,8 @@ export default function Colaboradores() {
             if (!open) setColaboradorDetalhe(null);
           }}
         >
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-6xl h-[90vh] overflow-hidden">
+          <div className="flex h-full flex-col gap-3">
             <DialogHeader>
               <DialogTitle>
                 {colaboradorDetalhe ? getColaboradorNome(colaboradorDetalhe) : "Colaborador"}
@@ -419,83 +889,81 @@ export default function Colaboradores() {
             </DialogHeader>
 
             {colaboradorDetalhe && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Email corporativo</p>
-                    <p className="font-medium">{colaboradorDetalhe.email || "-"}</p>
-                  </div>
+              <Tabs defaultValue="pessoal" className="flex h-full flex-col">
+                <TabsList className="h-auto flex-wrap justify-start gap-2">
+                  <TabsTrigger value="pessoal">Pessoal</TabsTrigger>
+                  <TabsTrigger value="contato">Contato</TabsTrigger>
+                  <TabsTrigger value="profissional">Profissional</TabsTrigger>
+                  <TabsTrigger value="documentos">Documentos</TabsTrigger>
+                  <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+                  <TabsTrigger value="outros">Outros</TabsTrigger>
+                </TabsList>
 
-                  <div>
-                    <p className="text-xs text-muted-foreground">Email pessoal</p>
-                    <p className="font-medium">{colaboradorDetalhe.personal_email || "-"}</p>
-                  </div>
+                <div className="mt-3 flex-1 overflow-y-auto pr-2">
+                  <TabsContent value="pessoal" className="mt-0">
+                    {renderFieldGrid(TAB_FIELDS.pessoal)}
+                  </TabsContent>
 
-                  <div>
-                    <p className="text-xs text-muted-foreground">Telefone</p>
-                    <p className="font-medium">
-                      {colaboradorDetalhe.personal_phone || colaboradorDetalhe.residential_phone || "-"}
-                    </p>
-                  </div>
+                  <TabsContent value="contato" className="mt-0">
+                    {renderFieldGrid(TAB_FIELDS.contato)}
+                  </TabsContent>
 
-                  <div>
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <p className="font-medium">
-                      {STATUS_COLABORADOR_LABELS[colaboradorDetalhe.status] ||
-                        colaboradorDetalhe.status ||
-                        "-"}
-                    </p>
-                  </div>
+                  <TabsContent value="profissional" className="mt-0">
+                    {renderFieldGrid(TAB_FIELDS.profissional)}
+                  </TabsContent>
 
-                  <div>
-                    <p className="text-xs text-muted-foreground">Cargo</p>
-                    <p className="font-medium">{colaboradorDetalhe.job_name || "-"}</p>
-                  </div>
+                  <TabsContent value="documentos" className="mt-0">
+                    {renderFieldGrid(TAB_FIELDS.documentos)}
+                  </TabsContent>
 
-                  <div>
-                    <p className="text-xs text-muted-foreground">Departamento</p>
-                    <p className="font-medium">{colaboradorDetalhe.department_name || "-"}</p>
-                  </div>
+                  <TabsContent value="financeiro" className="mt-0">
+                    <div className="space-y-4">
+                      {renderFieldGrid(TAB_FIELDS.financeiro)}
 
-                  <div>
-                    <p className="text-xs text-muted-foreground">Centro de Custo</p>
-                    <p className="font-medium">{getCostCenterLabel(colaboradorDetalhe)}</p>
-                  </div>
+                      <div className="space-y-3">
+                        <p className="text-sm font-semibold">Contas bancárias</p>
+                        {bankAccounts.length ? (
+                          bankAccounts.map((account, index) => {
+                            const entries = buildBankAccountEntries(account, "", "-");
+                            return (
+                              <div key={index} className="rounded-md border p-3">
+                                <p className="text-sm font-medium">Conta bancária {index + 1}</p>
+                                {entries.length ? (
+                                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    {entries.map((entry) => (
+                                      <div key={`${index}-${entry.label}`}>
+                                        <p className="text-xs text-muted-foreground">{entry.label}</p>
+                                        <p className="font-medium break-words whitespace-pre-wrap">
+                                          {entry.value}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="mt-2 text-sm text-muted-foreground">
+                                    Nenhum dado disponível para esta conta.
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Nenhuma conta bancária cadastrada.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
 
-                  <div>
-                    <p className="text-xs text-muted-foreground">Equipe</p>
-                    <p className="font-medium">{colaboradorDetalhe.team_name || "-"}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-muted-foreground">Supervisor</p>
-                    <p className="font-medium">{getSupervisorNome(colaboradorDetalhe)}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-muted-foreground">Matricula</p>
-                    <p className="font-medium">{colaboradorDetalhe.registration || "-"}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-muted-foreground">CPF</p>
-                    <p className="font-medium">{colaboradorDetalhe.cpf || "-"}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-muted-foreground">Data de nascimento</p>
-                    <p className="font-medium">{formatDate(colaboradorDetalhe.birth_date)}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-muted-foreground">Data de admissao</p>
-                    <p className="font-medium">{formatDate(colaboradorDetalhe.hiring_date)}</p>
-                  </div>
+                  <TabsContent value="outros" className="mt-0">
+                    {renderFieldGrid(TAB_FIELDS.outros)}
+                  </TabsContent>
                 </div>
-
-              </div>
+              </Tabs>
             )}
-          </DialogContent>
+          </div>
+        </DialogContent>
         </Dialog>
       </div>
     </DashboardLayout>
