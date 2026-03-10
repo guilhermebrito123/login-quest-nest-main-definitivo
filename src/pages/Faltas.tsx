@@ -2293,12 +2293,14 @@ const formatConveniaValue = (value: unknown, key?: string) => {
         }}
       />
       <Dialog open={detailsDialogOpen} onOpenChange={handleDetailsDialogOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[90vh] w-full overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalhes da falta</DialogTitle>
-            <DialogDescription>Informacoes completas da falta selecionada.</DialogDescription>
-          </DialogHeader>
-          {detailsFalta ? (() => {
+        <DialogContent className="w-full max-w-[calc(100vw-1rem)] max-h-[90vh] p-4 sm:max-w-5xl sm:p-6">
+          <div className="flex max-h-[90vh] min-h-0 flex-col gap-3 sm:gap-4">
+            <DialogHeader className="text-left">
+              <DialogTitle>Detalhes da falta</DialogTitle>
+              <DialogDescription>Informacoes completas da falta selecionada.</DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1 sm:pr-2">
+              {detailsFalta ? (() => {
             const diaria = diariaMap.get(String(detailsFalta.diaria_temporaria_id));
             const colaborador =
               detailsFalta.tipo === "colaborador"
@@ -2357,53 +2359,53 @@ const formatConveniaValue = (value: unknown, key?: string) => {
             const conveniaTabsDefault =
               conveniaFieldEntriesByGroup[0]?.id ?? "identificacao";
 
-            return (
-              <div className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Data</p>
-                    <p className="text-sm font-medium">{dataFaltaLabel}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Colaborador</p>
-                    <p className="text-sm font-medium">{colaboradorNome}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Cliente</p>
-                    <p className="text-sm font-medium">{clienteNome}</p>
-                  </div>
-                  {detailsFalta.tipo === "convenia" && (
-                    <>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Centro de custo</p>
-                        <p className="text-sm font-medium">{costCenterLabel}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Cargo</p>
-                        <p className="text-sm font-medium">{cargoLabel}</p>
-                      </div>
-                    </>
-                  )}
-                  <div>
-                    <p className="text-xs text-muted-foreground">Motivo</p>
-                    <p className="text-sm font-medium">{detailsFalta.motivo || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <Badge variant={statusVariant}>{statusLabel}</Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Justificada em</p>
-                    <p className="text-sm font-medium">
-                      {detailsFalta.justificada_em ? formatDateTime(detailsFalta.justificada_em) : "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Justificada por</p>
-                    <p className="text-sm font-medium">{justificadaPorNome}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Documento</p>
+              return (
+                  <div className="space-y-4">
+                    <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Data</p>
+                      <p className="text-sm font-medium break-words">{dataFaltaLabel}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Colaborador</p>
+                      <p className="text-sm font-medium break-words">{colaboradorNome}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Cliente</p>
+                      <p className="text-sm font-medium break-words">{clienteNome}</p>
+                    </div>
+                    {detailsFalta.tipo === "convenia" && (
+                      <>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Centro de custo</p>
+                          <p className="text-sm font-medium break-words">{costCenterLabel}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Cargo</p>
+                          <p className="text-sm font-medium break-words">{cargoLabel}</p>
+                        </div>
+                      </>
+                    )}
+                    <div>
+                      <p className="text-xs text-muted-foreground">Motivo</p>
+                      <p className="text-sm font-medium break-words">{detailsFalta.motivo || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <Badge variant={statusVariant}>{statusLabel}</Badge>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Justificada em</p>
+                      <p className="text-sm font-medium">
+                        {detailsFalta.justificada_em ? formatDateTime(detailsFalta.justificada_em) : "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Justificada por</p>
+                      <p className="text-sm font-medium break-words">{justificadaPorNome}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Documento</p>
                     {documentoPath ? (
                       <Button
                         type="button"
@@ -2420,94 +2422,106 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                 </div>
 
                 {detailsFalta.tipo === "convenia" && (
-                  <div className="space-y-3 rounded-md border bg-muted/20 p-4">
-                    <p className="text-sm font-semibold text-muted-foreground">
-                      Dados do colaborador Convenia
-                    </p>
-                    <Tabs defaultValue={conveniaTabsDefault} className="w-full">
-                      <TabsList className="w-full justify-start gap-1 overflow-x-auto">
-                        {conveniaFieldEntriesByGroup.map((group) => (
-                          <TabsTrigger key={group.id} value={group.id} className="shrink-0">
-                            {group.label}
-                          </TabsTrigger>
-                        ))}
-                      </TabsList>
+                    <div className="space-y-3 rounded-md border bg-muted/20 p-3 sm:p-4">
+                      <p className="text-sm font-semibold text-muted-foreground">
+                        Dados do colaborador Convenia
+                      </p>
+                      <Tabs defaultValue={conveniaTabsDefault} className="w-full min-w-0">
+                        <TabsList className="w-full h-auto flex-wrap items-start justify-start gap-2 mb-3">
+                          {conveniaFieldEntriesByGroup.map((group) => (
+                            <TabsTrigger
+                              key={group.id}
+                              value={group.id}
+                              className="flex-1 text-xs sm:flex-none sm:text-sm"
+                            >
+                              {group.label}
+                            </TabsTrigger>
+                          ))}
+                        </TabsList>
                       {conveniaFieldEntriesByGroup.map((group) => (
                         <TabsContent key={group.id} value={group.id} className="mt-4">
                           {group.entries.length === 0 ? (
                             <p className="text-sm text-muted-foreground">Sem informacoes.</p>
                           ) : (
-                            <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2">
-                              {group.entries.map((entry) => (
-                                <div key={entry.id}>
-                                  <p className="text-xs text-muted-foreground">{entry.label}</p>
-                                  <p className="text-sm font-medium">{entry.value}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </TabsContent>
-                      ))}
-                    </Tabs>
-                  </div>
-                )}
+                              <div className="grid min-w-0 gap-3 grid-cols-1 lg:grid-cols-2">
+                                {group.entries.map((entry) => (
+                                  <div key={entry.id}>
+                                    <p className="text-xs text-muted-foreground">{entry.label}</p>
+                                    <p className="text-sm font-medium break-words whitespace-pre-wrap">
+                                      {entry.value}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </TabsContent>
+                        ))}
+                      </Tabs>
+                    </div>
+                  )}
 
-                <DialogFooter className="sm:justify-start">
-                  {!detailsFalta.justificada_em && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={accessLoading || !canJustifyFalta(detailsFalta)}
-                      onClick={() => {
-                        handleDetailsDialogOpenChange(false);
-                        openJustificarDialog(detailsFalta);
-                      }}
+                  <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-start">
+                    {!detailsFalta.justificada_em && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="w-full sm:w-auto"
+                        disabled={accessLoading || !canJustifyFalta(detailsFalta)}
+                        onClick={() => {
+                          handleDetailsDialogOpenChange(false);
+                          openJustificarDialog(detailsFalta);
+                        }}
                     >
                       Justificar
                     </Button>
                   )}
                   {detailsFalta.justificada_em &&
                     canRevertFalta(detailsFalta) && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={accessLoading || revertingId === detailsFalta.id}
-                        onClick={() => handleReverterJustificativa(detailsFalta)}
-                      >
-                        {revertingId === detailsFalta.id
-                          ? "Revertendo..."
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="w-full sm:w-auto"
+                          disabled={accessLoading || revertingId === detailsFalta.id}
+                          onClick={() => handleReverterJustificativa(detailsFalta)}
+                        >
+                          {revertingId === detailsFalta.id
+                            ? "Revertendo..."
                           : "Reverter justificativa"}
                       </Button>
                     )}
                   {detailsFalta.tipo === "convenia" && (
                     <>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={accessLoading || !canUpdateFaltaConvenia()}
-                        onClick={() => {
-                          handleDetailsDialogOpenChange(false);
-                          openEditFaltaForm(detailsFalta);
-                        }}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        disabled={accessLoading || !canDeleteFaltaConvenia()}
-                        onClick={() => handleDeleteFaltaConvenia(detailsFalta)}
-                      >
-                        Excluir
-                      </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full sm:w-auto"
+                          disabled={accessLoading || !canUpdateFaltaConvenia()}
+                          onClick={() => {
+                            handleDetailsDialogOpenChange(false);
+                            openEditFaltaForm(detailsFalta);
+                          }}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          className="w-full sm:w-auto"
+                          disabled={accessLoading || !canDeleteFaltaConvenia()}
+                          onClick={() => handleDeleteFaltaConvenia(detailsFalta)}
+                        >
+                          Excluir
+                        </Button>
                     </>
                   )}
                 </DialogFooter>
               </div>
             );
           })() : null}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
       <Dialog open={advancedDialogOpen} onOpenChange={setAdvancedDialogOpen}>
