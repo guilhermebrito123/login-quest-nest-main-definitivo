@@ -880,7 +880,7 @@ export default function Colaboradores() {
           }}
         >
         <DialogContent className="w-[95vw] max-w-6xl h-[90vh] overflow-hidden">
-          <div className="flex h-full flex-col gap-3">
+          <div className="flex h-full min-h-0 flex-col gap-3">
             <DialogHeader>
               <DialogTitle>
                 {colaboradorDetalhe ? getColaboradorNome(colaboradorDetalhe) : "Colaborador"}
@@ -889,7 +889,7 @@ export default function Colaboradores() {
             </DialogHeader>
 
             {colaboradorDetalhe && (
-              <Tabs defaultValue="pessoal" className="flex h-full flex-col">
+              <Tabs defaultValue="pessoal" className="flex h-full min-h-0 flex-col">
                 <TabsList className="h-auto flex-wrap justify-start gap-2">
                   <TabsTrigger value="pessoal">Pessoal</TabsTrigger>
                   <TabsTrigger value="contato">Contato</TabsTrigger>
@@ -899,7 +899,7 @@ export default function Colaboradores() {
                   <TabsTrigger value="outros">Outros</TabsTrigger>
                 </TabsList>
 
-                <div className="mt-3 flex-1 overflow-y-auto pr-2">
+                <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-2">
                   <TabsContent value="pessoal" className="mt-0">
                     {renderFieldGrid(TAB_FIELDS.pessoal)}
                   </TabsContent>
