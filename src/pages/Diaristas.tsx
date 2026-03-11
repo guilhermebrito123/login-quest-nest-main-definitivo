@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import * as XLSX from "xlsx";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,6 +101,27 @@ const formatTelefone = (value?: string | null) => {
   return `(${ddd}) ${first}${second ? `-${second}` : ""}`;
 };
 
+const formatExportValue = (value: any) => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return value;
+};
+
+const buildDiaristaExportRow = (diarista: any) => {
+  const row: Record<string, any> = {};
+  Object.entries(diarista ?? {}).forEach(([key, value]) => {
+    row[key] = formatExportValue(value);
+  });
+  return row;
+};
+
 interface DiaristaAnexo {
   id: string;
   nome_arquivo: string;
@@ -163,6 +185,32 @@ export default function Diaristas() {
       telefone.includes(searchTerm)
     );
   });
+
+  const handleExportXlsx = () => {
+    if (!filteredDiaristas.length) {
+      toast.error("Nenhum diarista para exportar.");
+      return;
+    }
+
+    const rows = filteredDiaristas.map((diarista: any) => buildDiaristaExportRow(diarista));
+    const headers: string[] = [];
+    const headerSet = new Set<string>();
+
+    rows.forEach((row) => {
+      Object.keys(row).forEach((key) => {
+        if (!headerSet.has(key)) {
+          headerSet.add(key);
+          headers.push(key);
+        }
+      });
+    });
+
+    const sheet = XLSX.utils.json_to_sheet(rows, { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, "Diaristas");
+    XLSX.writeFile(wb, `diaristas-${Date.now()}.xlsx`);
+    toast.success("Arquivo XLSX gerado.");
+  };
 
   const handleEdit = (diarista: any) => {
     setEditingDiarista(diarista);
@@ -325,15 +373,25 @@ export default function Diaristas() {
       <div className="space-y-6 p-4 md:p-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Diaristas</h1>
-          <Button
-            onClick={() => {
-              setEditingDiarista(null);
-              setShowForm(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Diarista
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportXlsx}
+              disabled={!filteredDiaristas.length}
+            >
+              Exportar XLSX
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingDiarista(null);
+                setShowForm(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Diarista
+            </Button>
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -526,6 +584,14 @@ export default function Diaristas() {
                   <p className="text-xs text-muted-foreground">Email</p>
                   <p className="font-medium break-words">{diaristaDetalhe.email || "-"}</p>
                 </div>
+                {diaristaDetalhe.observacoes && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-muted-foreground">Observações</p>
+                    <p className="font-medium break-words whitespace-pre-wrap">
+                      {diaristaDetalhe.observacoes}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-muted-foreground">CPF</p>
                   <p className="font-medium break-words">
