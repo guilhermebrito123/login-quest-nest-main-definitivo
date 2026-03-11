@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -223,6 +224,7 @@ interface DiaristaFormState {
   cidade: string;
   telefone: string;
   email: string;
+  observacoes: string;
   possui_antecedente: boolean;
   reserva_tecnica: boolean;
   status: "ativo" | "inativo" | "desligado";
@@ -243,6 +245,7 @@ const createInitialFormState = (): DiaristaFormState => ({
   cidade: "",
   telefone: "",
   email: "",
+  observacoes: "",
   possui_antecedente: false,
   reserva_tecnica: false,
   status: "ativo",
@@ -345,6 +348,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
         cidade: diarista.cidade || "",
         telefone: formatTelefone(diarista.telefone || ""),
         email: diarista.email || "",
+        observacoes: diarista.observacoes || "",
         possui_antecedente: diarista.possui_antecedente || false,
         reserva_tecnica: diarista.reserva_tecnica || false,
         status: diarista.status || "ativo",
@@ -636,6 +640,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
         (diarista.cidade || "") !== payload.cidade ||
         stripNonDigits(String(diarista.telefone ?? "")) !== payload.telefone ||
         (diarista.email || "") !== payload.email ||
+        (diarista.observacoes || "") !== payload.observacoes ||
         Boolean(diarista.possui_antecedente) !== payload.possui_antecedente ||
         Boolean(diarista.reserva_tecnica) !== payload.reserva_tecnica ||
         (diarista.status || "ativo") !== payload.status ||
@@ -791,6 +796,17 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="observacoes">Observações</Label>
+              <Textarea
+                id="observacoes"
+                value={formData.observacoes}
+                onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                rows={3}
+                placeholder="Observações adicionais (opcional)"
               />
             </div>
 
