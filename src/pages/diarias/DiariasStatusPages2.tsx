@@ -1079,6 +1079,15 @@ const createStatusPage = ({
         return normalized;
       });
 
+    const normalizeMotivoVagoExport = (motivo?: string | null) => {
+      const trimmed = (motivo ?? "").trim();
+      if (!trimmed) return "-";
+      return trimmed.replace(
+        /^(diaria|diária)(?:\s*-\s*|\s+)(diaria|diária)\b/i,
+        "$2"
+      );
+    };
+
   const isVagaEmAberto = (motivo?: string | null) =>
     (motivo || "").toUpperCase() === MOTIVO_VAGO_DIARIA_SALARIO.toUpperCase();
   const isServicoExtra = (motivo?: string | null) =>
@@ -1921,18 +1930,18 @@ const createStatusPage = ({
         typeof diaria.valor_diaria === "number"
           ? diaria.valor_diaria
           : Number(diaria.valor_diaria) || 0;
-      const baseRow: Record<string, any> = {
-        ID: diaria.id,
-        Data: formatDate(diaria.data_diaria),
-        Status: STATUS_LABELS[diaria.status] || diaria.status,
-        "Horario inicio": formatTimeValue(diaria.horario_inicio),
-        "Horario fim": formatTimeValue(diaria.horario_fim),
-        "Jornada diaria (h)": formatJornadaValue(getJornadaDiariaValue(diaria)),
-        "Intervalo (min)": formatIntervalValue(diaria.intervalo),
-        "Motivo (dia vago)": diaria.motivo_vago || "-",
-        "Demissao?": isMotivoVagaEmAberto
-          ? formatBooleanFlag(diaria.demissao === true)
-          : "-",
+        const baseRow: Record<string, any> = {
+          ID: diaria.id,
+          Data: formatDate(diaria.data_diaria),
+          Status: STATUS_LABELS[diaria.status] || diaria.status,
+          "Horario inicio": formatTimeValue(diaria.horario_inicio),
+          "Horario fim": formatTimeValue(diaria.horario_fim),
+          "Jornada diaria (h)": formatJornadaValue(getJornadaDiariaValue(diaria)),
+          "Intervalo (min)": formatIntervalValue(diaria.intervalo),
+          "Motivo (dia vago)": normalizeMotivoVagoExport(diaria.motivo_vago),
+          "Demissao?": isMotivoVagaEmAberto
+            ? formatBooleanFlag(diaria.demissao === true)
+            : "-",
         "Novo posto?": isMotivoVagaEmAberto
           ? novoPostoFlag
             ? "Sim"
@@ -2064,22 +2073,24 @@ const createStatusPage = ({
             : competenciaSet.size === 1
             ? Array.from(competenciaSet)[0]
             : "DIVERSOS";
-        const descricao = sortedGroupDiarias
-          .map((diaria) => {
-            const postoInfo =
-              diaria.posto ||
-              (diaria.posto_servico_id
-                ? postoMap.get(diaria.posto_servico_id)
-                : null);
-            const clienteNome =
-              getClienteOuCentroCustoDisplay(diaria, postoInfo).value || "-";
-            const base = `Diaria ${diaria.motivo_vago || ""} ${formatDate(
-              diaria.data_diaria
-            )}`;
-            return group.clienteLabel === "Diversos"
-              ? `${base} (${clienteNome})`
-              : base;
-          })
+          const descricao = sortedGroupDiarias
+            .map((diaria) => {
+              const postoInfo =
+                diaria.posto ||
+                (diaria.posto_servico_id
+                  ? postoMap.get(diaria.posto_servico_id)
+                  : null);
+              const clienteNome =
+                getClienteOuCentroCustoDisplay(diaria, postoInfo).value || "-";
+              const motivoLabel = normalizeMotivoVagoExport(diaria.motivo_vago);
+              const needsDiariaPrefix = !/^(diaria|diária)\b/i.test(motivoLabel);
+              const base = `${needsDiariaPrefix ? "Diaria " : ""}${motivoLabel} ${formatDate(
+                diaria.data_diaria
+              )}`.trim();
+              return group.clienteLabel === "Diversos"
+                ? `${base} (${clienteNome})`
+                : base;
+            })
           .join(" - ");
         const baseRow: Record<string, any> = {
           "IDs diarias": groupIdsLabel,
