@@ -1981,7 +1981,16 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                           className="cursor-pointer"
                           onClick={() => openDetailsDialog(falta)}
                         >
-                          <TableCell>{dataFaltaLabel}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span>{dataFaltaLabel}</span>
+                              {falta.diaria_temporaria_id && (
+                                <span className="text-xs font-semibold text-red-600">
+                                  Diária vinculada
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>{colaboradorNome}</TableCell>
                           <TableCell className="hidden sm:table-cell">{clienteNome}</TableCell>
                           <TableCell className="hidden sm:table-cell">{falta.motivo || "-"}</TableCell>
@@ -2361,6 +2370,11 @@ const formatConveniaValue = (value: unknown, key?: string) => {
 
               return (
                   <div className="space-y-4">
+                    {detailsFalta.diaria_temporaria_id && (
+                      <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                        Diária vinculada
+                      </div>
+                    )}
                     <div className="grid min-w-0 gap-3 lg:grid-cols-2">
                     <div>
                       <p className="text-xs text-muted-foreground">Data</p>
