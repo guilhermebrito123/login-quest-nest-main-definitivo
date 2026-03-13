@@ -79,7 +79,7 @@ const TEST_DIARISTA_NAMES = new Set(["guilherme guerra", "james bond", "cris ron
 const TEST_DIARISTA_CPFS = new Set(["01999999999", "01999999998"]);
 const isTestDiarista = (diarista: any) => {
   const name = (diarista?.nome_completo || "").trim().toLowerCase();
-  const cpfDigits = stripNonDigits(diarista?.cpf);
+  const cpfDigits = stripNonDigits(diarista?.cpf_normalizado);
   return TEST_DIARISTA_NAMES.has(name) || TEST_DIARISTA_CPFS.has(cpfDigits);
 };
 
@@ -119,6 +119,9 @@ const buildDiaristaExportRow = (diarista: any) => {
   Object.entries(diarista ?? {}).forEach(([key, value]) => {
     row[key] = formatExportValue(value);
   });
+  if (!("cpf_normalizado" in row)) {
+    row.cpf_normalizado = formatExportValue(diarista?.cpf_normalizado ?? "");
+  }
   return row;
 };
 
@@ -595,7 +598,7 @@ export default function Diaristas() {
                 <div>
                   <p className="text-xs text-muted-foreground">CPF</p>
                   <p className="font-medium break-words">
-                    {formatCpf(diaristaDetalhe.cpf) || "-"}
+                    {formatCpf(diaristaDetalhe.cpf_normalizado) || "-"}
                   </p>
                 </div>
                 <div>

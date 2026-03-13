@@ -173,6 +173,7 @@ export type Diarista = {
   cargo: string | null;
   status: string | null;
   cpf?: string | null;
+  cpf_normalizado?: string | null;
   banco?: string | null;
   agencia?: string | null;
   numero_conta?: string | null;

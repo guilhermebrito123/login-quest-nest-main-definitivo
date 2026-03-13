@@ -156,6 +156,7 @@ export function useDiariasTemporariasData(selectedMonth?: string | null) {
         id: item.id,
         nome_completo: item.nome_completo,
         cpf: item.cpf ?? null,
+        cpf_normalizado: item.cpf_normalizado ?? null,
         cargo: item.cargo ?? null,
         status: item.status ?? null,
         banco: item.banco ?? null,

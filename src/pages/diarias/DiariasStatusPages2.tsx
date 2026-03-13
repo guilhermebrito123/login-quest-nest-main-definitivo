@@ -511,6 +511,7 @@ const createStatusPage = ({
       diaristaId: "",
       reservaTecnica: "",
       motivo: "",
+      colaboradorAusenteConveniaId: "",
       clienteId: "",
       centroCustoId: "",
       startDate: "",
@@ -920,9 +921,9 @@ const createStatusPage = ({
 
     const TEST_DIARISTA_NAMES = new Set(["guilherme guerra", "james bond", "cris ronaldo"]);
     const TEST_DIARISTA_CPFS = new Set(["01999999999", "01999999998"]);
-    const isTestDiarista = (option: { nome?: string; cpf?: string | null }) => {
+    const isTestDiarista = (option: { nome?: string; cpf_normalizado?: string | null }) => {
       const name = (option.nome || "").trim().toLowerCase();
-      const cpfDigits = stripNonDigits(option.cpf);
+      const cpfDigits = stripNonDigits(option.cpf_normalizado);
       return TEST_DIARISTA_NAMES.has(name) || TEST_DIARISTA_CPFS.has(cpfDigits);
     };
 
@@ -964,7 +965,7 @@ const createStatusPage = ({
       if (!diarista) return false;
       const requiredFields = [
         diarista.nome_completo,
-        diarista.cpf,
+        diarista.cpf_normalizado,
         diarista.banco,
         diarista.agencia,
         diarista.numero_conta,
@@ -1308,7 +1309,7 @@ const createStatusPage = ({
           .map((diarista) => ({
             id: diarista.id,
             nome: diarista.nome_completo || diarista.id,
-            cpf: diarista.cpf ?? null,
+            cpf_normalizado: diarista.cpf_normalizado ?? null,
             reserva_tecnica: diarista.reserva_tecnica ?? false,
           }))
           .sort((a, b) => a.nome.localeCompare(b.nome)),
@@ -1343,6 +1344,23 @@ const createStatusPage = ({
       });
       return Array.from(set).sort((a, b) => a.localeCompare(b));
     }, [diariasDoStatusFull]);
+
+    const colaboradorAusenteConveniaOptions = useMemo(() => {
+      const map = new Map<string, string>();
+      const source = [...diariasDoStatus, ...diariasDoStatusFull];
+      source.forEach((diaria) => {
+        if (!diaria.colaborador_ausente_convenia) return;
+        const id = String(diaria.colaborador_ausente_convenia);
+        const nome =
+          getConveniaColaboradorNome(
+            colaboradoresConveniaMap.get(diaria.colaborador_ausente_convenia)
+          ) || id;
+        map.set(id, nome);
+      });
+      return Array.from(map.entries())
+        .map(([id, nome]) => ({ id, nome }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+    }, [diariasDoStatus, diariasDoStatusFull, colaboradoresConveniaMap]);
 
     const postosOptions = useMemo(() => {
       return Array.from(postoMap.values())
@@ -1664,6 +1682,14 @@ const createStatusPage = ({
         if (filters.motivo && filters.motivo !== motivo) {
           return false;
         }
+        if (filters.colaboradorAusenteConveniaId) {
+          const faltaConveniaId = diaria.colaborador_ausente_convenia
+            ? String(diaria.colaborador_ausente_convenia)
+            : "";
+          if (filters.colaboradorAusenteConveniaId !== faltaConveniaId) {
+            return false;
+          }
+        }
         if (
           filters.criadoPorId &&
           filters.criadoPorId !== (diaria.criado_por || "")
@@ -1780,15 +1806,15 @@ const createStatusPage = ({
           getClienteOuCentroCustoDisplay(diaria, postoInfo).value || "-";
         const diaristaKey = diaristaId || `no-diarista-${diaria.id}`;
         const diaristaInfo = diaristaId ? diaristaMap.get(diaristaId) : null;
-        const diaristaCpfKey = diaristaInfo?.cpf
-          ? stripNonDigits(diaristaInfo.cpf)
+        const diaristaCpfKey = diaristaInfo?.cpf_normalizado
+          ? stripNonDigits(diaristaInfo.cpf_normalizado)
           : "";
         const key = `${diaristaKey}||${diaristaCpfKey}`;
         const group = groups.get(key) || {
           key,
           diaristaId: diaristaId || null,
           diaristaNome: diaristaInfo?.nome_completo || "-",
-          diaristaCpf: diaristaInfo?.cpf ?? null,
+          diaristaCpf: diaristaInfo?.cpf_normalizado ?? null,
           diaristaPix: diaristaInfo?.pix ?? null,
           totalValor: 0,
           count: 0,
@@ -1947,7 +1973,7 @@ const createStatusPage = ({
             ? "Sim"
             : "Nao"
           : "-",
-        "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
+        "CPF diarista": formatCpf(diaristaInfo?.cpf_normalizado) || "-",
         Posto: postoNome,
         Unidade: unidadeNome,
         Cliente: clienteNome,
@@ -2468,7 +2494,7 @@ const createStatusPage = ({
         {
           Titulo: tituloBase,
           Diarista: diaristaNome || "-",
-          "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
+          "CPF diarista": formatCpf(diaristaInfo?.cpf_normalizado) || "-",
           Banco: diaristaInfo?.banco || "-",
           Agencia: diaristaInfo?.agencia || "-",
           "Numero da conta": diaristaInfo?.numero_conta || "-",
@@ -2547,7 +2573,7 @@ const createStatusPage = ({
         {
           Titulo: tituloBase,
           Diarista: diaristaNome || "-",
-          "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
+          "CPF diarista": formatCpf(diaristaInfo?.cpf_normalizado) || "-",
           Banco: diaristaInfo?.banco || "-",
           Agencia: diaristaInfo?.agencia || "-",
           "Numero da conta": diaristaInfo?.numero_conta || "-",
@@ -2595,7 +2621,9 @@ const createStatusPage = ({
       selecionadas.forEach((diaria) => {
         const diaristaInfo =
           diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
-        if (diaristaInfo?.cpf) cpfs.add(formatCpf(diaristaInfo.cpf));
+        if (diaristaInfo?.cpf_normalizado) {
+          cpfs.add(formatCpf(diaristaInfo.cpf_normalizado));
+        }
         statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
         const postoInfo =
           diaria.posto ||
@@ -2675,6 +2703,7 @@ const createStatusPage = ({
         diaristaId: "",
         reservaTecnica: "",
         motivo: "",
+        colaboradorAusenteConveniaId: "",
         clienteId: "",
         centroCustoId: "",
         startDate: "",
@@ -3925,6 +3954,39 @@ const createStatusPage = ({
                         {motivoOptions.map((motivo) => (
                           <SelectItem key={motivo} value={motivo}>
                             {motivo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <TooltipLabel
+                      htmlFor={`filtro-temp-colaborador-convenia-${statusKey}`}
+                      label="Colaborador ausente (Convenia)"
+                      tooltip="Filtra as diárias com colaborador ausente do Convenia."
+                    />
+                    <Select
+                      value={filters.colaboradorAusenteConveniaId || selectAllValue}
+                      onValueChange={(value) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          colaboradorAusenteConveniaId:
+                            value === selectAllValue ? "" : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger
+                        id={`filtro-temp-colaborador-convenia-${statusKey}`}
+                      >
+                        <SelectValue placeholder="Todos os colaboradores" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={selectAllValue}>
+                          Todos os colaboradores
+                        </SelectItem>
+                        {colaboradorAusenteConveniaOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.nome}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -5530,13 +5592,13 @@ const createStatusPage = ({
                         {currencyFormatter.format(selectedGroup.totalValor)}
                       </p>
                     </div>
-                    {selectedGroupDiaristaInfo?.cpf && (
+                    {selectedGroupDiaristaInfo?.cpf_normalizado && (
                       <div>
                         <p className="text-muted-foreground text-xs">
                           CPF diarista
                         </p>
                         <p className="font-medium">
-                          {selectedGroupDiaristaInfo.cpf}
+                          {formatCpf(selectedGroupDiaristaInfo.cpf_normalizado)}
                         </p>
                       </div>
                     )}
@@ -6164,7 +6226,7 @@ const createStatusPage = ({
                     <div>
                       <p className="text-muted-foreground text-xs">CPF</p>
                       <p className="font-medium">
-                        {selectedDiaristaInfo?.cpf || "-"}
+                        {formatCpf(selectedDiaristaInfo?.cpf_normalizado) || "-"}
                       </p>
                     </div>
                     <div>
@@ -6706,8 +6768,8 @@ const createStatusPage = ({
                         diaristaStatusMap.get(option.id) === "restrito";
                       const isCurrent = option.id === editForm.diaristaId;
                       const isTest = isTestDiarista(option);
-                      const cpfLabel = option.cpf
-                        ? ` - ${option.cpf}`
+                      const cpfLabel = option.cpf_normalizado
+                        ? ` - ${formatCpf(option.cpf_normalizado)}`
                         : " - CPF nao informado";
                       const reservaLabel = option.reserva_tecnica
                         ? " - Reserva técnica"

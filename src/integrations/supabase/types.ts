@@ -1562,7 +1562,8 @@ export type Database = {
           banco: string | null
           cep: string | null
           cidade: string | null
-          cpf: string
+          cpf: string | null
+          cpf_normalizado: string | null
           created_at: string
           email: string | null
           endereco: string | null
@@ -1590,7 +1591,8 @@ export type Database = {
           banco?: string | null
           cep?: string | null
           cidade?: string | null
-          cpf?: string
+          cpf?: string | null
+          cpf_normalizado?: string | null
           created_at?: string
           email?: string | null
           endereco?: string | null
@@ -1618,7 +1620,8 @@ export type Database = {
           banco?: string | null
           cep?: string | null
           cidade?: string | null
-          cpf?: string
+          cpf?: string | null
+          cpf_normalizado?: string | null
           created_at?: string
           email?: string | null
           endereco?: string | null
@@ -3558,6 +3561,7 @@ export type Database = {
       limpar_posto_dias_vagos_antigos: { Args: never; Returns: undefined }
       limpar_presencas_antigas: { Args: never; Returns: undefined }
       limpar_tokens_expirados: { Args: never; Returns: undefined }
+      normalizar_cpf: { Args: { input: string }; Returns: string }
       processar_movimentacoes_agendadas: { Args: never; Returns: undefined }
       reverter_justificativa_falta_convenia:
         | {

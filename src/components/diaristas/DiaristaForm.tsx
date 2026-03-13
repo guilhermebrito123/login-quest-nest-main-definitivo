@@ -218,7 +218,7 @@ type SpecificAttachmentKey = (typeof SPECIFIC_ATTACHMENT_FIELDS)[number]["key"];
 
 interface DiaristaFormState {
   nome_completo: string;
-  cpf: string;
+  cpf_normalizado: string;
   cep: string;
   endereco: string;
   cidade: string;
@@ -239,7 +239,7 @@ interface DiaristaFormState {
 
 const createInitialFormState = (): DiaristaFormState => ({
   nome_completo: "",
-  cpf: "",
+  cpf_normalizado: "",
   cep: "",
   endereco: "",
   cidade: "",
@@ -306,6 +306,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
   );
   const [cepLoading, setCepLoading] = useState(false);
   const lastCepLookupRef = useRef<string>(""); 
+  const cpfNormalizado = stripNonDigits(formData.cpf_normalizado);
 
   const loadAttachments = useCallback(async () => {
     if (!diarista?.id) {
@@ -342,7 +343,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     if (diarista) {
       setFormData({
         nome_completo: diarista.nome_completo || "",
-        cpf: formatCpf(diarista.cpf || ""),
+        cpf_normalizado: formatCpf(diarista.cpf_normalizado || ""),
         cep: formatCep(diarista.cep || ""),
         endereco: diarista.endereco || "",
         cidade: diarista.cidade || "",
@@ -608,10 +609,14 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     const missingFields: string[] = [];
 
     if (isBlank(formData.nome_completo)) missingFields.push("Nome completo");
-    if (isBlank(formData.cpf)) missingFields.push("CPF");
 
     if (missingFields.length > 0) {
       toast.error(`Preencha os campos obrigatorios: ${missingFields.join(", ")}.`);
+      return;
+    }
+
+    if (cpfNormalizado && cpfNormalizado.length !== 11) {
+      toast.error("CPF invalido. Informe 11 digitos.");
       return;
     }
 
@@ -623,7 +628,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     const { pix_tipo, ...payloadBase } = formData;
     const payload = {
       ...payloadBase,
-      cpf: stripNonDigits(formData.cpf),
+      cpf_normalizado: cpfNormalizado || null,
       cep: stripNonDigits(formData.cep),
       telefone: stripNonDigits(formData.telefone),
       agencia: stripNonDigits(formData.agencia),
@@ -634,7 +639,7 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     const hasNewFiles = newFiles.length > 0;
     const hasFieldChanges = diarista
       ? (diarista.nome_completo || "") !== payload.nome_completo ||
-        stripNonDigits(String(diarista.cpf ?? "")) !== payload.cpf ||
+        stripNonDigits(String(diarista.cpf_normalizado ?? "")) !== (cpfNormalizado || "") ||
         stripNonDigits(String(diarista.cep ?? "")) !== payload.cep ||
         (diarista.endereco || "") !== payload.endereco ||
         (diarista.cidade || "") !== payload.cidade ||
@@ -739,13 +744,14 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cpf">CPF *</Label>
+              <Label htmlFor="cpf_normalizado">CPF</Label>
               <Input
-                id="cpf"
-                value={formData.cpf}
-                onChange={(e) => setFormData({ ...formData, cpf: formatCpf(e.target.value) })}
+                id="cpf_normalizado"
+                value={formData.cpf_normalizado}
+                onChange={(e) =>
+                  setFormData({ ...formData, cpf_normalizado: formatCpf(e.target.value) })
+                }
                 placeholder="000.000.000-00"
-                required
               />
             </div>
 
