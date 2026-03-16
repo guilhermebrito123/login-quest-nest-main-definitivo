@@ -25,6 +25,8 @@ const MOTIVO_VAGO_DIARIA_SALARIO = "DIÁRIA - SALÁRIO";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
 const MOTIVO_VAGO_DEMANDA_EXTRA = "DIÁRIA - DEMANDA EXTRA";
 const MOTIVO_VAGO_DIARIA_BONUS = "DIÁRIA - BÔNUS";
+const MOTIVO_VAGO_FALTA = "DIÁRIA - FALTA";
+const MOTIVO_VAGO_FALTA_ATESTADO = "DIÁRIA - FALTA ATESTADO";
 const RESERVA_TECNICA_NAME = "RESERVA TÉCNICA";
 type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
 const DIARIAS_TEMPORARIAS_INSERT_LEVELS: AccessLevel[] = [
@@ -36,7 +38,8 @@ const DIARIAS_TEMPORARIAS_INSERT_LEVELS: AccessLevel[] = [
 ];
 
 const MOTIVO_VAGO_OPTIONS = [
-  "DIÁRIA - FALTA",
+  MOTIVO_VAGO_FALTA,
+  MOTIVO_VAGO_FALTA_ATESTADO,
   "AFASTAMENTO INSS",
   "DIÁRIA - FÉRIAS",
   "SUSPENSÃO",
@@ -128,9 +131,21 @@ type FaltaResumo = {
   motivo?: string | null;
 };
 
+type FaltaConveniaSemDiaria = {
+  id: number;
+  colaborador_convenia_id: string;
+  data_falta: string;
+  diaria_temporaria_id: number | null;
+  motivo: string;
+};
+
+type DataDiariaMode = "livre" | "falta";
+
 const Diarias2 = () => {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
   const [formState, setFormState] = useState(initialFormState);
+  const [dataDiariaMode, setDataDiariaMode] = useState<DataDiariaMode>("livre");
+  const [selectedFaltaConveniaId, setSelectedFaltaConveniaId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accessLevel, setAccessLevel] = useState<AccessLevel | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
@@ -201,6 +216,18 @@ const Diarias2 = () => {
       return { count: count || 0, recent: (data || []) as FaltaResumo[] };
     },
   });
+  const { data: faltasConveniaSemDiaria = [], isLoading: loadingFaltasConveniaSemDiaria } = useQuery({
+    queryKey: ["faltas-convenia-sem-diaria"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("faltas_colaboradores_convenia")
+        .select("id, colaborador_convenia_id, data_falta, diaria_temporaria_id, motivo")
+        .is("diaria_temporaria_id", null)
+        .order("data_falta", { ascending: false });
+      if (error) throw error;
+      return (data || []) as FaltaConveniaSemDiaria[];
+    },
+  });
   const blacklistMap = useMemo(() => {
     const map = new Map<string, { motivo?: string | null }>();
     (blacklist || []).forEach((item: any) => {
@@ -216,6 +243,47 @@ const Diarias2 = () => {
     cliente_id: p.cliente_id,
     cost_center_id: p.cost_center_id,
   }));
+  const costCenterNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    costCenters.forEach((center: any) => {
+      if (!center?.id) return;
+      map.set(center.id, center.name || center.id);
+    });
+    return map;
+  }, [costCenters]);
+  const faltasConveniaById = useMemo(() => {
+    const map = new Map<string, FaltaConveniaSemDiaria>();
+    faltasConveniaSemDiaria.forEach((falta) => {
+      map.set(String(falta.id), falta);
+    });
+    return map;
+  }, [faltasConveniaSemDiaria]);
+  useEffect(() => {
+    if (!selectedFaltaConveniaId) return;
+    if (faltasConveniaById.has(selectedFaltaConveniaId)) return;
+    setSelectedFaltaConveniaId("");
+    if (dataDiariaMode === "falta") {
+      setFormState((prev) => ({ ...prev, dataDiaria: "" }));
+    }
+  }, [dataDiariaMode, faltasConveniaById, selectedFaltaConveniaId]);
+  const faltasConveniaOptions = useMemo(() => {
+    return [...faltasConveniaSemDiaria]
+      .filter((falta) => falta?.data_falta && falta?.colaborador_convenia_id)
+      .sort((a, b) => (b.data_falta || "").localeCompare(a.data_falta || ""))
+      .map((falta) => {
+        const colaborador = colaboradoresConveniaMap.get(falta.colaborador_convenia_id);
+        const colaboradorNome = getConveniaColaboradorNome(colaborador);
+        const costCenterName =
+          colaborador?.cost_center_name ||
+          (colaborador?.cost_center_id ? costCenterNameMap.get(colaborador.cost_center_id) : null) ||
+          "Centro de custo nao informado";
+        return {
+          id: String(falta.id),
+          data: falta.data_falta,
+          label: `${formatDate(falta.data_falta)} • ${colaboradorNome} • ${costCenterName}`,
+        };
+      });
+  }, [faltasConveniaSemDiaria, colaboradoresConveniaMap, costCenterNameMap]);
   const getClienteInfoFromPosto = (postoInfo: any) => {
     const contrato = postoInfo?.unidade?.contrato;
     if (contrato?.cliente_id || contrato?.clientes?.nome_fantasia || contrato?.clientes?.razao_social) {
@@ -276,6 +344,8 @@ const Diarias2 = () => {
     );
   }, [colaboradoresConvenia, formState.centroCustoId, reservaTecnicaCostCenterId]);
 
+  const isFaltaSelecionada = dataDiariaMode === "falta" && !!selectedFaltaConveniaId;
+
   const { clienteReceberTotals, clienteRecebidosTotals } = useMemo(() => {
     const receber = new Map<string, { nome: string; total: number }>();
     const recebidos = new Map<string, { nome: string; total: number }>();
@@ -322,6 +392,10 @@ const Diarias2 = () => {
     event.preventDefault();
     if (!canCreateDiaria) {
       toast.error("Sem permissao para cadastrar diarias temporarias.");
+      return;
+    }
+    if (dataDiariaMode === "falta" && !selectedFaltaConveniaId) {
+      toast.error("Selecione uma falta pendente para definir a data da diaria.");
       return;
     }
     if (!formState.dataDiaria || !formState.horarioInicio || !formState.horarioFim) {
@@ -475,6 +549,8 @@ const Diarias2 = () => {
 
       toast.success("Diaria registrada com sucesso.");
       setFormState(initialFormState);
+      setDataDiariaMode("livre");
+      setSelectedFaltaConveniaId("");
       await refetchDiarias();
     } catch (error: any) {
       toast.error(error.message || "Nao foi possivel registrar a diaria.");
@@ -523,13 +599,103 @@ const Diarias2 = () => {
             )}
             <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <TooltipLabel label="Data da diaria" tooltip="Dia em que a diaria sera realizada." />
-                <Input
-                  type="date"
-                  required
-                  value={formState.dataDiaria}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, dataDiaria: event.target.value }))}
+                <TooltipLabel
+                  label="Origem da data"
+                  tooltip="Escolha se a data sera baseada em uma falta pendente ou informada manualmente."
                 />
+                <Select
+                  value={dataDiariaMode}
+                  onValueChange={(value) => {
+                    const nextMode = value as DataDiariaMode;
+                    setDataDiariaMode(nextMode);
+                    setSelectedFaltaConveniaId("");
+                    setFormState((prev) => ({ ...prev, dataDiaria: "" }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a origem da data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="livre">Data livre</SelectItem>
+                    <SelectItem value="falta">Usar falta cadastrada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                {dataDiariaMode === "livre" ? (
+                  <>
+                    <TooltipLabel
+                      label="Data da diaria"
+                      tooltip="Dia em que a diaria sera realizada."
+                    />
+                    <Input
+                      type="date"
+                      required
+                      value={formState.dataDiaria}
+                      onChange={(event) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          dataDiaria: event.target.value,
+                        }))
+                      }
+                    />
+                  </>
+                ) : (
+                  <>
+                    <TooltipLabel
+                      label="Falta pendente"
+                      tooltip="Selecione a falta sem diaria vinculada para usar a data."
+                    />
+                    <Select
+                      value={selectedFaltaConveniaId}
+                      onValueChange={(value) => {
+                        setSelectedFaltaConveniaId(value);
+                        const falta = faltasConveniaById.get(value);
+                        if (!falta?.data_falta) return;
+                        const colaborador = colaboradoresConveniaMap.get(falta.colaborador_convenia_id);
+                        const centroCustoId = colaborador?.cost_center_id || "";
+                        const faltaMotivo = (falta.motivo || "").toUpperCase();
+                        const motivoDiaria =
+                          faltaMotivo === "FALTA JUSTIFICADA"
+                            ? MOTIVO_VAGO_FALTA_ATESTADO
+                            : MOTIVO_VAGO_FALTA;
+                        setFormState((prev) => ({
+                          ...prev,
+                          dataDiaria: falta.data_falta,
+                          motivoVago: motivoDiaria,
+                          colaboradorAusenteId: falta.colaborador_convenia_id,
+                          centroCustoId: centroCustoId || prev.centroCustoId,
+                          postoServicoId: centroCustoId ? "" : prev.postoServicoId,
+                          colaboradorDemitidoId: "",
+                          demissao: null,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            loadingFaltasConveniaSemDiaria
+                              ? "Carregando faltas..."
+                              : "Selecione uma falta"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72 overflow-y-auto">
+                        {faltasConveniaOptions.length === 0 && (
+                          <SelectItem value="none" disabled>
+                            Nenhuma falta sem diaria vinculada
+                          </SelectItem>
+                        )}
+                        {faltasConveniaOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -584,6 +750,7 @@ const Diarias2 = () => {
                       colaboradorDemitidoId: "",
                     }))
                   }
+                  disabled={isFaltaSelecionada}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o centro de custo" />
@@ -619,6 +786,7 @@ const Diarias2 = () => {
                       colaboradorDemitidoId: "",
                     }));
                   }}
+                  disabled={isFaltaSelecionada}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o motivo" />
@@ -639,13 +807,14 @@ const Diarias2 = () => {
                     label="Colaborador ausente"
                     tooltip="Colaborador que sera coberto pela diaria."
                   />
-                  <Select
-                    required
-                    value={formState.colaboradorAusenteId}
-                    onValueChange={(value) =>
-                      setFormState((prev) => ({ ...prev, colaboradorAusenteId: value }))
-                    }
-                  >
+                <Select
+                  required
+                  value={formState.colaboradorAusenteId}
+                  onValueChange={(value) =>
+                    setFormState((prev) => ({ ...prev, colaboradorAusenteId: value }))
+                  }
+                  disabled={isFaltaSelecionada}
+                >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o colaborador" />
                     </SelectTrigger>
