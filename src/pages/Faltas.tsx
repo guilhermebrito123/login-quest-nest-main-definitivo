@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
@@ -19,6 +20,7 @@ import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 import { FaltaJustificarDialog } from "@/components/faltas/FaltaJustificarDialog";
 import { toast } from "sonner";
 import { useSession } from "@/hooks/useSession";
+import { format } from "date-fns";
 
 const BUCKET = "atestados";
 const CLIENTE_FILTER_ALL = "__all__";
@@ -392,6 +394,7 @@ const Faltas = () => {
     dataFalta: "",
     diariaId: "",
   });
+  const [faltaFormDates, setFaltaFormDates] = useState<Date[]>([]);
   const [faltasView, setFaltasView] = useState<"lista" | "agrupadas">("lista");
   const [ordenarListaAlfabetica, setOrdenarListaAlfabetica] = useState(false);
   const [ordenarListaPorDataDesc, setOrdenarListaPorDataDesc] = useState(false);
@@ -1352,11 +1355,16 @@ const formatConveniaValue = (value: unknown, key?: string) => {
   };
 
   const resetFaltaForm = (falta?: FaltaConveniaRow | null) => {
+    const parsedDate =
+      falta?.data_falta && !Number.isNaN(new Date(`${falta.data_falta}T00:00:00`).getTime())
+        ? new Date(`${falta.data_falta}T00:00:00`)
+        : null;
     setFaltaForm({
       colaboradorId: falta?.colaborador_convenia_id ?? "",
       dataFalta: falta?.data_falta ?? "",
       diariaId: falta?.diaria_temporaria_id ? String(falta.diaria_temporaria_id) : "",
     });
+    setFaltaFormDates(parsedDate ? [parsedDate] : []);
   };
 
   const handleFaltaFormOpenChange = (open: boolean) => {
@@ -1403,36 +1411,62 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       toast.error("Selecione o colaborador.");
       return;
     }
-    if (!faltaForm.dataFalta) {
-      toast.error("Informe a data da falta.");
-      return;
-    }
     const parsedDiariaId = parseOptionalDiariaId(faltaForm.diariaId);
     if (parsedDiariaId === undefined) {
       toast.error("ID da diaria invalido.");
+      return;
+    }
+    const isCreateMode = faltaFormMode === "create";
+    const selectedDates =
+      isCreateMode
+        ? faltaFormDates
+        : faltaForm.dataFalta
+          ? [new Date(`${faltaForm.dataFalta}T00:00:00`)]
+          : [];
+    if (selectedDates.length === 0) {
+      toast.error(isCreateMode ? "Selecione as datas da falta." : "Informe a data da falta.");
+      return;
+    }
+    if (isCreateMode && selectedDates.length > 1 && parsedDiariaId) {
+      toast.error("Para multiplas datas, deixe o ID da diaria em branco.");
+      return;
+    }
+    const dateValues = Array.from(
+      new Set(
+        selectedDates
+          .filter((date) => !Number.isNaN(date.getTime()))
+          .map((date) => format(date, "yyyy-MM-dd")),
+      ),
+    );
+    if (dateValues.length === 0) {
+      toast.error(isCreateMode ? "Selecione as datas da falta." : "Informe a data da falta.");
       return;
     }
 
     try {
       setFaltaFormSaving(true);
       if (faltaFormMode === "create") {
-        const { error } = await supabase.from("faltas_colaboradores_convenia").insert({
+        const payload = dateValues.map((dateValue) => ({
           colaborador_convenia_id: faltaForm.colaboradorId,
-          data_falta: faltaForm.dataFalta,
+          data_falta: dateValue,
           diaria_temporaria_id: parsedDiariaId,
           motivo: MOTIVO_FALTA_INJUSTIFICADA,
-        });
+        }));
+        const { error } = await supabase
+          .from("faltas_colaboradores_convenia")
+          .insert(payload);
         if (error) throw error;
         toast.success("Falta cadastrada com sucesso.");
       } else {
         if (!faltaFormTarget) {
           throw new Error("Falta nao selecionada.");
         }
+        const [dateValue] = dateValues;
         const { error } = await supabase
           .from("faltas_colaboradores_convenia")
           .update({
             colaborador_convenia_id: faltaForm.colaboradorId,
-            data_falta: faltaForm.dataFalta,
+            data_falta: dateValue,
             diaria_temporaria_id: parsedDiariaId,
             updated_at: new Date().toISOString(),
           })
@@ -2249,11 +2283,11 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                 : "Atualize os dados da falta selecionada."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <span className="text-sm text-muted-foreground">Colaborador</span>
-              <Select
-                value={faltaForm.colaboradorId}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <span className="text-sm text-muted-foreground">Colaborador</span>
+                <Select
+                  value={faltaForm.colaboradorId}
                 onValueChange={(value) =>
                   setFaltaForm((prev) => ({ ...prev, colaboradorId: value }))
                 }
@@ -2267,41 +2301,67 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                       {option.label}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <span className="text-sm text-muted-foreground">Data da falta</span>
-              <Input
-                type="date"
-                value={faltaForm.dataFalta}
-                onChange={(event) =>
-                  setFaltaForm((prev) => ({
-                    ...prev,
-                    dataFalta: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <span className="text-sm text-muted-foreground">
-                ID da diaria temporaria (opcional)
-              </span>
-              <Input
-                value={faltaForm.diariaId}
-                onChange={(event) =>
-                  setFaltaForm((prev) => ({
-                    ...prev,
-                    diariaId: event.target.value,
-                  }))
-                }
-                placeholder="Ex.: 12345"
-              />
-              <p className="text-xs text-muted-foreground">
-                Se a falta estiver vinculada a uma diaria, informe o ID. Caso
-                contrario, deixe em branco.
-              </p>
-            </div>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <span className="text-sm text-muted-foreground">
+                  {faltaFormMode === "create" ? "Datas da falta" : "Data da falta"}
+                </span>
+                {faltaFormMode === "create" ? (
+                  <div className="rounded-md border bg-muted/20">
+                    <Calendar
+                      mode="multiple"
+                      selected={faltaFormDates}
+                      onSelect={(dates) => setFaltaFormDates(dates ?? [])}
+                    />
+                  </div>
+                ) : (
+                  <Input
+                    type="date"
+                    value={faltaForm.dataFalta}
+                    onChange={(event) =>
+                      setFaltaForm((prev) => ({
+                        ...prev,
+                        dataFalta: event.target.value,
+                      }))
+                    }
+                  />
+                )}
+                {faltaFormMode === "create" && (
+                  <div className="text-xs text-muted-foreground">
+                    {faltaFormDates.length === 0
+                      ? "Selecione uma ou mais datas no calendario."
+                      : `Selecionadas: ${faltaFormDates
+                          .map((date) => format(date, "dd/MM/yyyy"))
+                          .join(", ")}`}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <span className="text-sm text-muted-foreground">
+                  ID da diaria temporaria (opcional)
+                </span>
+                <Input
+                  value={faltaForm.diariaId}
+                  onChange={(event) =>
+                    setFaltaForm((prev) => ({
+                      ...prev,
+                      diariaId: event.target.value,
+                    }))
+                  }
+                  placeholder="Ex.: 12345"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se a falta estiver vinculada a uma diaria, informe o ID. Caso
+                  contrario, deixe em branco.
+                </p>
+                {faltaFormMode === "create" && faltaFormDates.length > 1 && (
+                  <p className="text-xs text-amber-700">
+                    Para multiplas datas, deixe o ID da diaria em branco.
+                  </p>
+                )}
+              </div>
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
               A falta sera registrada como{" "}
               <span className="font-semibold">{MOTIVO_FALTA_INJUSTIFICADA}</span>
