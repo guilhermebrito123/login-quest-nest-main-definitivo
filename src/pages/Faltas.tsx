@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
-import { formatDate, formatDateTime } from "./diarias/utils";
+import { formatDate, formatDateTime, normalizeStatus, STATUS } from "./diarias/utils";
 import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
 import { FaltaJustificarDialog } from "@/components/faltas/FaltaJustificarDialog";
 import { toast } from "sonner";
@@ -440,6 +440,8 @@ const Faltas = () => {
     });
     return map;
   }, [diarias]);
+  const normalizedCancelada = normalizeStatus(STATUS.cancelada);
+  const normalizedReprovada = normalizeStatus(STATUS.reprovada);
 
   const {
     data: faltasColaboradoresRaw = [],
@@ -761,6 +763,14 @@ const formatConveniaValue = (value: unknown, key?: string) => {
 
   const getFaltaDocumentoPath = (falta: FaltaData) =>
     falta.tipo === "colaborador" ? falta.documento_url : falta.atestado_path;
+
+  const hasDiariaVinculadaAtiva = (falta: FaltaData) => {
+    if (!falta.diaria_temporaria_id) return false;
+    const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
+    if (!diaria?.status) return false;
+    const statusNorm = normalizeStatus(diaria.status);
+    return statusNorm !== normalizedCancelada && statusNorm !== normalizedReprovada;
+  };
 
   const matchDiariaVinculoFilter = (falta: FaltaData) => {
     if (diariaVinculoFilter === DIARIA_VINCULO_FILTER_ALL) return true;
@@ -2017,11 +2027,11 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                           <TableCell>
                             <div className="flex flex-col">
                               <span>{dataFaltaLabel}</span>
-                              {falta.diaria_temporaria_id && (
-                                <span className="text-xs font-semibold text-red-600">
-                                  Diária vinculada
-                                </span>
-                              )}
+                                {hasDiariaVinculadaAtiva(falta) && (
+                                  <span className="text-xs font-semibold text-red-600">
+                                    Diária vinculada
+                                  </span>
+                                )}
                             </div>
                           </TableCell>
                           <TableCell>{colaboradorNome}</TableCell>
@@ -2403,11 +2413,11 @@ const formatConveniaValue = (value: unknown, key?: string) => {
 
               return (
                   <div className="space-y-4">
-                    {detailsFalta.diaria_temporaria_id && (
-                      <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-                        Diária vinculada
-                      </div>
-                    )}
+                      {hasDiariaVinculadaAtiva(detailsFalta) && (
+                        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                          Diária vinculada
+                        </div>
+                      )}
                     <div className="grid min-w-0 gap-3 lg:grid-cols-2">
                     <div>
                       <p className="text-xs text-muted-foreground">Data</p>
