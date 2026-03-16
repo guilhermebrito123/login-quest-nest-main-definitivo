@@ -23,6 +23,9 @@ import { useSession } from "@/hooks/useSession";
 const BUCKET = "atestados";
 const CLIENTE_FILTER_ALL = "__all__";
 const COLABORADOR_FILTER_ALL = "__all__";
+const DIARIA_VINCULO_FILTER_ALL = "__all__";
+const DIARIA_VINCULO_FILTER_COM = "com_diaria";
+const DIARIA_VINCULO_FILTER_SEM = "sem_diaria";
 const ADVANCED_FILTER_ALL = "__all__";
 const MOTIVO_FALTA_INJUSTIFICADA = "FALTA INJUSTIFICADA";
 const MOTIVO_FALTA_JUSTIFICADA = "FALTA JUSTIFICADA";
@@ -355,6 +358,7 @@ const Faltas = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [clienteFilter, setClienteFilter] = useState(CLIENTE_FILTER_ALL);
   const [colaboradorFilter, setColaboradorFilter] = useState(COLABORADOR_FILTER_ALL);
+  const [diariaVinculoFilter, setDiariaVinculoFilter] = useState(DIARIA_VINCULO_FILTER_ALL);
   const [faltaType, setFaltaType] = useState<FaltaTipo>("convenia");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedFalta, setSelectedFalta] = useState<FaltaData | null>(null);
@@ -758,6 +762,15 @@ const formatConveniaValue = (value: unknown, key?: string) => {
   const getFaltaDocumentoPath = (falta: FaltaData) =>
     falta.tipo === "colaborador" ? falta.documento_url : falta.atestado_path;
 
+  const matchDiariaVinculoFilter = (falta: FaltaData) => {
+    if (diariaVinculoFilter === DIARIA_VINCULO_FILTER_ALL) return true;
+    if (falta.tipo !== "convenia") return true;
+    const hasDiaria = !!falta.diaria_temporaria_id;
+    if (diariaVinculoFilter === DIARIA_VINCULO_FILTER_COM) return hasDiaria;
+    if (diariaVinculoFilter === DIARIA_VINCULO_FILTER_SEM) return !hasDiaria;
+    return true;
+  };
+
   const getFaltaDataValue = (falta: FaltaData) => {
     const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
     return diaria?.data_diaria || (falta.tipo === "convenia" ? falta.data_falta : null);
@@ -799,16 +812,17 @@ const formatConveniaValue = (value: unknown, key?: string) => {
     const endDate = dateRangeFilter.endDate
       ? new Date(`${dateRangeFilter.endDate}T23:59:59.999`)
       : null;
-    const hasInvalidRange =
-      (startDate && Number.isNaN(startDate.getTime())) ||
-      (endDate && Number.isNaN(endDate.getTime())) ||
-      (startDate && endDate && startDate > endDate);
-    return faltasAtivas.filter((falta) => {
-      if (clienteFilter !== CLIENTE_FILTER_ALL) {
-        const centroCustoId = falta.colaborador_convenia_id
-          ? getConveniaCostCenterId(falta.colaborador_convenia_id)
-          : String(diariaMap.get(String(falta.diaria_temporaria_id))?.centro_custo_id ?? "");
-        if (!centroCustoId || String(centroCustoId) !== clienteFilter) return false;
+      const hasInvalidRange =
+        (startDate && Number.isNaN(startDate.getTime())) ||
+        (endDate && Number.isNaN(endDate.getTime())) ||
+        (startDate && endDate && startDate > endDate);
+      return faltasAtivas.filter((falta) => {
+        if (!matchDiariaVinculoFilter(falta)) return false;
+        if (clienteFilter !== CLIENTE_FILTER_ALL) {
+          const centroCustoId = falta.colaborador_convenia_id
+            ? getConveniaCostCenterId(falta.colaborador_convenia_id)
+            : String(diariaMap.get(String(falta.diaria_temporaria_id))?.centro_custo_id ?? "");
+          if (!centroCustoId || String(centroCustoId) !== clienteFilter) return false;
       }
 
       if (startDate || endDate) {
@@ -834,13 +848,14 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       return colaboradorNome.includes(term) || referenciaId.includes(term);
     });
   }, [
-    faltasAtivas,
-    searchTerm,
-    clienteFilter,
-    colaboradorFilter,
-    dateRangeFilter,
-    diariaMap,
-    colaboradoresMap,
+      faltasAtivas,
+      searchTerm,
+      diariaVinculoFilter,
+      clienteFilter,
+      colaboradorFilter,
+      dateRangeFilter,
+      diariaMap,
+      colaboradoresMap,
     colaboradoresConveniaMap,
   ]);
 
@@ -990,6 +1005,7 @@ const formatConveniaValue = (value: unknown, key?: string) => {
     faltasAtivas.forEach((falta) => {
       if (statusFilter === "pendente" && falta.justificada_em) return;
       if (statusFilter === "justificada" && !falta.justificada_em) return;
+      if (!matchDiariaVinculoFilter(falta)) return;
 
       if (clienteFilter !== CLIENTE_FILTER_ALL) {
         const centroCustoId = falta.colaborador_convenia_id
@@ -1024,12 +1040,13 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       .map(([id, label]) => ({ id, label }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [
-    faltasAtivas,
-    statusFilter,
-    clienteFilter,
-    dateRangeFilter,
-    searchTerm,
-    diariaMap,
+      faltasAtivas,
+      statusFilter,
+      diariaVinculoFilter,
+      clienteFilter,
+      dateRangeFilter,
+      searchTerm,
+      diariaMap,
     colaboradoresMap,
     colaboradoresConveniaMap,
   ]);
@@ -1042,18 +1059,19 @@ const formatConveniaValue = (value: unknown, key?: string) => {
     const endDate = dateRangeFilter.endDate
       ? new Date(`${dateRangeFilter.endDate}T23:59:59.999`)
       : null;
-    const hasInvalidRange =
-      (startDate && Number.isNaN(startDate.getTime())) ||
-      (endDate && Number.isNaN(endDate.getTime())) ||
-      (startDate && endDate && startDate > endDate);
-    return faltasAtivas.filter((falta) => {
-      if (statusFilter === "pendente" && falta.justificada_em) return false;
-      if (statusFilter === "justificada" && !falta.justificada_em) return false;
+      const hasInvalidRange =
+        (startDate && Number.isNaN(startDate.getTime())) ||
+        (endDate && Number.isNaN(endDate.getTime())) ||
+        (startDate && endDate && startDate > endDate);
+      return faltasAtivas.filter((falta) => {
+        if (statusFilter === "pendente" && falta.justificada_em) return false;
+        if (statusFilter === "justificada" && !falta.justificada_em) return false;
+        if (!matchDiariaVinculoFilter(falta)) return false;
 
-      if (clienteFilter !== CLIENTE_FILTER_ALL) {
-        const centroCustoId = falta.colaborador_convenia_id
-          ? getConveniaCostCenterId(falta.colaborador_convenia_id)
-          : String(diariaMap.get(String(falta.diaria_temporaria_id))?.centro_custo_id ?? "");
+        if (clienteFilter !== CLIENTE_FILTER_ALL) {
+          const centroCustoId = falta.colaborador_convenia_id
+            ? getConveniaCostCenterId(falta.colaborador_convenia_id)
+            : String(diariaMap.get(String(falta.diaria_temporaria_id))?.centro_custo_id ?? "");
         if (!centroCustoId || String(centroCustoId) !== clienteFilter) return false;
       }
 
@@ -1080,13 +1098,14 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       return colaboradorNome.includes(term) || referenciaId.includes(term);
     });
   }, [
-    faltasAtivas,
-    searchTerm,
-    statusFilter,
-    clienteFilter,
-    colaboradorFilter,
-    dateRangeFilter,
-    diariaMap,
+      faltasAtivas,
+      searchTerm,
+      statusFilter,
+      diariaVinculoFilter,
+      clienteFilter,
+      colaboradorFilter,
+      dateRangeFilter,
+      diariaMap,
     colaboradoresMap,
     colaboradoresConveniaMap,
   ]);
@@ -1232,6 +1251,7 @@ const formatConveniaValue = (value: unknown, key?: string) => {
     setStatusFilter("pendente");
     setClienteFilter(CLIENTE_FILTER_ALL);
     setColaboradorFilter(COLABORADOR_FILTER_ALL);
+    setDiariaVinculoFilter(DIARIA_VINCULO_FILTER_ALL);
     setDateRangeFilter({ startDate: "", endDate: "" });
     setCurrentPage(1);
   };
@@ -1714,25 +1734,38 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <span className="text-sm text-muted-foreground">Status</span>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
+              <div className="space-y-2 md:col-span-2">
+                <span className="text-sm text-muted-foreground">Status</span>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
                 <SelectContent>
                   {STATUS_FILTERS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <span className="text-sm text-muted-foreground">Colaborador</span>
-              <Select value={colaboradorFilter} onValueChange={setColaboradorFilter}>
-                <SelectTrigger>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <span className="text-sm text-muted-foreground">Diaria vinculada</span>
+                <Select value={diariaVinculoFilter} onValueChange={setDiariaVinculoFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DIARIA_VINCULO_FILTER_ALL}>Todas</SelectItem>
+                    <SelectItem value={DIARIA_VINCULO_FILTER_COM}>Com diaria</SelectItem>
+                    <SelectItem value={DIARIA_VINCULO_FILTER_SEM}>Sem diaria</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <span className="text-sm text-muted-foreground">Colaborador</span>
+                <Select value={colaboradorFilter} onValueChange={setColaboradorFilter}>
+                  <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
