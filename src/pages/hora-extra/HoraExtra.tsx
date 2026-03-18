@@ -361,18 +361,16 @@ const HoraExtra = () => {
                             falta.colaborador_convenia_id,
                           );
                           const nomeColaborador = getConveniaColaboradorNome(colaborador);
-                          const cpfLabel = toTrimOrNull(colaborador?.cpf);
-                          const costCenterLabel =
-                            colaborador?.cost_center_name ||
-                            (colaborador?.cost_center_id
-                              ? costCenterMap.get(colaborador.cost_center_id)
-                              : null) ||
-                            "-";
+                          const cpfLabel = toTrimOrNull(colaborador?.cpf) || "CPF VAZIO";
+                          const localFaltaRaw = toTrimOrNull(falta.local_falta);
+                          const localFaltaLabel = localFaltaRaw
+                            ? costCenterMap.get(localFaltaRaw) || localFaltaRaw
+                            : "LOCAL DE FALTA NAO INFORMADO";
                           const optionLabel = [
                             formatDate(falta.data_falta),
                             nomeColaborador,
-                            cpfLabel ? `CPF ${cpfLabel}` : null,
-                            costCenterLabel,
+                            cpfLabel,
+                            localFaltaLabel,
                           ]
                             .filter(Boolean)
                             .join(" • ");
