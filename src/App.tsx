@@ -45,7 +45,6 @@ import DiariasTemporariasLogsPage from "./pages/diarias/DiariasTemporariasLogsPa
 import Diarias from "./pages/Diarias";
 import Diarias2 from "./pages/Diarias2";
 import Faltas from "./pages/Faltas";
-import Cobertura from "./pages/Cobertura";
 import HoraExtra from "./pages/hora-extra/HoraExtra";
 import {
   HoraExtraPendentesPage,
@@ -124,7 +123,6 @@ const App = () => (
           <Route path="/diarias2/pagas" element={<ProtectedRoute><Diarias2PagasPage /></ProtectedRoute>} />
           <Route path="/diarias2/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
           <Route path="/diarias2" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
-          <Route path="/cobertura" element={<ProtectedRoute><Cobertura /></ProtectedRoute>} />
           <Route path="/cobertura/diarias/aguardando" element={<ProtectedRoute><Diarias2AguardandoPage /></ProtectedRoute>} />
           <Route path="/cobertura/diarias/confirmadas" element={<ProtectedRoute><Diarias2ConfirmadasPage /></ProtectedRoute>} />
           <Route path="/cobertura/diarias/aprovadas" element={<ProtectedRoute><Diarias2AprovadasPage /></ProtectedRoute>} />
