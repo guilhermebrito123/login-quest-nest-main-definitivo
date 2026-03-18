@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   FolderTree,
   Fuel,
+  Clock,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -44,7 +45,7 @@ type MenuItem = {
   url: string;
   icon: any;
   children?: { title: string; url: string; status?: string }[];
-  statusCountsKey?: "diarias" | "diariasTemporarias";
+  statusCountsKey?: "diarias" | "diariasTemporarias" | "horaExtra";
   badge?: string;
 };
 type UserRole = "candidato" | "colaborador" | "perfil_interno";
@@ -70,20 +71,28 @@ const diariasChildren = [
 const diariasTemporariasChildren = [
   {
     title: "Aguardando confirmação",
-    url: "/diarias2/aguardando",
+    url: "/cobertura/diarias/aguardando",
     status: "Aguardando confirmacao",
   },
-  { title: "Confirmadas", url: "/diarias2/confirmadas", status: "Confirmada" },
-  { title: "Financeiro", url: "/diarias2/aprovadas", status: "Aprovada" },
+  { title: "Confirmadas", url: "/cobertura/diarias/confirmadas", status: "Confirmada" },
+  { title: "Financeiro", url: "/cobertura/diarias/aprovadas", status: "Aprovada" },
   {
     title: "Lançadas",
-    url: "/diarias2/lancadas",
+    url: "/cobertura/diarias/lancadas",
     status: "Lançada para pagamento",
   },
-  { title: "Pagas", url: "/diarias2/pagas" },
-  { title: "Reprovadas", url: "/diarias2/reprovadas" },
-  { title: "Canceladas", url: "/diarias2/canceladas" },
-  { title: "Logs", url: "/diarias2/logs" },
+  { title: "Pagas", url: "/cobertura/diarias/pagas" },
+  { title: "Reprovadas", url: "/cobertura/diarias/reprovadas" },
+  { title: "Canceladas", url: "/cobertura/diarias/canceladas" },
+  { title: "Logs", url: "/cobertura/diarias/logs" },
+];
+
+const horaExtraChildren = [
+  { title: "Pendentes", url: "/cobertura/hora-extra/pendentes", status: "pendente" },
+  { title: "Confirmadas", url: "/cobertura/hora-extra/confirmadas", status: "confirmada" },
+  { title: "Aprovadas", url: "/cobertura/hora-extra/aprovadas", status: "aprovada" },
+  { title: "Reprovadas", url: "/cobertura/hora-extra/reprovadas", status: "reprovada" },
+  { title: "Canceladas", url: "/cobertura/hora-extra/canceladas", status: "cancelada" },
 ];
 
 const menuItems: MenuItem[] = [
@@ -102,13 +111,21 @@ const menuItems: MenuItem[] = [
   { title: "Diaristas✅", url: "/diaristas", icon: UserCircle },
   { title: "Diaristas🔒", url: "/diaristas-restritos", icon: Lock },
   { title: "Diaristas logs", url: "/diaristas/logs", icon: FileText },
+  { title: "Cobertura", url: "/cobertura", icon: Calendar },
   //{ title: "Diarias (versão futura)", url: "/diarias", icon: Calendar, children: diariasChildren, statusCountsKey: "diarias" },
   {
-    title: "Diarias (versão 1.0.0)",
-    url: "/diarias2",
+    title: "Diarias (Cobertura)",
+    url: "/cobertura/diarias",
     icon: Calendar,
     children: diariasTemporariasChildren,
     statusCountsKey: "diariasTemporarias",
+  },
+  {
+    title: "Hora extra",
+    url: "/cobertura/hora-extra",
+    icon: Clock,
+    children: horaExtraChildren,
+    statusCountsKey: "horaExtra",
   },
   { title: "Faltas", url: "/faltas", icon: AlertTriangle },
   { title: "Ativos", url: "/ativos", icon: Package },
@@ -143,6 +160,9 @@ export function AppSidebar() {
   const [diariasTemporariasCounts, setDiariasTemporariasCounts] = useState<
     Record<string, number>
   >({});
+  const [horaExtraCounts, setHoraExtraCounts] = useState<Record<string, number>>(
+    {}
+  );
   const [enterprisePending, setEnterprisePending] = useState(false);
   useEffect(() => {
     let isMounted = true;
@@ -177,13 +197,16 @@ export function AppSidebar() {
 
     const loadCounts = async () => {
       try {
-        const [origCounts, temporariasCounts] = await Promise.all([
+        const [origCounts, temporariasCounts, horasExtrasCounts] =
+          await Promise.all([
           fetchCounts(diariasChildren, "diarias"),
           fetchCounts(diariasTemporariasChildren, "diarias_temporarias"),
+          fetchCounts(horaExtraChildren, "horas_extras"),
         ]);
         if (!isMounted) return;
         setDiariasCounts(origCounts);
         setDiariasTemporariasCounts(temporariasCounts);
+        setHoraExtraCounts(horasExtrasCounts);
       } catch (error) {
         console.error("Erro ao carregar contagens de diarias:", error);
       }
@@ -309,7 +332,9 @@ export function AppSidebar() {
                 const countsMap =
                   item.statusCountsKey === "diariasTemporarias"
                     ? diariasTemporariasCounts
-                    : diariasCounts;
+                    : item.statusCountsKey === "horaExtra"
+                      ? horaExtraCounts
+                      : diariasCounts;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={itemActive}>
@@ -344,7 +369,12 @@ export function AppSidebar() {
                               >
                                 <span className="truncate">{child.title}</span>
                                 {child.status &&
-                                  (countsMap[child.status] ?? 0) > 0 && (
+                                  (countsMap[child.status] ?? 0) > 0 &&
+                                  !(
+                                    item.statusCountsKey === "horaExtra" &&
+                                    child.status !== "pendente" &&
+                                    child.status !== "confirmada"
+                                  ) && (
                                     <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
                                       {countsMap[child.status]}
                                     </span>

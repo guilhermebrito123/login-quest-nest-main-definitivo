@@ -228,6 +228,16 @@ const Diarias2 = () => {
       return (data || []) as FaltaConveniaSemDiaria[];
     },
   });
+  const { data: horasExtrasFaltas = [] } = useQuery({
+    queryKey: ["horas-extras-falta-ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("horas_extras")
+        .select("falta_id");
+      if (error) throw error;
+      return (data || []) as Array<{ falta_id: number }>;
+    },
+  });
   const blacklistMap = useMemo(() => {
     const map = new Map<string, { motivo?: string | null }>();
     (blacklist || []).forEach((item: any) => {
@@ -251,13 +261,27 @@ const Diarias2 = () => {
     });
     return map;
   }, [costCenters]);
+  const horasExtrasFaltaIdSet = useMemo(() => {
+    const set = new Set<string>();
+    horasExtrasFaltas.forEach((item) => {
+      if (item?.falta_id) set.add(String(item.falta_id));
+    });
+    return set;
+  }, [horasExtrasFaltas]);
+  const faltasConveniaSemDiariaDisponiveis = useMemo(
+    () =>
+      faltasConveniaSemDiaria.filter(
+        (falta) => !horasExtrasFaltaIdSet.has(String(falta.id)),
+      ),
+    [faltasConveniaSemDiaria, horasExtrasFaltaIdSet],
+  );
   const faltasConveniaById = useMemo(() => {
     const map = new Map<string, FaltaConveniaSemDiaria>();
-    faltasConveniaSemDiaria.forEach((falta) => {
+    faltasConveniaSemDiariaDisponiveis.forEach((falta) => {
       map.set(String(falta.id), falta);
     });
     return map;
-  }, [faltasConveniaSemDiaria]);
+  }, [faltasConveniaSemDiariaDisponiveis]);
   useEffect(() => {
     if (!selectedFaltaConveniaId) return;
     if (faltasConveniaById.has(selectedFaltaConveniaId)) return;
@@ -267,12 +291,13 @@ const Diarias2 = () => {
     }
   }, [dataDiariaMode, faltasConveniaById, selectedFaltaConveniaId]);
   const faltasConveniaOptions = useMemo(() => {
-    return [...faltasConveniaSemDiaria]
+    return [...faltasConveniaSemDiariaDisponiveis]
       .filter((falta) => falta?.data_falta && falta?.colaborador_convenia_id)
       .sort((a, b) => (b.data_falta || "").localeCompare(a.data_falta || ""))
       .map((falta) => {
         const colaborador = colaboradoresConveniaMap.get(falta.colaborador_convenia_id);
         const colaboradorNome = getConveniaColaboradorNome(colaborador);
+        const cpfLabel = toTrimOrNull(colaborador?.cpf);
         const costCenterName =
           colaborador?.cost_center_name ||
           (colaborador?.cost_center_id ? costCenterNameMap.get(colaborador.cost_center_id) : null) ||
@@ -280,10 +305,17 @@ const Diarias2 = () => {
         return {
           id: String(falta.id),
           data: falta.data_falta,
-          label: `${formatDate(falta.data_falta)} • ${colaboradorNome} • ${costCenterName}`,
+          label: [
+            formatDate(falta.data_falta),
+            colaboradorNome,
+            cpfLabel ? `CPF ${cpfLabel}` : null,
+            costCenterName,
+          ]
+            .filter(Boolean)
+            .join(" • "),
         };
       });
-  }, [faltasConveniaSemDiaria, colaboradoresConveniaMap, costCenterNameMap]);
+  }, [faltasConveniaSemDiariaDisponiveis, colaboradoresConveniaMap, costCenterNameMap]);
   const getClienteInfoFromPosto = (postoInfo: any) => {
     const contrato = postoInfo?.unidade?.contrato;
     if (contrato?.cliente_id || contrato?.clientes?.nome_fantasia || contrato?.clientes?.razao_social) {
