@@ -148,6 +148,10 @@ const formatEnumLabel = (value?: string | null) => {
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 };
+const confirmAction = (message: string) => {
+  if (typeof window === "undefined") return true;
+  return window.confirm(message);
+};
 
 const calcDuracaoMin = (hora: HoraExtraWithFalta) => {
   const inicio = new Date(hora.inicio_em).getTime();
@@ -562,6 +566,9 @@ const createStatusPage = ({
     };
 
     const handleConfirmar = async (hora: HoraExtraWithFalta) => {
+      if (!confirmAction("Deseja confirmar esta hora extra?")) {
+        return;
+      }
       try {
         setUpdatingId(hora.id);
         const { error } = await supabase.rpc("confirmar_hora_extra", {
@@ -578,6 +585,9 @@ const createStatusPage = ({
     };
 
     const handleAprovar = async (hora: HoraExtraWithFalta) => {
+      if (!confirmAction("Deseja aprovar esta hora extra?")) {
+        return;
+      }
       try {
         setUpdatingId(hora.id);
         const { error } = await supabase.rpc("aprovar_hora_extra", {
@@ -606,6 +616,13 @@ const createStatusPage = ({
       if (!reasonDialog.horaExtra || !reasonDialog.type) return;
       if (!reasonValue) {
         toast.error("Selecione o motivo.");
+        return;
+      }
+      const confirmationMessage =
+        reasonDialog.type === "reprovar"
+          ? "Deseja reprovar esta hora extra?"
+          : "Deseja cancelar esta hora extra?";
+      if (!confirmAction(confirmationMessage)) {
         return;
       }
       const hora = reasonDialog.horaExtra;
@@ -640,10 +657,13 @@ const createStatusPage = ({
     };
 
     const handleDelete = async (hora: HoraExtraWithFalta) => {
-      const confirm = window.confirm(
-        "Deseja realmente excluir esta hora extra? Esta acao nao pode ser desfeita.",
-      );
-      if (!confirm) return;
+      if (
+        !confirmAction(
+          "Deseja realmente excluir esta hora extra? Esta acao nao pode ser desfeita.",
+        )
+      ) {
+        return;
+      }
       try {
         setDeletingId(hora.id);
         const { error } = await supabase
