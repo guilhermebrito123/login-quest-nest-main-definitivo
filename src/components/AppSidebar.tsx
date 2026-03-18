@@ -111,7 +111,6 @@ const menuItems: MenuItem[] = [
   { title: "Diaristas✅", url: "/diaristas", icon: UserCircle },
   { title: "Diaristas🔒", url: "/diaristas-restritos", icon: Lock },
   { title: "Diaristas logs", url: "/diaristas/logs", icon: FileText },
-  { title: "Cobertura", url: "/cobertura", icon: Calendar },
   //{ title: "Diarias (versão futura)", url: "/diarias", icon: Calendar, children: diariasChildren, statusCountsKey: "diarias" },
   {
     title: "Diarias (Cobertura)",
