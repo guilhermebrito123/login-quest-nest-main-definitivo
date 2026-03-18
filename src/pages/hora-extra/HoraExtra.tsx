@@ -35,6 +35,10 @@ const formatEnumLabel = (value?: string | null) => {
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 };
+const confirmAction = (message: string) => {
+  if (typeof window === "undefined") return true;
+  return window.confirm(message);
+};
 const COBERTURA_COST_CENTER_ALL = "__all__";
 const toTrimOrNull = (value: string | null | undefined) => {
   const trimmed = (value ?? "").trim();
@@ -243,6 +247,9 @@ const HoraExtra = () => {
     if (sessionLoading) return;
     if (!session?.user?.id) {
       toast.error("Sessao expirada. Faca login novamente.");
+      return;
+    }
+    if (!confirmAction("Deseja cadastrar esta hora extra?")) {
       return;
     }
 

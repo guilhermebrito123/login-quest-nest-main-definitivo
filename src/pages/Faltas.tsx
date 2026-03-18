@@ -346,6 +346,10 @@ const getConveniaColaboradorNome = (colaborador?: {
   const full = [base, last].filter(Boolean).join(" ").trim();
   return full || colaborador.name || colaborador.id || "-";
 };
+const confirmAction = (message: string) => {
+  if (typeof window === "undefined") return true;
+  return window.confirm(message);
+};
 
 const STATUS_FILTERS = [
   { value: "todos", label: "Todas" },
@@ -1316,6 +1320,9 @@ const formatConveniaValue = (value: unknown, key?: string) => {
   }, [currentPage, totalPages]);
 
   const handleClearFilters = () => {
+    if (!confirmAction("Deseja limpar todos os filtros?")) {
+      return;
+    }
     setSearchTerm("");
     setStatusFilter("pendente");
     setClienteFilter(CLIENTE_FILTER_ALL);
@@ -1371,6 +1378,9 @@ const formatConveniaValue = (value: unknown, key?: string) => {
   };
 
   const handleExportFilteredFaltas = () => {
+    if (!confirmAction("Deseja exportar as faltas filtradas para XLSX?")) {
+      return;
+    }
     const faltasParaExportar = filteredFaltas.filter(
       (falta): falta is FaltaConveniaRow => falta.tipo === "convenia",
     );
@@ -1387,10 +1397,22 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       toast.error("Preencha periodo e colaborador para exportar.");
       return;
     }
+    const exportLabel =
+      fileSuffix === "total"
+        ? "total"
+        : fileSuffix === "injustificadas"
+          ? MOTIVO_FALTA_INJUSTIFICADA
+          : MOTIVO_FALTA_JUSTIFICADA;
+    if (!confirmAction(`Deseja exportar as faltas (${exportLabel}) para XLSX?`)) {
+      return;
+    }
     exportFaltasConveniaXlsx(faltas, `faltas-convenia-${fileSuffix}`);
   };
 
   const handleViewDocumento = async (path: string) => {
+    if (!confirmAction("Deseja abrir o documento em uma nova aba?")) {
+      return;
+    }
     try {
       const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 120);
       if (error || !data?.signedUrl) {
@@ -1509,6 +1531,14 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       toast.error(isCreateMode ? "Selecione as datas da falta." : "Informe a data da falta.");
       return;
     }
+    const confirmationMessage = isCreateMode
+      ? dateValues.length > 1
+        ? `Deseja cadastrar ${dateValues.length} faltas?`
+        : "Deseja cadastrar esta falta?"
+      : "Deseja salvar as alteracoes desta falta?";
+    if (!confirmAction(confirmationMessage)) {
+      return;
+    }
 
     try {
       setFaltaFormSaving(true);
@@ -1559,10 +1589,9 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       toast.error("Sem permissao para excluir faltas.");
       return;
     }
-    const confirmed = window.confirm(
-      "Deseja excluir esta falta? Esta acao nao podera ser desfeita."
-    );
-    if (!confirmed) return;
+    if (!confirmAction("Deseja excluir esta falta? Esta acao nao podera ser desfeita.")) {
+      return;
+    }
 
     try {
       const documentoPath = falta.atestado_path;
@@ -1609,6 +1638,9 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       toast.error("Sem permissao para justificar faltas.");
       return;
     }
+    if (!confirmAction("Deseja iniciar a justificativa desta falta?")) {
+      return;
+    }
     setSelectedFalta(falta);
     setDialogOpen(true);
   };
@@ -1632,10 +1664,9 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       toast.error("Atestado nao encontrado.");
       return;
     }
-    const confirmed = window.confirm(
-      "Deseja reverter a justificativa desta falta? O atestado sera removido."
-    );
-    if (!confirmed) return;
+    if (!confirmAction("Deseja reverter a justificativa desta falta? O atestado sera removido.")) {
+      return;
+    }
 
     try {
       setRevertingId(falta.id);
