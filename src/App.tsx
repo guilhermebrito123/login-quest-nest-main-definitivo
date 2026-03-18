@@ -45,6 +45,15 @@ import DiariasTemporariasLogsPage from "./pages/diarias/DiariasTemporariasLogsPa
 import Diarias from "./pages/Diarias";
 import Diarias2 from "./pages/Diarias2";
 import Faltas from "./pages/Faltas";
+import Cobertura from "./pages/Cobertura";
+import HoraExtra from "./pages/hora-extra/HoraExtra";
+import {
+  HoraExtraPendentesPage,
+  HoraExtraConfirmadasPage,
+  HoraExtraAprovadasPage,
+  HoraExtraReprovadasPage,
+  HoraExtraCanceladasPage,
+} from "./pages/hora-extra/HoraExtraStatusPages";
 import Inspecao from "./pages/Inspecao";
 import Checklist from "./pages/Checklist";
 import ChecklistItens from "./pages/ChecklistItens";
@@ -115,6 +124,28 @@ const App = () => (
           <Route path="/diarias2/pagas" element={<ProtectedRoute><Diarias2PagasPage /></ProtectedRoute>} />
           <Route path="/diarias2/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
           <Route path="/diarias2" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
+          <Route path="/cobertura" element={<ProtectedRoute><Cobertura /></ProtectedRoute>} />
+          <Route path="/cobertura/diarias/aguardando" element={<ProtectedRoute><Diarias2AguardandoPage /></ProtectedRoute>} />
+          <Route path="/cobertura/diarias/confirmadas" element={<ProtectedRoute><Diarias2ConfirmadasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/diarias/aprovadas" element={<ProtectedRoute><Diarias2AprovadasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/diarias/lancadas" element={<ProtectedRoute><Diarias2LancadasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/diarias/reprovadas" element={<ProtectedRoute><Diarias2ReprovadasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/diarias/canceladas" element={<ProtectedRoute><Diarias2CanceladasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/diarias/pagas" element={<ProtectedRoute><Diarias2PagasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/diarias/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
+          <Route path="/cobertura/diarias" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
+          <Route path="/hora-extra" element={<ProtectedRoute><HoraExtra /></ProtectedRoute>} />
+          <Route path="/hora-extra/pendentes" element={<ProtectedRoute><HoraExtraPendentesPage /></ProtectedRoute>} />
+          <Route path="/hora-extra/confirmadas" element={<ProtectedRoute><HoraExtraConfirmadasPage /></ProtectedRoute>} />
+          <Route path="/hora-extra/aprovadas" element={<ProtectedRoute><HoraExtraAprovadasPage /></ProtectedRoute>} />
+          <Route path="/hora-extra/reprovadas" element={<ProtectedRoute><HoraExtraReprovadasPage /></ProtectedRoute>} />
+          <Route path="/hora-extra/canceladas" element={<ProtectedRoute><HoraExtraCanceladasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/hora-extra" element={<ProtectedRoute><HoraExtra /></ProtectedRoute>} />
+          <Route path="/cobertura/hora-extra/pendentes" element={<ProtectedRoute><HoraExtraPendentesPage /></ProtectedRoute>} />
+          <Route path="/cobertura/hora-extra/confirmadas" element={<ProtectedRoute><HoraExtraConfirmadasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/hora-extra/aprovadas" element={<ProtectedRoute><HoraExtraAprovadasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/hora-extra/reprovadas" element={<ProtectedRoute><HoraExtraReprovadasPage /></ProtectedRoute>} />
+          <Route path="/cobertura/hora-extra/canceladas" element={<ProtectedRoute><HoraExtraCanceladasPage /></ProtectedRoute>} />
           <Route path="/faltas" element={<ProtectedRoute><Faltas /></ProtectedRoute>} />
           <Route path="/inspecao" element={<ProtectedRoute><Inspecao /></ProtectedRoute>} />
           <Route path="/checklists" element={<ProtectedRoute><Checklist /></ProtectedRoute>} />

@@ -21,6 +21,7 @@ import { FaltaJustificarDialog } from "@/components/faltas/FaltaJustificarDialog
 import { toast } from "sonner";
 import { useSession } from "@/hooks/useSession";
 import { format } from "date-fns";
+import { motion, useReducedMotion } from "framer-motion";
 
 const BUCKET = "atestados";
 const CLIENTE_FILTER_ALL = "__all__";
@@ -294,6 +295,7 @@ type FaltaConveniaRow = {
   colaborador_convenia_id: string;
   diaria_temporaria_id: number | null;
   data_falta: string;
+  local_falta: string | null;
   motivo: string;
   atestado_path: string | null;
   justificada_em: string | null;
@@ -306,6 +308,7 @@ type FaltaConveniaRow = {
 type FaltaData = FaltaRow | FaltaConveniaRow;
 type FaltaRowDb = Omit<FaltaRow, "tipo">;
 type FaltaConveniaRowDb = Omit<FaltaConveniaRow, "tipo">;
+type HoraExtraRow = Database["public"]["Tables"]["horas_extras"]["Row"];
 type FaltaGroup = {
   key: string;
   colaboradorId: string;
@@ -393,7 +396,9 @@ const Faltas = () => {
     colaboradorId: "",
     dataFalta: "",
     diariaId: "",
+    localFaltaId: "",
   });
+  const [localFaltaMesmoColaborador, setLocalFaltaMesmoColaborador] = useState(true);
   const [faltaFormDates, setFaltaFormDates] = useState<Date[]>([]);
   const [faltasView, setFaltasView] = useState<"lista" | "agrupadas">("lista");
   const [ordenarListaAlfabetica, setOrdenarListaAlfabetica] = useState(false);
@@ -402,6 +407,8 @@ const Faltas = () => {
   const [ordenarAgrupadasPorDataDesc, setOrdenarAgrupadasPorDataDesc] = useState(false);
   const [groupDetailsDialogOpen, setGroupDetailsDialogOpen] = useState(false);
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+
+  const shouldReduceMotion = useReducedMotion();
 
   const [accessLevel, setAccessLevel] = useState<AccessLevel | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
@@ -435,6 +442,18 @@ const Faltas = () => {
     costCenterMap,
     refetchDiarias,
   } = useDiariasTemporariasData();
+
+  const costCenterOptions = useMemo(
+    () =>
+      costCenters
+        .filter((center: any) => center?.id)
+        .map((center: any) => ({
+          id: center.id,
+          label: center.name || center.id,
+        }))
+        .sort((a: any, b: any) => a.label.localeCompare(b.label)),
+    [costCenters],
+  );
 
   const diariaMap = useMemo(() => {
     const map = new Map<string, any>();
@@ -497,6 +516,39 @@ const Faltas = () => {
       })),
     [faltasConveniaRaw],
   );
+  const faltasConveniaIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          faltasConvenia
+            .map((falta) => falta.id)
+            .filter((id) => Number.isFinite(id)),
+        ),
+      ),
+    [faltasConvenia],
+  );
+
+  const { data: horasExtrasPorFalta = [] } = useQuery({
+    queryKey: ["horas-extras-por-falta", session?.user?.id, faltasConveniaIds],
+    queryFn: async () => {
+      if (faltasConveniaIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("horas_extras")
+        .select("id, falta_id, status")
+        .in("falta_id", faltasConveniaIds);
+      if (error) throw error;
+      return (data || []) as Pick<HoraExtraRow, "id" | "falta_id" | "status">[];
+    },
+    enabled: !!session && faltasConveniaIds.length > 0,
+  });
+
+  const horasExtrasFaltaIdSet = useMemo(() => {
+    const set = new Set<string>();
+    horasExtrasPorFalta.forEach((hora) => {
+      if (hora?.falta_id) set.add(String(hora.falta_id));
+    });
+    return set;
+  }, [horasExtrasPorFalta]);
 
   const faltasAtivas = faltaType === "convenia" ? faltasConvenia : faltasColaboradores;
   const loadingFaltas = faltaType === "convenia" ? loadingFaltasConvenia : loadingFaltasColaboradores;
@@ -580,11 +632,6 @@ const Faltas = () => {
     const costCenterId = convenia.cost_center_id || "";
     const costCenterName = costCenterId ? costCenterMap.get(costCenterId) : null;
     return costCenterName || "-";
-  };
-
-  const getConveniaCostCenterId = (colaboradorId: string) => {
-    const convenia = colaboradoresConveniaMap.get(colaboradorId);
-    return convenia?.cost_center_id || "";
   };
 
   const CONVENIA_JSON_FIELDS = new Set([
@@ -767,12 +814,21 @@ const formatConveniaValue = (value: unknown, key?: string) => {
   const getFaltaDocumentoPath = (falta: FaltaData) =>
     falta.tipo === "colaborador" ? falta.documento_url : falta.atestado_path;
 
+  const getConveniaCostCenterId = (colaboradorId: string) => {
+    const convenia = colaboradoresConveniaMap.get(colaboradorId);
+    return convenia?.cost_center_id || "";
+  };
+
   const hasDiariaVinculadaAtiva = (falta: FaltaData) => {
     if (!falta.diaria_temporaria_id) return false;
     const diaria = diariaMap.get(String(falta.diaria_temporaria_id));
     if (!diaria?.status) return false;
     const statusNorm = normalizeStatus(diaria.status);
     return statusNorm !== normalizedCancelada && statusNorm !== normalizedReprovada;
+  };
+  const hasHoraExtraVinculada = (falta: FaltaData) => {
+    if (falta.tipo !== "convenia") return false;
+    return horasExtrasFaltaIdSet.has(String(falta.id));
   };
 
   const matchDiariaVinculoFilter = (falta: FaltaData) => {
@@ -1359,11 +1415,18 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       falta?.data_falta && !Number.isNaN(new Date(`${falta.data_falta}T00:00:00`).getTime())
         ? new Date(`${falta.data_falta}T00:00:00`)
         : null;
+    const colaboradorId = falta?.colaborador_convenia_id ?? "";
+    const colaboradorCostCenterId = colaboradorId ? getConveniaCostCenterId(colaboradorId) : "";
+    const localFaltaId = falta?.local_falta ?? "";
+    const sameLocal =
+      colaboradorCostCenterId && (!localFaltaId || localFaltaId === colaboradorCostCenterId);
     setFaltaForm({
-      colaboradorId: falta?.colaborador_convenia_id ?? "",
+      colaboradorId,
       dataFalta: falta?.data_falta ?? "",
       diariaId: falta?.diaria_temporaria_id ? String(falta.diaria_temporaria_id) : "",
+      localFaltaId: sameLocal ? colaboradorCostCenterId : localFaltaId,
     });
+    setLocalFaltaMesmoColaborador(!!sameLocal);
     setFaltaFormDates(parsedDate ? [parsedDate] : []);
   };
 
@@ -1411,6 +1474,10 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       toast.error("Selecione o colaborador.");
       return;
     }
+    if (!localFaltaMesmoColaborador && !faltaForm.localFaltaId) {
+      toast.error("Selecione o local da falta.");
+      return;
+    }
     const parsedDiariaId = parseOptionalDiariaId(faltaForm.diariaId);
     if (parsedDiariaId === undefined) {
       toast.error("ID da diaria invalido.");
@@ -1450,6 +1517,7 @@ const formatConveniaValue = (value: unknown, key?: string) => {
           colaborador_convenia_id: faltaForm.colaboradorId,
           data_falta: dateValue,
           diaria_temporaria_id: parsedDiariaId,
+          local_falta: faltaForm.localFaltaId || null,
           motivo: MOTIVO_FALTA_INJUSTIFICADA,
         }));
         const { error } = await supabase
@@ -1468,6 +1536,7 @@ const formatConveniaValue = (value: unknown, key?: string) => {
             colaborador_convenia_id: faltaForm.colaboradorId,
             data_falta: dateValue,
             diaria_temporaria_id: parsedDiariaId,
+            local_falta: faltaForm.localFaltaId || null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", faltaFormTarget.id);
@@ -1872,6 +1941,42 @@ const formatConveniaValue = (value: unknown, key?: string) => {
             <div>
               <CardTitle>Faltas registradas</CardTitle>
               <CardDescription>Selecione uma falta para justificar com anexo.</CardDescription>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-1.5 shadow-sm">
+                  <Button
+                    type="button"
+                    className="px-4 font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 focus-visible:ring-2 focus-visible:ring-primary/40"
+                    onClick={openCreateFaltaForm}
+                  >
+                    Nova falta
+                  </Button>
+                </div>
+                <motion.svg
+                  aria-hidden="true"
+                  className="h-10 w-40 text-primary drop-shadow-sm"
+                  viewBox="0 0 160 40"
+                  fill="none"
+                  initial={shouldReduceMotion ? false : { x: "100vw", opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={
+                    shouldReduceMotion ? undefined : { duration: 1.1, ease: "easeOut" }
+                  }
+                >
+                  <path
+                    d="M150 20H18"
+                    stroke="currentColor"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M32 8L18 20L32 32"
+                    stroke="currentColor"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </motion.svg>
+              </div>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2">
@@ -1888,11 +1993,6 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                   onClick={() => setFaltasView("agrupadas")}
                 >
                   Agrupadas
-                </Button>
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button type="button" variant="outline" onClick={openCreateFaltaForm}>
-                  Nova falta
                 </Button>
               </div>
             </div>
@@ -2064,6 +2164,11 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                                 {hasDiariaVinculadaAtiva(falta) && (
                                   <span className="text-xs font-semibold text-red-600">
                                     Diária vinculada
+                                  </span>
+                                )}
+                                {hasHoraExtraVinculada(falta) && (
+                                  <span className="text-xs font-semibold text-amber-700">
+                                    Hora extra vinculada
                                   </span>
                                 )}
                             </div>
@@ -2288,9 +2393,32 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                 <span className="text-sm text-muted-foreground">Colaborador</span>
                 <Select
                   value={faltaForm.colaboradorId}
-                onValueChange={(value) =>
-                  setFaltaForm((prev) => ({ ...prev, colaboradorId: value }))
-                }
+                onValueChange={(value) => {
+                  const colaboradorCostCenterId = value
+                    ? getConveniaCostCenterId(value)
+                    : "";
+                  if (localFaltaMesmoColaborador) {
+                    if (!colaboradorCostCenterId) {
+                      toast.error(
+                        "Colaborador sem centro de custo. Selecione o local manualmente.",
+                      );
+                      setLocalFaltaMesmoColaborador(false);
+                      setFaltaForm((prev) => ({
+                        ...prev,
+                        colaboradorId: value,
+                        localFaltaId: "",
+                      }));
+                      return;
+                    }
+                    setFaltaForm((prev) => ({
+                      ...prev,
+                      colaboradorId: value,
+                      localFaltaId: colaboradorCostCenterId,
+                    }));
+                    return;
+                  }
+                  setFaltaForm((prev) => ({ ...prev, colaboradorId: value }));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o colaborador" />
@@ -2301,6 +2429,59 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                       {option.label}
                     </SelectItem>
                   ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <span className="text-sm text-muted-foreground">Local da falta</span>
+                <div className="flex items-center gap-2 rounded-md border bg-muted/20 px-2 py-1">
+                  <Checkbox
+                    id="local-falta-mesmo-colaborador"
+                    checked={localFaltaMesmoColaborador}
+                    onCheckedChange={(checked) => {
+                      const isSame = checked === true;
+                      const colaboradorCostCenterId = faltaForm.colaboradorId
+                        ? getConveniaCostCenterId(faltaForm.colaboradorId)
+                        : "";
+                      if (isSame && !colaboradorCostCenterId) {
+                        toast.error(
+                          "Colaborador sem centro de custo. Selecione o local manualmente.",
+                        );
+                        setLocalFaltaMesmoColaborador(false);
+                        setFaltaForm((prev) => ({ ...prev, localFaltaId: "" }));
+                        return;
+                      }
+                      setLocalFaltaMesmoColaborador(isSame);
+                      setFaltaForm((prev) => ({
+                        ...prev,
+                        localFaltaId: isSame ? colaboradorCostCenterId : "",
+                      }));
+                    }}
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Local da falta é o mesmo do centro de custo do colaborador?
+                  </span>
+                </div>
+                <Select
+                  value={faltaForm.localFaltaId || "__all__"}
+                  onValueChange={(value) =>
+                    setFaltaForm((prev) => ({
+                      ...prev,
+                      localFaltaId: value === "__all__" ? "" : value,
+                    }))
+                  }
+                  disabled={localFaltaMesmoColaborador}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o local (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Nao informado</SelectItem>
+                    {costCenterOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -2448,6 +2629,10 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                 ? costCenterMap.get(conveniaInfo.cost_center_id)
                 : null) ||
               "-";
+            const localFaltaLabel =
+              detailsFalta.tipo === "convenia" && detailsFalta.local_falta
+                ? costCenterMap.get(detailsFalta.local_falta) || detailsFalta.local_falta
+                : "-";
             const dataFaltaLabel = formatDate(
               diaria?.data_diaria ||
                 (detailsFalta.tipo === "convenia" ? detailsFalta.data_falta : null),
@@ -2478,6 +2663,11 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                           Diária vinculada
                         </div>
                       )}
+                      {hasHoraExtraVinculada(detailsFalta) && (
+                        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                          Hora extra vinculada
+                        </div>
+                      )}
                     <div className="grid min-w-0 gap-3 lg:grid-cols-2">
                     <div>
                       <p className="text-xs text-muted-foreground">Data</p>
@@ -2490,6 +2680,10 @@ const formatConveniaValue = (value: unknown, key?: string) => {
                     <div>
                       <p className="text-xs text-muted-foreground">Cliente</p>
                       <p className="text-sm font-medium break-words">{clienteNome}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Local da falta</p>
+                      <p className="text-sm font-medium break-words">{localFaltaLabel}</p>
                     </div>
                     {detailsFalta.tipo === "convenia" && (
                       <>
