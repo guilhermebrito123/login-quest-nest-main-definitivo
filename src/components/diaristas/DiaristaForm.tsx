@@ -631,6 +631,15 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
       return;
     }
 
+    if (formData.pix_tipo === "cpf") {
+      const pixTrim = formData.pix.trim();
+      const pixDigits = stripNonDigits(pixTrim);
+      if (pixTrim.length !== 14 || pixDigits.length !== 11) {
+        toast.error("Chave PIX (CPF) deve ter 14 caracteres no formato 000.000.000-00.");
+        return;
+      }
+    }
+
     const { pix_tipo, cpf, ...payloadBase } = formData;
     const payload = {
       ...payloadBase,
