@@ -213,6 +213,7 @@ const getPixInputType = (type: PixKeyType) => {
 };
 
 const isBlank = (value: string) => value.trim() === "";
+const hasInvalidFullNameChars = (value: string) => /[^\p{L}\p{M}\s]/u.test(value);
 
 type SpecificAttachmentKey = (typeof SPECIFIC_ATTACHMENT_FIELDS)[number]["key"];
 
@@ -612,6 +613,11 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
 
     if (missingFields.length > 0) {
       toast.error(`Preencha os campos obrigatorios: ${missingFields.join(", ")}.`);
+      return;
+    }
+
+    if (hasInvalidFullNameChars(formData.nome_completo)) {
+      toast.error("Nome completo deve conter apenas letras e espaços.");
       return;
     }
 
