@@ -598,7 +598,7 @@ export default function Diaristas() {
                 <div>
                   <p className="text-xs text-muted-foreground">CPF</p>
                   <p className="font-medium break-words">
-                    {formatCpf(diaristaDetalhe.cpf_normalizado) || "-"}
+                    {formatCpf(diaristaDetalhe.cpf) || "-"}
                   </p>
                 </div>
                 <div>
