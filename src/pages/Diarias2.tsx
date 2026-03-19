@@ -1019,6 +1019,7 @@ const Diarias2 = () => {
                   required
                   value={formState.valorDiaria}
                   onChange={(event) => setFormState((prev) => ({ ...prev, valorDiaria: event.target.value }))}
+                  onWheel={(event) => event.currentTarget.blur()}
                   placeholder="0,00"
                 />
               </div>
