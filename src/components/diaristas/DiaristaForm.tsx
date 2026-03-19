@@ -610,6 +610,9 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
     const missingFields: string[] = [];
 
     if (isBlank(formData.nome_completo)) missingFields.push("Nome completo");
+    if (isBlank(formData.cpf)) missingFields.push("CPF");
+    if (isBlank(formData.pix_tipo)) missingFields.push("Tipo de chave PIX");
+    if (isBlank(formData.pix)) missingFields.push("Chave PIX");
 
     if (missingFields.length > 0) {
       toast.error(`Preencha os campos obrigatorios: ${missingFields.join(", ")}.`);
@@ -759,9 +762,10 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cpf">CPF</Label>
+              <Label htmlFor="cpf">CPF *</Label>
               <Input
                 id="cpf"
+                required
                 value={formData.cpf}
                 onChange={(e) =>
                   setFormData({ ...formData, cpf: formatCpf(e.target.value) })
@@ -934,8 +938,8 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pix_tipo">Tipo de chave PIX</Label>
-                <Select value={formData.pix_tipo} onValueChange={handlePixTypeChange}>
+                <Label htmlFor="pix_tipo">Tipo de chave PIX *</Label>
+                <Select value={formData.pix_tipo} onValueChange={handlePixTypeChange} required>
                   <SelectTrigger id="pix_tipo">
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
@@ -949,11 +953,12 @@ export function DiaristaForm({ open, onClose, onSuccess, diarista }: DiaristaFor
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pix">Chave PIX</Label>
+                <Label htmlFor="pix">Chave PIX *</Label>
                 <Input
                   id="pix"
                   type={getPixInputType(formData.pix_tipo)}
                   inputMode={formData.pix_tipo === "cpf" || formData.pix_tipo === "cnpj" || formData.pix_tipo === "celular" ? "numeric" : undefined}
+                  required
                   value={formData.pix}
                   onChange={(e) => handlePixChange(e.target.value)}
                   placeholder={getPixPlaceholder(formData.pix_tipo)}
