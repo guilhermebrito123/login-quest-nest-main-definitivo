@@ -11,6 +11,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { getDiariasTemporariasRouteByStatus } from "@/pages/diarias/utils";
 
 const MAX_NOTIFICACOES = 10;
+const CAMPO_LABELS: Record<string, string> = {
+  motivo_cancelamento: "Motivo de cancelamento",
+  motivo_reprovacao: "Motivo de reprovacao",
+  motivo_reprovacao_observacao: "Observacao de reprovacao",
+  observacao_lancamento: "Observacao de lancamento",
+  observacao_pagamento: "Observacao de pagamento",
+  outros_motivos_reprovacao_pagamento: "Outros motivos de reprovacao",
+  status: "Status",
+  ok_pagamento: "OK pagamento",
+};
+
+const formatCampoLabel = (campo?: string | null) =>
+  (campo && CAMPO_LABELS[campo]) || campo || "";
 
 export function NotificationsBell() {
   const navigate = useNavigate();
@@ -166,6 +179,14 @@ export function NotificationsBell() {
                     <p className="text-xs text-muted-foreground line-clamp-2">
                       {notificacao.mensagem}
                     </p>
+                    {(notificacao.valor_antigo !== null ||
+                      notificacao.valor_novo !== null) && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatCampoLabel(notificacao.campo)}:{" "}
+                        {notificacao.valor_antigo || "-"} →{" "}
+                        {notificacao.valor_novo || "-"}
+                      </p>
+                    )}
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       {timeLabel(notificacao.created_at)}
                     </p>

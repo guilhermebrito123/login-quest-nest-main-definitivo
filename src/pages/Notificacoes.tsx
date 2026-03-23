@@ -20,6 +20,20 @@ type NotificationGroup = {
   items: DiariaNotificacao[];
 };
 
+const CAMPO_LABELS: Record<string, string> = {
+  motivo_cancelamento: "Motivo de cancelamento",
+  motivo_reprovacao: "Motivo de reprovacao",
+  motivo_reprovacao_observacao: "Observacao de reprovacao",
+  observacao_lancamento: "Observacao de lancamento",
+  observacao_pagamento: "Observacao de pagamento",
+  outros_motivos_reprovacao_pagamento: "Outros motivos de reprovacao",
+  status: "Status",
+  ok_pagamento: "OK pagamento",
+};
+
+const formatCampoLabel = (campo?: string | null) =>
+  (campo && CAMPO_LABELS[campo]) || campo || "";
+
 const buildGroupLabel = (date: Date) => {
   if (isToday(date)) return "Hoje";
   if (isYesterday(date)) return "Ontem";
@@ -138,6 +152,30 @@ export default function Notificacoes() {
                           <p className="text-sm text-muted-foreground">
                             {item.mensagem}
                           </p>
+                          {(item.valor_antigo !== null ||
+                            item.valor_novo !== null) && (
+                            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                              <p className="font-semibold">
+                                {formatCampoLabel(item.campo)}
+                              </p>
+                              {item.valor_antigo !== null && (
+                                <p className="text-muted-foreground">
+                                  De:{" "}
+                                  <span className="text-foreground">
+                                    {item.valor_antigo || "-"}
+                                  </span>
+                                </p>
+                              )}
+                              {item.valor_novo !== null && (
+                                <p className="text-muted-foreground">
+                                  Para:{" "}
+                                  <span className="text-foreground">
+                                    {item.valor_novo || "-"}
+                                  </span>
+                                </p>
+                              )}
+                            </div>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             {timeLabel(item.created_at)}
                           </p>
@@ -202,6 +240,30 @@ export default function Notificacoes() {
                           <p className="text-sm text-muted-foreground">
                             {item.mensagem}
                           </p>
+                          {(item.valor_antigo !== null ||
+                            item.valor_novo !== null) && (
+                            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                              <p className="font-semibold">
+                                {formatCampoLabel(item.campo)}
+                              </p>
+                              {item.valor_antigo !== null && (
+                                <p className="text-muted-foreground">
+                                  De:{" "}
+                                  <span className="text-foreground">
+                                    {item.valor_antigo || "-"}
+                                  </span>
+                                </p>
+                              )}
+                              {item.valor_novo !== null && (
+                                <p className="text-muted-foreground">
+                                  Para:{" "}
+                                  <span className="text-foreground">
+                                    {item.valor_novo || "-"}
+                                  </span>
+                                </p>
+                              )}
+                            </div>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             {timeLabel(item.created_at)}
                           </p>
