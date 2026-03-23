@@ -4685,8 +4685,7 @@ const createStatusPage = ({
                                 onSelect: () => void;
                                 disabled?: boolean;
                               }> = [];
-                              const showGroupObservacaoActions =
-                                isAprovadaPage && canViewObservacaoLancamento;
+                              const showGroupObservacaoActions = false;
                               if (isLancadaPage && canOkPagamento) {
                                 groupStatusMenuItems.push({
                                   label:
@@ -4795,53 +4794,7 @@ const createStatusPage = ({
                                               {item.label}
                                             </Button>
                                           ))}
-                                          {showGroupObservacaoActions &&
-                                            groupHasObservacaoLancamento && (
-                                              <>
-                                                <Button
-                                                  size="sm"
-                                                  variant="outline"
-                                                  onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    openObservacaoLancamentoGroupDialog(
-                                                      group
-                                                    );
-                                                  }}
-                                                >
-                                                  Editar obs. lancamento
-                                                </Button>
-                                                <Button
-                                                  size="sm"
-                                                  variant="destructive"
-                                                  disabled={
-                                                    observacaoLancamentoSaving
-                                                  }
-                                                  onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    handleDeleteObservacaoLancamentoGroup(
-                                                      group.ids
-                                                    );
-                                                  }}
-                                                >
-                                                  Excluir obs. lancamento
-                                                </Button>
-                                              </>
-                                            )}
-                                          {showGroupObservacaoActions &&
-                                            !groupHasObservacaoLancamento && (
-                                              <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={(event) => {
-                                                  event.stopPropagation();
-                                                  openObservacaoLancamentoGroupDialog(
-                                                    group
-                                                  );
-                                                }}
-                                              >
-                                                Adicionar obs. lancamento
-                                              </Button>
-                                            )}
+                                          {false}
                                         </div>
                                       )}
                                     </div>
@@ -4858,9 +4811,7 @@ const createStatusPage = ({
                                   <TableCell className="hidden md:table-cell">
                                     {currencyFormatter.format(group.totalValor)}
                                   </TableCell>
-                                  {(groupStatusMenuItems.length > 0 ||
-                                    (isAprovadaPage &&
-                                      canViewObservacaoLancamento)) && (
+                                  {groupStatusMenuItems.length > 0 && (
                                     <TableCell className="hidden md:table-cell text-right">
                                       <div className="flex justify-end gap-2">
                                         <DropdownMenu>
@@ -4896,53 +4847,7 @@ const createStatusPage = ({
                                                 </DropdownMenuItem>
                                               )
                                             )}
-                                            {isAprovadaPage &&
-                                              canViewObservacaoLancamento &&
-                                              groupHasObservacaoLancamento && (
-                                                <>
-                                                  <DropdownMenuItem
-                                                    onSelect={(event) => {
-                                                      event.preventDefault();
-                                                      event.stopPropagation();
-                                                      openObservacaoLancamentoGroupDialog(
-                                                        group
-                                                      );
-                                                    }}
-                                                  >
-                                                    Editar obs. lancamento
-                                                  </DropdownMenuItem>
-                                                  <DropdownMenuItem
-                                                    className="text-destructive focus:text-destructive"
-                                                    disabled={
-                                                      observacaoLancamentoSaving
-                                                    }
-                                                    onSelect={(event) => {
-                                                      event.preventDefault();
-                                                      event.stopPropagation();
-                                                      handleDeleteObservacaoLancamentoGroup(
-                                                        group.ids
-                                                      );
-                                                    }}
-                                                  >
-                                                    Excluir obs. lancamento
-                                                  </DropdownMenuItem>
-                                                </>
-                                              )}
-                                            {isAprovadaPage &&
-                                              canViewObservacaoLancamento &&
-                                              !groupHasObservacaoLancamento && (
-                                                <DropdownMenuItem
-                                                  onSelect={(event) => {
-                                                    event.preventDefault();
-                                                    event.stopPropagation();
-                                                    openObservacaoLancamentoGroupDialog(
-                                                      group
-                                                    );
-                                                  }}
-                                                >
-                                                  Adicionar obs. lancamento
-                                                </DropdownMenuItem>
-                                              )}
+                                            {false}
                                           </DropdownMenuContent>
                                         </DropdownMenu>
                                       </div>
@@ -6319,17 +6224,31 @@ const createStatusPage = ({
                             const rowClasses = getPagamentoRowClasses(
                               diaria.ok_pagamento
                             );
+                            const hasObservacaoLancamento =
+                              hasObservacaoLancamentoValue(
+                                diaria.observacao_lancamento
+                              );
+                            const rowHighlightClass = hasObservacaoLancamento
+                              ? "bg-amber-200/90 hover:bg-amber-300/90"
+                              : "";
                             const rowStyle = getPagamentoRowStyle(
                               diaria.ok_pagamento
                             );
                             return (
                               <TableRow
                                 key={diaria.id}
-                                className={rowClasses}
+                                className={`${rowClasses} ${rowHighlightClass}`.trim()}
                                 style={rowStyle}
                               >
                                 <TableCell>
-                                  {formatDate(diaria.data_diaria)}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span>{formatDate(diaria.data_diaria)}</span>
+                                    {hasObservacaoLancamento && (
+                                      <Badge className="border border-amber-500 bg-amber-200/80 text-[11px] font-semibold text-amber-900">
+                                        Obs. lancamento
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell>
                                   {diaria.motivo_vago || "-"}
