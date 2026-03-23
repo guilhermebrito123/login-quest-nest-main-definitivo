@@ -103,6 +103,7 @@ export type DiariaTemporaria = {
   colaborador_demitido_convenia?: string | null;
   colaborador_demitido_nome?: string | null;
   observacao?: string | null;
+  observacao_lancamento?: string | null;
   ok_pagamento?: boolean | null;
   ok_pagamento_em?: string | null;
   ok_pagamento_por?: string | null;
