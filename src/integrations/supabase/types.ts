@@ -1183,6 +1183,66 @@ export type Database = {
           },
         ]
       }
+      diarias_notificacoes: {
+        Row: {
+          campo: string
+          created_at: string
+          diaria_id: number
+          evento: string
+          id: string
+          lida: boolean
+          mensagem: string
+          titulo: string
+          updated_at: string
+          user_id: string
+          valor_antigo: string | null
+          valor_novo: string | null
+        }
+        Insert: {
+          campo: string
+          created_at?: string
+          diaria_id: number
+          evento: string
+          id?: string
+          lida?: boolean
+          mensagem: string
+          titulo: string
+          updated_at?: string
+          user_id: string
+          valor_antigo?: string | null
+          valor_novo?: string | null
+        }
+        Update: {
+          campo?: string
+          created_at?: string
+          diaria_id?: number
+          evento?: string
+          id?: string
+          lida?: boolean
+          mensagem?: string
+          titulo?: string
+          updated_at?: string
+          user_id?: string
+          valor_antigo?: string | null
+          valor_novo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diarias_notificacoes_diaria_id_fkey"
+            columns: ["diaria_id"]
+            isOneToOne: false
+            referencedRelation: "diarias_temporarias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diarias_notificacoes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diarias_temporarias: {
         Row: {
           aprovada_em: string | null
@@ -1221,6 +1281,7 @@ export type Database = {
           motivo_vago: Database["public"]["Enums"]["motivo_vago_type"]
           novo_posto: boolean | null
           observacao: string | null
+          observacao_lancamento: string | null
           observacao_pagamento:
             | Database["public"]["Enums"]["observacao_pagamento_type"][]
             | null
@@ -1276,6 +1337,7 @@ export type Database = {
           motivo_vago?: Database["public"]["Enums"]["motivo_vago_type"]
           novo_posto?: boolean | null
           observacao?: string | null
+          observacao_lancamento?: string | null
           observacao_pagamento?:
             | Database["public"]["Enums"]["observacao_pagamento_type"][]
             | null
@@ -1331,6 +1393,7 @@ export type Database = {
           motivo_vago?: Database["public"]["Enums"]["motivo_vago_type"]
           novo_posto?: boolean | null
           observacao?: string | null
+          observacao_lancamento?: string | null
           observacao_pagamento?:
             | Database["public"]["Enums"]["observacao_pagamento_type"][]
             | null
@@ -3729,6 +3792,19 @@ export type Database = {
             }
             Returns: string
           }
+      criar_notificacao_diaria: {
+        Args: {
+          p_campo: string
+          p_diaria_id: number
+          p_evento: string
+          p_mensagem: string
+          p_titulo: string
+          p_user_id: string
+          p_valor_antigo: string
+          p_valor_novo: string
+        }
+        Returns: undefined
+      }
       current_internal_access_level: {
         Args: never
         Returns: Database["public"]["Enums"]["internal_access_level"]
@@ -3771,6 +3847,15 @@ export type Database = {
       limpar_presencas_antigas: { Args: never; Returns: undefined }
       limpar_tokens_expirados: { Args: never; Returns: undefined }
       normalizar_cpf: { Args: { input: string }; Returns: string }
+      obter_usuarios_envolvidos_diaria: {
+        Args: {
+          p_new: Database["public"]["Tables"]["diarias_temporarias"]["Row"]
+          p_old: Database["public"]["Tables"]["diarias_temporarias"]["Row"]
+        }
+        Returns: {
+          user_id: string
+        }[]
+      }
       processar_movimentacoes_agendadas: { Args: never; Returns: undefined }
       reprovar_hora_extra: {
         Args: {

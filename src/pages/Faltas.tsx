@@ -41,6 +41,10 @@ const BASE_FALTAS_EXPORT_HEADERS = [
   "DATA DA FALTA",
   "MOTIVO",
   "JUSTIFICADA POR",
+  "DIARIA VINCULADA",
+  "ID DIARIA VINCULADA",
+  "HORA EXTRA VINCULADA",
+  "ID HORA EXTRA",
 ];
 
 const CONVENIA_FIELD_DEFS = [
@@ -552,6 +556,20 @@ const Faltas = () => {
       if (hora?.falta_id) set.add(String(hora.falta_id));
     });
     return set;
+  }, [horasExtrasPorFalta]);
+
+  const horasExtrasPorFaltaMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    horasExtrasPorFalta.forEach((hora) => {
+      if (!hora?.falta_id) return;
+      const key = String(hora.falta_id);
+      const list = map.get(key) ?? [];
+      if (hora.id) {
+        list.push(String(hora.id));
+      }
+      map.set(key, list);
+    });
+    return map;
   }, [horasExtrasPorFalta]);
 
   const faltasAtivas = faltaType === "convenia" ? faltasConvenia : faltasColaboradores;
@@ -1340,6 +1358,9 @@ const formatConveniaValue = (value: unknown, key?: string) => {
       const justificadaPorNome = falta.justificada_por
         ? usuarioMap.get(falta.justificada_por) || falta.justificada_por
         : "-";
+      const diariaVinculada = falta.diaria_temporaria_id !== null;
+      const horasExtrasIds = horasExtrasPorFaltaMap.get(String(falta.id)) ?? [];
+      const horaExtraVinculada = horasExtrasIds.length > 0;
 
       const row: Record<string, string> = {
         COLABORADOR: colaboradorNome,
@@ -1347,6 +1368,12 @@ const formatConveniaValue = (value: unknown, key?: string) => {
         "DATA DA FALTA": falta.data_falta,
         MOTIVO: falta.motivo,
         "JUSTIFICADA POR": justificadaPorNome,
+        "DIARIA VINCULADA": diariaVinculada ? "SIM" : "NAO",
+        "ID DIARIA VINCULADA": diariaVinculada
+          ? String(falta.diaria_temporaria_id)
+          : "-",
+        "HORA EXTRA VINCULADA": horaExtraVinculada ? "SIM" : "NAO",
+        "ID HORA EXTRA": horaExtraVinculada ? horasExtrasIds.join(", ") : "-",
       };
 
       CONVENIA_EXPORT_FIELDS.forEach((field) => {

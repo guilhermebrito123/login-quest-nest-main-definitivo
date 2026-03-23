@@ -1,5 +1,6 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+﻿import { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
@@ -69,7 +70,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, Bell, AlertTriangle, MoreVertical } from "lucide-react";
+import { Bell, AlertTriangle, MoreVertical } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   useDiariasTemporariasData,
@@ -93,6 +94,15 @@ type NaoOkTarget =
       diaristaNome: string;
       count: number;
       totalValor: number;
+    };
+type ObservacaoLancamentoTarget =
+  | { type: "single"; diaria: DiariaTemporaria }
+  | {
+      type: "group";
+      key: string;
+      ids: Array<string | number>;
+      diaristaNome: string;
+      count: number;
     };
 type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
 
@@ -176,6 +186,11 @@ const DIARIAS_CANCELAR_LEVELS: AccessLevel[] = [
 ];
 const DIARIAS_REPROVAR_LEVELS: AccessLevel[] = ["admin"];
 const DIARIAS_OK_PAGAMENTO_LEVELS: AccessLevel[] = ["admin"];
+const OBSERVACAO_LANCAMENTO_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_financeiro",
+  "assistente_financeiro",
+];
 const MOTIVO_VAGO_OPTIONS = [
   MOTIVO_FALTA_INJUSTIFICADA,
   MOTIVO_FALTA_JUSTIFICADA,
@@ -455,6 +470,20 @@ const createStatusPage = ({
     const [naoOkDialogOpen, setNaoOkDialogOpen] = useState(false);
     const [naoOkSaving, setNaoOkSaving] = useState(false);
     const [naoOkTarget, setNaoOkTarget] = useState<NaoOkTarget | null>(null);
+    const [observacaoLancamentoDialogOpen, setObservacaoLancamentoDialogOpen] =
+      useState(false);
+    const [observacaoLancamentoTarget, setObservacaoLancamentoTarget] =
+      useState<ObservacaoLancamentoTarget | null>(null);
+    const [observacaoLancamentoText, setObservacaoLancamentoText] =
+      useState("");
+    const [observacaoLancamentoSaving, setObservacaoLancamentoSaving] =
+      useState(false);
+    const [observacaoLancamentoMixed, setObservacaoLancamentoMixed] =
+      useState(false);
+    const [observacaoLancamentoHasValue, setObservacaoLancamentoHasValue] =
+      useState(false);
+    const [observacaoLancamentoEditing, setObservacaoLancamentoEditing] =
+      useState(false);
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const [naoOkObservacao, setNaoOkObservacao] = useState<string[]>([]);
     const [naoOkOutroMotivo, setNaoOkOutroMotivo] = useState("");
@@ -552,6 +581,7 @@ const createStatusPage = ({
       endDate: "",
     });
     const [totalDialogOpen, setTotalDialogOpen] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
     const selectAllValue = "__all__";
     const [extraUserMap, setExtraUserMap] = useState<Map<string, string>>(
       new Map()
@@ -653,6 +683,9 @@ const createStatusPage = ({
       !!accessLevel && DIARIAS_REPROVAR_LEVELS.includes(accessLevel);
     const canOkPagamento =
       !!accessLevel && DIARIAS_OK_PAGAMENTO_LEVELS.includes(accessLevel);
+    const canViewObservacaoLancamento =
+      !!accessLevel &&
+      OBSERVACAO_LANCAMENTO_LEVELS.includes(accessLevel);
     const showReprovarMenu =
       (isAprovadaPage || isLancadaPage) && canReprovarStatus;
     const canChangeToStatus = (status: string) => {
@@ -682,6 +715,31 @@ const createStatusPage = ({
     const canEditDiaria = (diaria?: DiariaTemporaria | null) =>
       canUpdateDiaria &&
       normalizeStatus(diaria?.status || "") === normalizedAguardandoStatus;
+
+    const renderMenuToggleItem = (
+      label: string,
+      checked: boolean,
+      onToggle: () => void
+    ) => (
+      <DropdownMenuItem
+        onSelect={(event) => {
+          event.preventDefault();
+          onToggle();
+        }}
+        className="gap-2"
+      >
+        <span
+          className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] ${
+            checked
+              ? "border-emerald-600 bg-emerald-600 text-white"
+              : "border-muted-foreground/40 text-transparent"
+          }`}
+        >
+          x
+        </span>
+        <span>{label}</span>
+      </DropdownMenuItem>
+    );
     const statusResponsavelField = useMemo(() => {
       const map = new Map<string, keyof DiariaTemporaria>([
         [normalizeStatus(STATUS.confirmada), "confirmada_por"],
@@ -921,9 +979,9 @@ const createStatusPage = ({
 
     const TEST_DIARISTA_NAMES = new Set(["guilherme guerra", "james bond", "cris ronaldo"]);
     const TEST_DIARISTA_CPFS = new Set(["01999999999", "01999999998"]);
-    const isTestDiarista = (option: { nome?: string; cpf_normalizado?: string | null }) => {
+    const isTestDiarista = (option: { nome?: string; cpf?: string | null }) => {
       const name = (option.nome || "").trim().toLowerCase();
-      const cpfDigits = stripNonDigits(option.cpf_normalizado);
+      const cpfDigits = stripNonDigits(option.cpf);
       return TEST_DIARISTA_NAMES.has(name) || TEST_DIARISTA_CPFS.has(cpfDigits);
     };
 
@@ -961,11 +1019,14 @@ const createStatusPage = ({
       const trimmed = (value ?? "").trim();
       return trimmed ? trimmed : null;
     };
+    const hasObservacaoLancamentoValue = (
+      value: string | null | undefined
+    ) => value !== null && value !== undefined;
     const isCadastroIncompleto = (diarista?: Diarista | null) => {
       if (!diarista) return false;
       const requiredFields = [
         diarista.nome_completo,
-        diarista.cpf_normalizado,
+        diarista.cpf,
         diarista.banco,
         diarista.agencia,
         diarista.numero_conta,
@@ -1309,7 +1370,7 @@ const createStatusPage = ({
           .map((diarista) => ({
             id: diarista.id,
             nome: diarista.nome_completo || diarista.id,
-            cpf_normalizado: diarista.cpf_normalizado ?? null,
+            cpf: diarista.cpf ?? null,
             reserva_tecnica: diarista.reserva_tecnica ?? false,
           }))
           .sort((a, b) => a.nome.localeCompare(b.nome)),
@@ -1733,6 +1794,20 @@ const createStatusPage = ({
       clienteCostCenterMap,
     ]);
 
+    useEffect(() => {
+      const diariaIdParam = searchParams.get("diariaId");
+      if (!diariaIdParam) return;
+      const diaria = diariasBase.find(
+        (item) => item.id.toString() === diariaIdParam
+      );
+      if (!diaria) return;
+      setSelectedDiaria(diaria);
+      setDetailsDialogOpen(true);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("diariaId");
+      setSearchParams(nextParams, { replace: true });
+    }, [diariasBase, searchParams, setSearchParams]);
+
     const diariasOrdenadas = useMemo(() => {
       if (!ordenarListaAlfabetica && !ordenarListaPorDataDesc) {
         return diariasFiltradas;
@@ -1806,15 +1881,15 @@ const createStatusPage = ({
           getClienteOuCentroCustoDisplay(diaria, postoInfo).value || "-";
         const diaristaKey = diaristaId || `no-diarista-${diaria.id}`;
         const diaristaInfo = diaristaId ? diaristaMap.get(diaristaId) : null;
-        const diaristaCpfKey = diaristaInfo?.cpf_normalizado
-          ? stripNonDigits(diaristaInfo.cpf_normalizado)
+        const diaristaCpfKey = diaristaInfo?.cpf
+          ? stripNonDigits(diaristaInfo.cpf)
           : "";
         const key = `${diaristaKey}||${diaristaCpfKey}`;
         const group = groups.get(key) || {
           key,
           diaristaId: diaristaId || null,
           diaristaNome: diaristaInfo?.nome_completo || "-",
-          diaristaCpf: diaristaInfo?.cpf_normalizado ?? null,
+          diaristaCpf: diaristaInfo?.cpf ?? null,
           diaristaPix: diaristaInfo?.pix ?? null,
           totalValor: 0,
           count: 0,
@@ -1914,6 +1989,15 @@ const createStatusPage = ({
       );
     }, [selectedGroupDiarias]);
 
+    const groupObservacaoLancamento = useMemo(() => {
+      if (selectedGroupDiarias.length === 0) return null;
+      const first = toTrimOrNull(selectedGroupDiarias[0]?.observacao_lancamento);
+      const allEqual = selectedGroupDiarias.every(
+        (diaria) => toTrimOrNull(diaria.observacao_lancamento) === first
+      );
+      return allEqual ? first : null;
+    }, [selectedGroupDiarias]);
+
     const groupOutrosMotivos = useMemo(() => {
       if (selectedGroupDiarias.length === 0) return null;
       const first = toTrimOrNull(
@@ -1973,7 +2057,7 @@ const createStatusPage = ({
             ? "Sim"
             : "Nao"
           : "-",
-        "CPF diarista": formatCpf(diaristaInfo?.cpf_normalizado) || "-",
+        "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
         Posto: postoNome,
         Unidade: unidadeNome,
         Cliente: clienteNome,
@@ -1996,6 +2080,10 @@ const createStatusPage = ({
         "Criado por": criadoPorNome,
         "Criada em": formatDate(diaria.created_at),
       };
+      if (canViewObservacaoLancamento) {
+        baseRow["Observacao lancamento"] =
+          diaria.observacao_lancamento?.trim() || "";
+      }
       baseRow["Confirmada em"] = formatDateTime(diaria.confirmada_em);
       if (isPagaPage) {
         baseRow["OK pagamento em"] = formatDateTime(diaria.ok_pagamento_em);
@@ -2076,6 +2164,17 @@ const createStatusPage = ({
         const groupIdsLabel = sortedGroupDiarias
           .map((diaria) => diaria.id)
           .join(", ");
+        const observacaoLancamentoValues = groupDiarias
+          .map((diaria) => toTrimOrNull(diaria.observacao_lancamento))
+          .filter(Boolean) as string[];
+        const observacaoLancamentoValue =
+          observacaoLancamentoValues.length === 0
+            ? ""
+            : observacaoLancamentoValues.every(
+                (value) => value === observacaoLancamentoValues[0]
+              )
+            ? observacaoLancamentoValues[0]
+            : "DIVERSOS";
         const groupDiaristaInfo = group.diaristaId
           ? diaristaMap.get(group.diaristaId)
           : null;
@@ -2129,6 +2228,9 @@ const createStatusPage = ({
           Cliente: group.clienteLabel,
           Competencia: competencia,
         };
+        if (canViewObservacaoLancamento) {
+          baseRow["Observacao lancamento"] = observacaoLancamentoValue;
+        }
         if (!isAprovadaPage) {
           baseRow.Pagamento = pagamentoStatus;
         }
@@ -2494,7 +2596,7 @@ const createStatusPage = ({
         {
           Titulo: tituloBase,
           Diarista: diaristaNome || "-",
-          "CPF diarista": formatCpf(diaristaInfo?.cpf_normalizado) || "-",
+          "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
           Banco: diaristaInfo?.banco || "-",
           Agencia: diaristaInfo?.agencia || "-",
           "Numero da conta": diaristaInfo?.numero_conta || "-",
@@ -2573,7 +2675,7 @@ const createStatusPage = ({
         {
           Titulo: tituloBase,
           Diarista: diaristaNome || "-",
-          "CPF diarista": formatCpf(diaristaInfo?.cpf_normalizado) || "-",
+          "CPF diarista": formatCpf(diaristaInfo?.cpf) || "-",
           Banco: diaristaInfo?.banco || "-",
           Agencia: diaristaInfo?.agencia || "-",
           "Numero da conta": diaristaInfo?.numero_conta || "-",
@@ -2621,8 +2723,8 @@ const createStatusPage = ({
       selecionadas.forEach((diaria) => {
         const diaristaInfo =
           diaria.diarista || diaristaMap.get(diaria.diarista_id || "");
-        if (diaristaInfo?.cpf_normalizado) {
-          cpfs.add(formatCpf(diaristaInfo.cpf_normalizado));
+        if (diaristaInfo?.cpf) {
+          cpfs.add(formatCpf(diaristaInfo.cpf));
         }
         statuses.add(STATUS_LABELS[diaria.status] || diaria.status);
         const postoInfo =
@@ -2902,6 +3004,162 @@ const createStatusPage = ({
       setNaoOkWantsOutroMotivo(null);
     };
 
+    const openObservacaoLancamentoDialog = (
+      diaria: DiariaTemporaria,
+      options?: { forceEdit?: boolean }
+    ) => {
+      const existingValue = diaria.observacao_lancamento;
+      const hasExisting = hasObservacaoLancamentoValue(existingValue);
+      setObservacaoLancamentoTarget({ type: "single", diaria });
+      setObservacaoLancamentoText(existingValue ?? "");
+      setObservacaoLancamentoMixed(false);
+      setObservacaoLancamentoHasValue(hasExisting);
+      setObservacaoLancamentoEditing(
+        options?.forceEdit ? true : !hasExisting
+      );
+      setObservacaoLancamentoDialogOpen(true);
+    };
+
+    const openObservacaoLancamentoGroupDialog = (group: {
+      key: string;
+      ids: Array<string | number>;
+      diaristaNome: string;
+      count: number;
+    }) => {
+      const groupIds = new Set(group.ids.map((id) => id.toString()));
+      const groupDiarias = diariasFiltradas.filter((diaria) =>
+        groupIds.has(diaria.id.toString())
+      );
+      const anyValue = groupDiarias.some((diaria) =>
+        hasObservacaoLancamentoValue(diaria.observacao_lancamento)
+      );
+      const first = groupDiarias[0]?.observacao_lancamento ?? null;
+      const allEqual = groupDiarias.every(
+        (diaria) => (diaria.observacao_lancamento ?? null) === first
+      );
+      setObservacaoLancamentoTarget({
+        type: "group",
+        key: group.key,
+        ids: group.ids,
+        diaristaNome: group.diaristaNome,
+        count: group.count,
+      });
+      setObservacaoLancamentoText(allEqual ? first ?? "" : "");
+      setObservacaoLancamentoMixed(!allEqual);
+      setObservacaoLancamentoHasValue(anyValue);
+      setObservacaoLancamentoEditing(!anyValue || !allEqual);
+      setObservacaoLancamentoDialogOpen(true);
+    };
+
+    const closeObservacaoLancamentoDialog = () => {
+      setObservacaoLancamentoDialogOpen(false);
+      setObservacaoLancamentoTarget(null);
+      setObservacaoLancamentoText("");
+      setObservacaoLancamentoMixed(false);
+      setObservacaoLancamentoHasValue(false);
+      setObservacaoLancamentoEditing(false);
+    };
+
+    const handleSaveObservacaoLancamento = async (clear?: boolean) => {
+      if (!observacaoLancamentoTarget) return;
+      if (!canViewObservacaoLancamento) {
+        toast.error("Sem permissao para atualizar a observacao.");
+        return;
+      }
+      if (clear) {
+        const confirmed = window.confirm(
+          "Deseja realmente excluir a observacao de lancamento?"
+        );
+        if (!confirmed) return;
+      }
+      const ids =
+        observacaoLancamentoTarget.type === "single"
+          ? [observacaoLancamentoTarget.diaria.id]
+          : observacaoLancamentoTarget.ids;
+      if (ids.length === 0) {
+        toast.error("Nenhuma diaria encontrada para atualizar.");
+        return;
+      }
+      const trimmed = toTrimOrNull(observacaoLancamentoText);
+      if (!clear && !trimmed) {
+        toast.error("Informe uma observacao ou utilize Excluir.");
+        return;
+      }
+      setObservacaoLancamentoSaving(true);
+      try {
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update({ observacao_lancamento: clear ? null : trimmed })
+          .in("id", ids);
+        if (error) throw error;
+        toast.success(
+          clear ? "Observacao removida." : "Observacao salva com sucesso."
+        );
+        await refetchDiarias();
+        closeObservacaoLancamentoDialog();
+      } catch (error: any) {
+        toast.error(
+          error.message || "Erro ao atualizar observacao de lancamento."
+        );
+      } finally {
+        setObservacaoLancamentoSaving(false);
+      }
+    };
+
+    const handleDeleteObservacaoLancamentoFromDetails = async (
+      diaria: DiariaTemporaria
+    ) => {
+      if (!canViewObservacaoLancamento) {
+        toast.error("Sem permissao para atualizar a observacao.");
+        return;
+      }
+      const confirmed = window.confirm(
+        "Deseja realmente excluir a observacao de lancamento?"
+      );
+      if (!confirmed) return;
+      setObservacaoLancamentoSaving(true);
+      try {
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update({ observacao_lancamento: null })
+          .eq("id", diaria.id);
+        if (error) throw error;
+        toast.success("Observacao removida.");
+        await refetchDiarias();
+      } catch (error: any) {
+        toast.error(error?.message || "Nao foi possivel atualizar a observacao.");
+      } finally {
+        setObservacaoLancamentoSaving(false);
+      }
+    };
+
+    const handleDeleteObservacaoLancamentoGroup = async (
+      ids: Array<string | number>
+    ) => {
+      if (!canViewObservacaoLancamento) {
+        toast.error("Sem permissao para atualizar a observacao.");
+        return;
+      }
+      const confirmed = window.confirm(
+        "Deseja realmente excluir a observacao de lancamento?"
+      );
+      if (!confirmed) return;
+      setObservacaoLancamentoSaving(true);
+      try {
+        const { error } = await supabase
+          .from("diarias_temporarias")
+          .update({ observacao_lancamento: null })
+          .in("id", ids);
+        if (error) throw error;
+        toast.success("Observacao removida.");
+        await refetchDiarias();
+      } catch (error: any) {
+        toast.error(error?.message || "Nao foi possivel atualizar a observacao.");
+      } finally {
+        setObservacaoLancamentoSaving(false);
+      }
+    };
+
     const handleNaoOkPagamento = async (withOutroMotivo: boolean) => {
       if (!naoOkTarget) return;
       if (!canOkPagamento) {
@@ -3103,9 +3361,14 @@ const createStatusPage = ({
 
     const renderAction = (
       diaria: DiariaTemporaria,
-      options?: { onBeforeAction?: () => void }
+      options?: { onBeforeAction?: () => void; layout?: "inline" | "stacked" }
     ) => {
       const beforeAction = options?.onBeforeAction;
+      const isStacked = options?.layout === "stacked";
+      const stackedButtonClass = isStacked ? "w-full h-10" : "";
+      const stackedContainerClass = isStacked
+        ? "flex flex-col gap-2"
+        : "flex items-center gap-2";
       const normalizedStatus = normalizeStatus(diaria.status);
       if (normalizedStatus === normalizeStatus(STATUS.lancada)) {
         if (!canOkPagamento) return null;
@@ -3118,11 +3381,11 @@ const createStatusPage = ({
             ? "bg-white text-red-400 hover:bg-white/90"
             : "border-rose-200 text-rose-700 hover:bg-rose-50";
         return (
-          <div className="flex items-center gap-2">
+          <div className={stackedContainerClass}>
             <Button
               size="sm"
               variant="default"
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              className={`bg-emerald-600 text-white hover:bg-emerald-700 ${stackedButtonClass}`}
               disabled={
                 updatingId === diaria.id.toString() ||
                 diaria.ok_pagamento === true
@@ -3138,7 +3401,7 @@ const createStatusPage = ({
             <Button
               size="sm"
               variant="outline"
-              className={naoOkButtonClass}
+              className={`${naoOkButtonClass} ${stackedButtonClass}`}
               disabled={isNaoOkSaving}
               onClick={(event) => {
                 event.stopPropagation();
@@ -3157,7 +3420,7 @@ const createStatusPage = ({
         <Button
           size="sm"
           variant="default"
-          className="bg-emerald-600 text-white hover:bg-emerald-700"
+          className={`bg-emerald-600 text-white hover:bg-emerald-700 ${stackedButtonClass}`}
           disabled={updatingId === diaria.id.toString()}
           onClick={(event) => {
             event.stopPropagation();
@@ -3762,8 +4025,13 @@ const createStatusPage = ({
       }
       return items;
     }, [isPagaPage, selectedDiaria?.created_at, statusDates]);
+    const selectedDiariaHasObservacaoLancamento =
+      hasObservacaoLancamentoValue(selectedDiaria?.observacao_lancamento);
     const detailsActionElement = selectedDiaria
-      ? renderAction(selectedDiaria, { onBeforeAction: closeDetailsDialog })
+      ? renderAction(selectedDiaria, {
+          onBeforeAction: closeDetailsDialog,
+          layout: "stacked",
+        })
       : null;
 
     const showReasonColumn =
@@ -4281,48 +4549,48 @@ const createStatusPage = ({
                       <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900">
                         Total selecionado: {selectedTotalLabel}
                       </div>
-                      <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
-                        <Checkbox
-                          id={`ordenar-agrupadas-${normalizedKey}`}
-                          checked={ordenarAgrupadasAlfabetica}
-                          onCheckedChange={(checked) =>
-                            setOrdenarAgrupadasAlfabetica(checked === true)
-                          }
-                        />
-                        <Label
-                          htmlFor={`ordenar-agrupadas-${normalizedKey}`}
-                          className="cursor-pointer"
-                        >
-                          Ordenar A-Z
-                        </Label>
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={handleExportGroupedXlsx}
-                      >
-                        Exportar XLSX agrupadas
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setTotalDialogOpen(true)}
-                      >
-                        Filtragem Avançada
-                      </Button>
-                      {!isPagaPage && pageDefaultAction && (
-                        <Button
-                          variant="default"
-                          className="bg-emerald-600 text-white hover:bg-emerald-700"
-                          disabled={
-                            updatingId === "bulk" ||
-                            !canGroupedBulkAction
-                          }
-                          onClick={handleGroupedBulkDefaultAction}
-                        >
-                          {pageDefaultAction
-                            ? `${pageDefaultAction.label} (em lote)`
-                            : "Ação em lote"}
-                        </Button>
-                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            aria-label="Opcoes"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-64">
+                          {renderMenuToggleItem(
+                            "Ordenar A-Z",
+                            ordenarAgrupadasAlfabetica,
+                            () =>
+                              setOrdenarAgrupadasAlfabetica(
+                                !ordenarAgrupadasAlfabetica
+                              )
+                          )}
+                          <DropdownMenuItem onSelect={handleExportGroupedXlsx}>
+                            Exportar XLSX agrupadas
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => setTotalDialogOpen(true)}
+                          >
+                            Filtragem Avançada
+                          </DropdownMenuItem>
+                          {!isPagaPage && pageDefaultAction && (
+                            <DropdownMenuItem
+                              disabled={
+                                updatingId === "bulk" || !canGroupedBulkAction
+                              }
+                              onSelect={handleGroupedBulkDefaultAction}
+                            >
+                              {pageDefaultAction
+                                ? `${pageDefaultAction.label} (em lote)`
+                                : "Ação em lote"}
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     <div className="overflow-x-auto">
                       {lancadasAgrupadas.length === 0 ? (
@@ -4358,7 +4626,7 @@ const createStatusPage = ({
                                 Total
                               </TableHead>
                               {(isLancadaPage || isAprovadaPage) && (
-                                <TableHead className="text-right">
+                                <TableHead className="hidden md:table-cell text-right">
                                   Acoes
                                 </TableHead>
                               )}
@@ -4394,17 +4662,67 @@ const createStatusPage = ({
                                 isCadastroIncompleto(diaristaInfo);
                               const diaristaReservaTecnica =
                                 diaristaInfo?.reserva_tecnica === true;
+                              const groupHasObservacaoLancamento = group.ids.some(
+                                (id) =>
+                                  hasObservacaoLancamentoValue(
+                                    diariasById.get(id.toString())
+                                      ?.observacao_lancamento
+                                  )
+                              );
                               const groupRowClasses = getPagamentoRowClasses(
                                 hasNaoOk ? false : null,
                                 "cursor-pointer transition"
                               );
+                              const groupRowHighlightClass =
+                                groupHasObservacaoLancamento
+                                  ? "bg-amber-200/90 hover:bg-amber-300/90"
+                                  : "";
                               const groupRowStyle = getPagamentoRowStyle(
                                 hasNaoOk ? false : null
                               );
+                              const groupStatusMenuItems: Array<{
+                                label: string;
+                                onSelect: () => void;
+                                disabled?: boolean;
+                              }> = [];
+                              const showGroupObservacaoActions =
+                                isAprovadaPage && canViewObservacaoLancamento;
+                              if (isLancadaPage && canOkPagamento) {
+                                groupStatusMenuItems.push({
+                                  label:
+                                    pendingCount === 0
+                                      ? "OK registrado"
+                                      : `Marcar OK (${pendingCount})`,
+                                  onSelect: () => handleGroupedOkPagamento(group),
+                                  disabled: isOkSaving || pendingCount === 0,
+                                });
+                                groupStatusMenuItems.push({
+                                  label: "Não ok",
+                                  onSelect: () => openNaoOkGroupDialog(group),
+                                  disabled:
+                                    naoOkSaving &&
+                                    naoOkTarget?.type === "group" &&
+                                    naoOkTarget.key === group.key,
+                                });
+                              }
+                              if (isAprovadaPage && canLaunchStatus) {
+                                groupStatusMenuItems.push({
+                                  label:
+                                    lancarCount === 0
+                                      ? "Sem diarias"
+                                      : `Lancar (${lancarCount})`,
+                                  onSelect: () =>
+                                    handleGroupedLancarPagamento(group),
+                                    disabled: isLancarSaving || lancarCount === 0,
+                                });
+                              }
+                              const showGroupMobileActions =
+                                groupStatusMenuItems.length > 0 ||
+                                showGroupObservacaoActions;
                               return (
                                 <TableRow
                                   key={group.key}
-                                  className={groupRowClasses}
+                                  className={`${groupRowClasses} ${groupRowHighlightClass}`.trim()}
                                   style={groupRowStyle}
                                   onClick={() =>
                                     openGroupDetailsDialog(group.key)
@@ -4455,6 +4773,77 @@ const createStatusPage = ({
                                           group.totalValor
                                         )}
                                       </span>
+                                      {showGroupMobileActions && (
+                                        <div className="mt-3 flex flex-col gap-2 md:hidden [&_button]:w-full [&_button]:h-10">
+                                          {groupStatusMenuItems.map((item) => (
+                                            <Button
+                                              key={item.label}
+                                              size="sm"
+                                              variant={
+                                                item.label
+                                                  .toLowerCase()
+                                                  .includes("não ok")
+                                                  ? "outline"
+                                                  : "default"
+                                              }
+                                              disabled={item.disabled}
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                item.onSelect();
+                                              }}
+                                            >
+                                              {item.label}
+                                            </Button>
+                                          ))}
+                                          {showGroupObservacaoActions &&
+                                            groupHasObservacaoLancamento && (
+                                              <>
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
+                                                  onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    openObservacaoLancamentoGroupDialog(
+                                                      group
+                                                    );
+                                                  }}
+                                                >
+                                                  Editar obs. lancamento
+                                                </Button>
+                                                <Button
+                                                  size="sm"
+                                                  variant="destructive"
+                                                  disabled={
+                                                    observacaoLancamentoSaving
+                                                  }
+                                                  onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    handleDeleteObservacaoLancamentoGroup(
+                                                      group.ids
+                                                    );
+                                                  }}
+                                                >
+                                                  Excluir obs. lancamento
+                                                </Button>
+                                              </>
+                                            )}
+                                          {showGroupObservacaoActions &&
+                                            !groupHasObservacaoLancamento && (
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  openObservacaoLancamentoGroupDialog(
+                                                    group
+                                                  );
+                                                }}
+                                              >
+                                                Adicionar obs. lancamento
+                                              </Button>
+                                            )}
+                                        </div>
+                                      )}
                                     </div>
                                   </TableCell>
                                   <TableCell className="hidden md:table-cell">
@@ -4469,66 +4858,94 @@ const createStatusPage = ({
                                   <TableCell className="hidden md:table-cell">
                                     {currencyFormatter.format(group.totalValor)}
                                   </TableCell>
-                                  {isLancadaPage && canOkPagamento && (
-                                    <TableCell className="text-right">
+                                  {(groupStatusMenuItems.length > 0 ||
+                                    (isAprovadaPage &&
+                                      canViewObservacaoLancamento)) && (
+                                    <TableCell className="hidden md:table-cell text-right">
                                       <div className="flex justify-end gap-2">
-                                        <Button
-                                          size="sm"
-                                          variant="default"
-                                          className="bg-emerald-600 text-white hover:bg-emerald-700"
-                                          disabled={
-                                            isOkSaving || pendingCount === 0
-                                          }
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleGroupedOkPagamento(group);
-                                          }}
-                                        >
-                                          {isOkSaving
-                                            ? "Marcando..."
-                                            : pendingCount === 0
-                                            ? "OK registrado"
-                                            : `Marcar OK (${pendingCount})`}
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="border-rose-200 text-rose-700 hover:bg-rose-50"
-                                          disabled={
-                                            naoOkSaving &&
-                                            naoOkTarget?.type === "group" &&
-                                            naoOkTarget.key === group.key
-                                          }
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            openNaoOkGroupDialog(group);
-                                          }}
-                                        >
-                                          Não ok
-                                        </Button>
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="outline"
+                                              aria-label="Acoes"
+                                            >
+                                              <MoreVertical className="h-4 w-4" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent
+                                            align="end"
+                                            className="w-48"
+                                            onClick={(event) =>
+                                              event.stopPropagation()
+                                            }
+                                          >
+                                            {groupStatusMenuItems.map(
+                                              (item) => (
+                                                <DropdownMenuItem
+                                                  key={item.label}
+                                                  disabled={item.disabled}
+                                                  onSelect={(event) => {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    item.onSelect();
+                                                  }}
+                                                >
+                                                  {item.label}
+                                                </DropdownMenuItem>
+                                              )
+                                            )}
+                                            {isAprovadaPage &&
+                                              canViewObservacaoLancamento &&
+                                              groupHasObservacaoLancamento && (
+                                                <>
+                                                  <DropdownMenuItem
+                                                    onSelect={(event) => {
+                                                      event.preventDefault();
+                                                      event.stopPropagation();
+                                                      openObservacaoLancamentoGroupDialog(
+                                                        group
+                                                      );
+                                                    }}
+                                                  >
+                                                    Editar obs. lancamento
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem
+                                                    className="text-destructive focus:text-destructive"
+                                                    disabled={
+                                                      observacaoLancamentoSaving
+                                                    }
+                                                    onSelect={(event) => {
+                                                      event.preventDefault();
+                                                      event.stopPropagation();
+                                                      handleDeleteObservacaoLancamentoGroup(
+                                                        group.ids
+                                                      );
+                                                    }}
+                                                  >
+                                                    Excluir obs. lancamento
+                                                  </DropdownMenuItem>
+                                                </>
+                                              )}
+                                            {isAprovadaPage &&
+                                              canViewObservacaoLancamento &&
+                                              !groupHasObservacaoLancamento && (
+                                                <DropdownMenuItem
+                                                  onSelect={(event) => {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    openObservacaoLancamentoGroupDialog(
+                                                      group
+                                                    );
+                                                  }}
+                                                >
+                                                  Adicionar obs. lancamento
+                                                </DropdownMenuItem>
+                                              )}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
                                       </div>
-                                    </TableCell>
-                                  )}
-                                  {isAprovadaPage && canLaunchStatus && (
-                                    <TableCell className="text-right">
-                                      <Button
-                                        size="sm"
-                                        variant="default"
-                                        className="bg-emerald-600 text-white hover:bg-emerald-700"
-                                        disabled={
-                                          isLancarSaving || lancarCount === 0
-                                        }
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          handleGroupedLancarPagamento(group);
-                                        }}
-                                      >
-                                        {isLancarSaving
-                                          ? "Lancando..."
-                                          : lancarCount === 0
-                                          ? "Sem diarias"
-                                          : `Lancar (${lancarCount})`}
-                                      </Button>
                                     </TableCell>
                                   )}
                                 </TableRow>
@@ -4552,80 +4969,75 @@ const createStatusPage = ({
                       <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900">
                         Total selecionado: {selectedTotalLabel}
                       </div>
-                      <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
-                        <Checkbox
-                          id={`ordenar-lista-${normalizedKey}`}
-                          checked={ordenarListaAlfabetica}
-                          onCheckedChange={(checked) => {
-                            const next = checked === true;
-                            setOrdenarListaAlfabetica(next);
-                            if (next) {
-                              setOrdenarListaPorDataDesc(false);
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            aria-label="Opcoes"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-64">
+                          {renderMenuToggleItem(
+                            "Ordenar A-Z",
+                            ordenarListaAlfabetica,
+                            () => {
+                              const next = !ordenarListaAlfabetica;
+                              setOrdenarListaAlfabetica(next);
+                              if (next) {
+                                setOrdenarListaPorDataDesc(false);
+                              }
                             }
-                          }}
-                        />
-                        <Label
-                          htmlFor={`ordenar-lista-${normalizedKey}`}
-                          className="cursor-pointer"
-                        >
-                          Ordenar A-Z
-                        </Label>
-                      </div>
-                      <div className="inline-flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1 text-xs">
-                        <Checkbox
-                          id={`ordenar-data-${normalizedKey}`}
-                          checked={ordenarListaPorDataDesc}
-                          onCheckedChange={(checked) => {
-                            const next = checked === true;
-                            setOrdenarListaPorDataDesc(next);
-                            if (next) {
-                              setOrdenarListaAlfabetica(false);
+                          )}
+                          {renderMenuToggleItem(
+                            "Mais recentes",
+                            ordenarListaPorDataDesc,
+                            () => {
+                              const next = !ordenarListaPorDataDesc;
+                              setOrdenarListaPorDataDesc(next);
+                              if (next) {
+                                setOrdenarListaAlfabetica(false);
+                              }
                             }
-                          }}
-                        />
-                        <Label
-                          htmlFor={`ordenar-data-${normalizedKey}`}
-                          className="cursor-pointer"
-                        >
-                          Mais recentes
-                        </Label>
-                      </div>
-                      <Button variant="outline" onClick={handleExportXlsx}>
-                        Exportar XLSX
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setTotalDialogOpen(true)}
-                      >
-                        Filtragem Avançada
-                      </Button>
-                      {!isPagaPage && pageDefaultAction && (
-                        <Button
-                          variant="default"
-                          className="bg-emerald-600 text-white hover:bg-emerald-700"
-                          disabled={
-                            updatingId === "bulk" ||
-                            selectedIds.size === 0
-                          }
-                          onClick={handleBulkDefaultAction}
-                        >
-                          {pageDefaultAction
-                            ? `${pageDefaultAction.label} (selecionadas)`
-                            : "Ação em massa"}
-                        </Button>
-                      )}
-                      {allowDelete && (
-                        <Button
-                          variant="destructive"
-                          disabled={
-                            deletingId === "bulk-delete" ||
-                            selectedIds.size === 0
-                          }
-                          onClick={handleBulkDeleteCancelled}
-                        >
-                          Excluir selecionadas
-                        </Button>
-                      )}
+                          )}
+                          <DropdownMenuItem onSelect={handleExportXlsx}>
+                            Exportar XLSX
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => setTotalDialogOpen(true)}
+                          >
+                            Filtragem Avançada
+                          </DropdownMenuItem>
+                          {!isPagaPage && pageDefaultAction && (
+                            <DropdownMenuItem
+                              disabled={
+                                updatingId === "bulk" ||
+                                selectedIds.size === 0
+                              }
+                              onSelect={handleBulkDefaultAction}
+                            >
+                              {pageDefaultAction
+                                ? `${pageDefaultAction.label} (selecionadas)`
+                                : "Ação em massa"}
+                            </DropdownMenuItem>
+                          )}
+                          {allowDelete && (
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              disabled={
+                                deletingId === "bulk-delete" ||
+                                selectedIds.size === 0
+                              }
+                              onSelect={handleBulkDeleteCancelled}
+                            >
+                              Excluir selecionadas
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     <div className="overflow-x-auto">
                       {diariasFiltradas.length === 0 ? (
@@ -4721,11 +5133,106 @@ const createStatusPage = ({
                                   diaria,
                                   postoInfo
                                 ).value || "-";
-                              const actionElement = renderAction(diaria);
+                              const statusMenuItems: Array<{
+                                label: string;
+                                onSelect: () => void;
+                                disabled?: boolean;
+                                destructive?: boolean;
+                              }> = [];
+                              const hasObservacaoLancamento =
+                                hasObservacaoLancamentoValue(
+                                  diaria.observacao_lancamento
+                                );
+                              const statusNormalized = normalizeStatus(
+                                diaria.status
+                              );
+                              if (isConfirmadaPage && canReprovarStatus) {
+                                statusMenuItems.push({
+                                  label: "Reprovar",
+                                  onSelect: () =>
+                                    requestStatusChange(
+                                      diaria.id.toString(),
+                                      STATUS.reprovada
+                                    ),
+                                  destructive: true,
+                                });
+                              }
+                              if (showReprovarMenu) {
+                                statusMenuItems.push({
+                                  label: "Reprovar",
+                                  onSelect: () =>
+                                    requestStatusChange(
+                                      diaria.id.toString(),
+                                      STATUS.reprovada
+                                    ),
+                                  destructive: true,
+                                });
+                              }
+                              if (isAguardandoPage && canCancelStatus) {
+                                statusMenuItems.push({
+                                  label: "Cancelar",
+                                  onSelect: () =>
+                                    requestStatusChange(
+                                      diaria.id.toString(),
+                                      STATUS.cancelada
+                                    ),
+                                  destructive: true,
+                                });
+                              }
+                              if (
+                                statusNormalized ===
+                                normalizeStatus(STATUS.lancada)
+                              ) {
+                                if (canOkPagamento) {
+                                  const okDisabled =
+                                    updatingId === diaria.id.toString() ||
+                                    diaria.ok_pagamento === true;
+                                  statusMenuItems.push({
+                                    label: diaria.ok_pagamento
+                                      ? "OK registrado"
+                                      : "Marcar OK",
+                                    onSelect: () =>
+                                      handleOkPagamento(
+                                        diaria.id.toString()
+                                      ),
+                                    disabled: okDisabled,
+                                  });
+                                  const naoOkDisabled =
+                                    naoOkSaving &&
+                                    naoOkTarget?.type === "single" &&
+                                    naoOkTarget.diaria.id === diaria.id;
+                                  statusMenuItems.push({
+                                    label: "Não ok",
+                                    onSelect: () => openNaoOkDialog(diaria),
+                                    disabled: naoOkDisabled,
+                                  });
+                                }
+                              } else {
+                                const action =
+                                  NEXT_STATUS_ACTIONS[statusNormalized];
+                                if (
+                                  action &&
+                                  canChangeToStatus(action.nextStatus)
+                                ) {
+                                  statusMenuItems.push({
+                                    label: action.label,
+                                    onSelect: () =>
+                                      requestStatusChange(
+                                        diaria.id.toString(),
+                                        action.nextStatus
+                                      ),
+                                    disabled:
+                                      updatingId === diaria.id.toString(),
+                                  });
+                                }
+                              }
                               const rowClasses = getPagamentoRowClasses(
                                 diaria.ok_pagamento,
                                 "cursor-pointer transition"
                               );
+                              const rowHighlightClass = hasObservacaoLancamento
+                                ? "bg-amber-200/90 hover:bg-amber-300/90"
+                                : "";
                               const rowStyle = getPagamentoRowStyle(
                                 diaria.ok_pagamento
                               );
@@ -4736,7 +5243,7 @@ const createStatusPage = ({
                               return (
                                 <TableRow
                                   key={diaria.id}
-                                  className={rowClasses}
+                                  className={`${rowClasses} ${rowHighlightClass}`.trim()}
                                   style={rowStyle}
                                   onClick={() => handleRowClick(diaria)}
                                 >
@@ -4802,103 +5309,131 @@ const createStatusPage = ({
                                   >
                                     <div className="flex flex-col items-end gap-2">
                                       <div className="flex flex-wrap justify-end gap-2">
-                                        {statusKey === STATUS.confirmada &&
-                                          canReprovarStatus && (
-                                          <Button
-                                            size="sm"
-                                            variant="destructive"
-                                            disabled={
-                                              updatingId ===
-                                              diaria.id.toString()
-                                            }
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              requestStatusChange(
-                                                diaria.id.toString(),
-                                                STATUS.reprovada
-                                              );
-                                            }}
-                                          >
-                                            Reprovar
-                                          </Button>
-                                        )}
-                                        {showReprovarMenu && (
-                                          <ReprovarMenu
-                                            disabled={
-                                              updatingId ===
-                                              diaria.id.toString()
-                                            }
-                                            onReprovar={() =>
-                                              requestStatusChange(
-                                                diaria.id.toString(),
-                                                STATUS.reprovada
-                                              )
-                                            }
-                                          />
-                                        )}
-                                        {isAguardandoPage && canCancelStatus && (
-                                          <Button
-                                            size="sm"
-                                            variant="destructive"
-                                            disabled={
-                                              updatingId ===
-                                              diaria.id.toString()
-                                            }
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              requestStatusChange(
-                                                diaria.id.toString(),
-                                                STATUS.cancelada
-                                              );
-                                            }}
-                                          >
-                                            Cancelar
-                                          </Button>
-                                        )}
-                                        <Button
-                                          size="sm"
-                                          variant="default"
-                                          className="bg-amber-400 text-black hover:bg-amber-500"
-                                          disabled={!canEditDiaria(diaria)}
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            openEditDialog(diaria);
-                                          }}
-                                        >
-                                          Editar
-                                        </Button>
-                                        {allowDelete && (
-                                          <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="text-destructive"
-                                            disabled={
-                                              deletingId ===
-                                              diaria.id.toString()
-                                            }
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              handleDeleteDiaria(
-                                                diaria.id.toString()
-                                              );
-                                            }}
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                            <span className="sr-only">
-                                              Excluir diaria
-                                            </span>
-                                          </Button>
+                                        {(statusMenuItems.length > 0 ||
+                                          isAguardandoPage ||
+                                          (isAprovadaPage &&
+                                            canViewObservacaoLancamento) ||
+                                          allowDelete) && (
+                                          <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                              <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="outline"
+                                                aria-label="Acoes"
+                                              >
+                                                <MoreVertical className="h-4 w-4" />
+                                              </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent
+                                              align="end"
+                                              className="w-56"
+                                              onClick={(event) =>
+                                                event.stopPropagation()
+                                              }
+                                            >
+                                              {statusMenuItems.map(
+                                                (item) => (
+                                                  <DropdownMenuItem
+                                                    key={item.label}
+                                                    disabled={item.disabled}
+                                                    className={
+                                                      item.destructive
+                                                        ? "text-destructive focus:text-destructive"
+                                                        : undefined
+                                                    }
+                                                    onSelect={(event) => {
+                                                      event.preventDefault();
+                                                      event.stopPropagation();
+                                                      item.onSelect();
+                                                    }}
+                                                  >
+                                                    {item.label}
+                                                  </DropdownMenuItem>
+                                                )
+                                              )}
+                                              {isAguardandoPage && (
+                                                <DropdownMenuItem
+                                                  disabled={!canEditDiaria(diaria)}
+                                                  onSelect={(event) => {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    openEditDialog(diaria);
+                                                  }}
+                                                >
+                                                  Editar
+                                                </DropdownMenuItem>
+                                              )}
+                                              {isAprovadaPage &&
+                                                canViewObservacaoLancamento &&
+                                                hasObservacaoLancamento && (
+                                                  <>
+                                                    <DropdownMenuItem
+                                                      onSelect={(event) => {
+                                                        event.preventDefault();
+                                                        event.stopPropagation();
+                                                        openObservacaoLancamentoDialog(
+                                                          diaria,
+                                                          { forceEdit: true }
+                                                        );
+                                                      }}
+                                                    >
+                                                      Editar obs. lancamento
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                      className="text-destructive focus:text-destructive"
+                                                      disabled={
+                                                        observacaoLancamentoSaving
+                                                      }
+                                                      onSelect={(event) => {
+                                                        event.preventDefault();
+                                                        event.stopPropagation();
+                                                        handleDeleteObservacaoLancamentoFromDetails(
+                                                          diaria
+                                                        );
+                                                      }}
+                                                    >
+                                                      Excluir obs. lancamento
+                                                    </DropdownMenuItem>
+                                                  </>
+                                                )}
+                                              {isAprovadaPage &&
+                                                canViewObservacaoLancamento &&
+                                                !hasObservacaoLancamento && (
+                                                  <DropdownMenuItem
+                                                    onSelect={(event) => {
+                                                      event.preventDefault();
+                                                      event.stopPropagation();
+                                                      openObservacaoLancamentoDialog(
+                                                        diaria
+                                                      );
+                                                    }}
+                                                  >
+                                                    Adicionar obs. lancamento
+                                                  </DropdownMenuItem>
+                                                )}
+                                              {allowDelete && (
+                                                <DropdownMenuItem
+                                                  className="text-destructive focus:text-destructive"
+                                                  disabled={
+                                                    deletingId ===
+                                                    diaria.id.toString()
+                                                  }
+                                                  onSelect={(event) => {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    handleDeleteDiaria(
+                                                      diaria.id.toString()
+                                                    );
+                                                  }}
+                                                >
+                                                  Excluir diaria
+                                                </DropdownMenuItem>
+                                              )}
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
                                         )}
                                       </div>
-                                      {actionElement && (
-                                        <div
-                                          onClick={(event) =>
-                                            event.stopPropagation()
-                                          }
-                                        >
-                                          {actionElement}
-                                        </div>
-                                      )}
                                     </div>
                                   </TableCell>
                                 </TableRow>
@@ -5016,6 +5551,100 @@ const createStatusPage = ({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {canViewObservacaoLancamento && (
+          <Dialog
+            open={observacaoLancamentoDialogOpen}
+            onOpenChange={(open) =>
+              open ? null : closeObservacaoLancamentoDialog()
+            }
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Observacao de lancamento</DialogTitle>
+                <DialogDescription>
+                  {observacaoLancamentoTarget?.type === "group"
+                    ? `Aplica a ${observacaoLancamentoTarget.count} diaria(s) do grupo de ${observacaoLancamentoTarget.diaristaNome}.`
+                    : observacaoLancamentoTarget?.diaria
+                    ? `Diaria #${observacaoLancamentoTarget.diaria.id}.`
+                    : "Informe a observacao de lancamento."}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                {observacaoLancamentoMixed && (
+                  <p className="text-xs text-muted-foreground">
+                    Observacoes diferentes foram encontradas neste grupo. Ao
+                    salvar, todas serao substituidas.
+                  </p>
+                )}
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="observacao-lancamento-diaria-temp">
+                    Observacao
+                  </Label>
+                  {observacaoLancamentoHasValue && (
+                    <div className="flex items-center gap-2">
+                      {!observacaoLancamentoEditing && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setObservacaoLancamentoEditing(true)}
+                        >
+                          Editar
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleSaveObservacaoLancamento(true)}
+                        disabled={observacaoLancamentoSaving}
+                      >
+                        Excluir
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <Textarea
+                  id="observacao-lancamento-diaria-temp"
+                  value={observacaoLancamentoText}
+                  onChange={(event) =>
+                    setObservacaoLancamentoText(event.target.value)
+                  }
+                  placeholder="Descreva a observacao de lancamento"
+                  rows={4}
+                  readOnly={
+                    observacaoLancamentoHasValue && !observacaoLancamentoEditing
+                  }
+                  className={
+                    observacaoLancamentoHasValue &&
+                    !observacaoLancamentoEditing
+                      ? "bg-muted/40"
+                      : undefined
+                  }
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeObservacaoLancamentoDialog}
+                  disabled={observacaoLancamentoSaving}
+                >
+                  Fechar
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  onClick={() => handleSaveObservacaoLancamento(false)}
+                  disabled={observacaoLancamentoSaving}
+                >
+                  {observacaoLancamentoSaving ? "Salvando..." : "Salvar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         <Dialog open={totalDialogOpen} onOpenChange={setTotalDialogOpen}>
           <DialogContent>
@@ -5592,13 +6221,13 @@ const createStatusPage = ({
                         {currencyFormatter.format(selectedGroup.totalValor)}
                       </p>
                     </div>
-                    {selectedGroupDiaristaInfo?.cpf_normalizado && (
+                    {selectedGroupDiaristaInfo?.cpf && (
                       <div>
                         <p className="text-muted-foreground text-xs">
                           CPF diarista
                         </p>
                         <p className="font-medium">
-                          {formatCpf(selectedGroupDiaristaInfo.cpf_normalizado)}
+                          {formatCpf(selectedGroupDiaristaInfo.cpf)}
                         </p>
                       </div>
                     )}
@@ -5609,6 +6238,17 @@ const createStatusPage = ({
                         </p>
                         <p className="font-medium whitespace-pre-line">
                           {groupObservacaoPagamento}
+                        </p>
+                      </div>
+                    )}
+                    {canViewObservacaoLancamento &&
+                      groupObservacaoLancamento && (
+                      <div className="md:col-span-2">
+                        <p className="text-muted-foreground text-xs">
+                          Observacao lancamento
+                        </p>
+                        <p className="font-medium whitespace-pre-line">
+                          {groupObservacaoLancamento}
                         </p>
                       </div>
                     )}
@@ -5874,7 +6514,13 @@ const createStatusPage = ({
               </DialogDescription>
             </DialogHeader>
             {selectedDiaria && (
-              <div className="space-y-6 text-sm">
+              <div
+                className={`space-y-6 text-sm ${
+                  selectedDiariaHasObservacaoLancamento
+                    ? "rounded-md border border-amber-400 bg-amber-200/90 p-3"
+                    : ""
+                }`}
+              >
                 <div>
                   <p className="text-xs font-semibold uppercase text-muted-foreground">
                     Informacoes gerais
@@ -6111,6 +6757,36 @@ const createStatusPage = ({
                         </p>
                       </div>
                     )}
+                    {isAprovadaPage &&
+                      canViewObservacaoLancamento &&
+                      selectedDiariaHasObservacaoLancamento && (
+                        <div className="sm:col-span-2 rounded-md border border-amber-400 bg-amber-200/90 p-3">
+                          <div className="flex flex-wrap items-start gap-2">
+                            <motion.span
+                              aria-hidden
+                              className="mt-0.5 text-amber-600"
+                              animate={{ y: [0, 6, 0] }}
+                              transition={{
+                                duration: 1.2,
+                                repeat: Infinity,
+                                ease: "easeInOut",
+                              }}
+                            >
+                              <AlertTriangle className="h-4 w-4" />
+                            </motion.span>
+                            <div>
+                              <p className="text-muted-foreground text-xs">
+                                Observacao lancamento
+                              </p>
+                              <p className="font-medium whitespace-pre-line">
+                                {toTrimOrNull(
+                                  selectedDiaria.observacao_lancamento
+                                ) || "-"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     {isFaltaSelecionada && (
                       <div className="sm:col-span-2">
                         <p className="text-muted-foreground text-xs">Falta</p>
@@ -6226,7 +6902,7 @@ const createStatusPage = ({
                     <div>
                       <p className="text-muted-foreground text-xs">CPF</p>
                       <p className="font-medium">
-                        {formatCpf(selectedDiaristaInfo?.cpf_normalizado) || "-"}
+                        {formatCpf(selectedDiaristaInfo?.cpf) || "-"}
                       </p>
                     </div>
                     <div>
@@ -6289,7 +6965,7 @@ const createStatusPage = ({
                     </div>
                   </div>
                 </div>
-                <div className="mt-6 flex flex-col gap-2 md:hidden">
+                <div className="mt-6 flex flex-col gap-2 md:hidden [&_button]:w-full [&_button]:h-10">
                   {statusKey === STATUS.confirmada && canReprovarStatus && (
                     <Button
                       size="sm"
@@ -6307,18 +6983,20 @@ const createStatusPage = ({
                     </Button>
                   )}
                   {showReprovarMenu && (
-                    <div className="flex justify-end">
-                      <ReprovarMenu
-                        disabled={updatingId === selectedDiaria.id.toString()}
-                        onReprovar={() => {
-                          closeDetailsDialog();
-                          requestStatusChange(
-                            selectedDiaria.id.toString(),
-                            STATUS.reprovada
-                          );
-                        }}
-                      />
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={updatingId === selectedDiaria.id.toString()}
+                      onClick={() => {
+                        closeDetailsDialog();
+                        requestStatusChange(
+                          selectedDiaria.id.toString(),
+                          STATUS.reprovada
+                        );
+                      }}
+                    >
+                      Reprovar
+                    </Button>
                   )}
                   {isAguardandoPage && canCancelStatus && (
                     <Button
@@ -6336,19 +7014,66 @@ const createStatusPage = ({
                       Cancelar
                     </Button>
                   )}
+                  {isAprovadaPage &&
+                    canViewObservacaoLancamento &&
+                    selectedDiariaHasObservacaoLancamento && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            closeDetailsDialog();
+                            openObservacaoLancamentoDialog(selectedDiaria, {
+                              forceEdit: true,
+                            });
+                          }}
+                        >
+                          Editar obs. lancamento
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={observacaoLancamentoSaving}
+                          onClick={() => {
+                            closeDetailsDialog();
+                            handleDeleteObservacaoLancamentoFromDetails(
+                              selectedDiaria
+                            );
+                          }}
+                        >
+                          Excluir obs. lancamento
+                        </Button>
+                      </>
+                    )}
+                  {isAprovadaPage &&
+                    canViewObservacaoLancamento &&
+                    !selectedDiariaHasObservacaoLancamento && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          closeDetailsDialog();
+                          openObservacaoLancamentoDialog(selectedDiaria);
+                        }}
+                      >
+                        Adicionar obs. lancamento
+                      </Button>
+                    )}
                   {detailsActionElement && <div>{detailsActionElement}</div>}
-                  <Button
-                    type="button"
-                    variant="default"
-                    className="bg-amber-400 text-black hover:bg-amber-500"
-                    disabled={!canEditDiaria(selectedDiaria)}
-                    onClick={() => {
-                      openEditDialog(selectedDiaria);
-                      closeDetailsDialog();
-                    }}
-                  >
-                    Editar diaria
-                  </Button>
+                  {isAguardandoPage && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="bg-amber-400 text-black hover:bg-amber-500"
+                      disabled={!canEditDiaria(selectedDiaria)}
+                      onClick={() => {
+                        openEditDialog(selectedDiaria);
+                        closeDetailsDialog();
+                      }}
+                    >
+                      Editar diaria
+                    </Button>
+                  )}
                   {allowDelete && (
                     <Button
                       type="button"
@@ -6373,7 +7098,7 @@ const createStatusPage = ({
               </div>
             )}
             <DialogFooter className="hidden md:flex">
-              {selectedDiaria && (
+              {selectedDiaria && isAguardandoPage && (
                 <Button
                   type="button"
                   variant="default"
@@ -6768,8 +7493,8 @@ const createStatusPage = ({
                         diaristaStatusMap.get(option.id) === "restrito";
                       const isCurrent = option.id === editForm.diaristaId;
                       const isTest = isTestDiarista(option);
-                      const cpfLabel = option.cpf_normalizado
-                        ? ` - ${formatCpf(option.cpf_normalizado)}`
+                      const cpfLabel = option.cpf
+                        ? ` - ${formatCpf(option.cpf)}`
                         : " - CPF nao informado";
                       const reservaLabel = option.reserva_tecnica
                         ? " - Reserva técnica"
@@ -6889,3 +7614,4 @@ export const Diarias2LancadasPage = createStatusPage(STATUS_CONFIGS[3]);
 export const Diarias2ReprovadasPage = createStatusPage(STATUS_CONFIGS[4]);
 export const Diarias2CanceladasPage = createStatusPage(STATUS_CONFIGS[5]);
 export const Diarias2PagasPage = createStatusPage(STATUS_CONFIGS[6]);
+

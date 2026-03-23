@@ -23,6 +23,31 @@ export const STATUS = {
   cancelada: "Cancelada",
 } as const;
 
+export const getDiariasTemporariasRouteByStatus = (
+  status?: string | null
+) => {
+  const normalized = normalizeStatus(status);
+  if (normalized === normalizeStatus(STATUS.confirmada)) {
+    return "/cobertura/diarias/confirmadas";
+  }
+  if (normalized === normalizeStatus(STATUS.aprovada)) {
+    return "/cobertura/diarias/aprovadas";
+  }
+  if (normalized === normalizeStatus(STATUS.lancada)) {
+    return "/cobertura/diarias/lancadas";
+  }
+  if (normalized === normalizeStatus(STATUS.paga)) {
+    return "/cobertura/diarias/pagas";
+  }
+  if (normalized === normalizeStatus(STATUS.reprovada)) {
+    return "/cobertura/diarias/reprovadas";
+  }
+  if (normalized === normalizeStatus(STATUS.cancelada)) {
+    return "/cobertura/diarias/canceladas";
+  }
+  return "/cobertura/diarias/aguardando";
+};
+
 export const STATUS_LABELS: Record<string, string> = {
   [STATUS.aguardando]: "Aguardando confirmacao",
   [STATUS.confirmada]: "Confirmada",
