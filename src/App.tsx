@@ -52,6 +52,7 @@ import {
   HoraExtraAprovadasPage,
   HoraExtraReprovadasPage,
   HoraExtraCanceladasPage,
+  HoraExtraDashboardPage,
 } from "./pages/hora-extra/HoraExtraStatusPages";
 import Inspecao from "./pages/Inspecao";
 import Checklist from "./pages/Checklist";
@@ -135,12 +136,14 @@ const App = () => (
           <Route path="/cobertura/diarias/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
           <Route path="/cobertura/diarias" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
           <Route path="/hora-extra" element={<ProtectedRoute><HoraExtra /></ProtectedRoute>} />
+          <Route path="/hora-extra/dashboard" element={<ProtectedRoute><HoraExtraDashboardPage /></ProtectedRoute>} />
           <Route path="/hora-extra/pendentes" element={<ProtectedRoute><HoraExtraPendentesPage /></ProtectedRoute>} />
           <Route path="/hora-extra/confirmadas" element={<ProtectedRoute><HoraExtraConfirmadasPage /></ProtectedRoute>} />
           <Route path="/hora-extra/aprovadas" element={<ProtectedRoute><HoraExtraAprovadasPage /></ProtectedRoute>} />
           <Route path="/hora-extra/reprovadas" element={<ProtectedRoute><HoraExtraReprovadasPage /></ProtectedRoute>} />
           <Route path="/hora-extra/canceladas" element={<ProtectedRoute><HoraExtraCanceladasPage /></ProtectedRoute>} />
           <Route path="/cobertura/hora-extra" element={<ProtectedRoute><HoraExtra /></ProtectedRoute>} />
+          <Route path="/cobertura/hora-extra/dashboard" element={<ProtectedRoute><HoraExtraDashboardPage /></ProtectedRoute>} />
           <Route path="/cobertura/hora-extra/pendentes" element={<ProtectedRoute><HoraExtraPendentesPage /></ProtectedRoute>} />
           <Route path="/cobertura/hora-extra/confirmadas" element={<ProtectedRoute><HoraExtraConfirmadasPage /></ProtectedRoute>} />
           <Route path="/cobertura/hora-extra/aprovadas" element={<ProtectedRoute><HoraExtraAprovadasPage /></ProtectedRoute>} />

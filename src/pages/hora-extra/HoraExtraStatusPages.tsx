@@ -37,6 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -100,11 +101,11 @@ const STATUS_CONFIGS: StatusPageConfig[] = [
 ];
 
 const STATUS_LABELS: Record<HoraExtraStatus, string> = {
-  pendente: "Pendente",
-  confirmada: "Confirmada",
-  aprovada: "Aprovada",
-  reprovada: "Reprovada",
-  cancelada: "Cancelada",
+  pendente: "Pendente(s)",
+  confirmada: "Confirmada(s)",
+  aprovada: "Aprovada(s)",
+  reprovada: "Reprovada(s)",
+  cancelada: "Cancelada(s)",
 };
 
 const STATUS_BADGE_VARIANT: Record<
@@ -1589,9 +1590,337 @@ const createStatusPage = ({
   };
 };
 
+export const HoraExtraDashboardPage = () => {
+  const { colaboradoresConvenia, colaboradoresConveniaMap, horasExtras, loading } =
+    useHoraExtraData();
+  const STATUS_TODAS = "__all__";
+  const statusTabs = useMemo(() => {
+    const values =
+      (Constants.public.Enums.status_hora_extra as HoraExtraStatus[]) ||
+      (Object.keys(STATUS_LABELS) as HoraExtraStatus[]);
+    return [STATUS_TODAS, ...values];
+  }, []);
+  const [statusTab, setStatusTab] = useState<string>(STATUS_TODAS);
+  const [periodo, setPeriodo] = useState(() => {
+    const hoje = new Date();
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    return {
+      inicioDe: format(inicioMes, "yyyy-MM-dd"),
+      inicioAte: format(hoje, "yyyy-MM-dd"),
+    };
+  });
+  const [colaboradorId, setColaboradorId] = useState("");
+
+  const filteredHoras = useMemo(() => {
+    const inicioFiltro = periodo.inicioDe
+      ? new Date(`${periodo.inicioDe}T00:00:00`)
+      : null;
+    const fimFiltro = periodo.inicioAte
+      ? new Date(`${periodo.inicioAte}T23:59:59`)
+      : null;
+
+    return horasExtras.filter((hora) => {
+      const inicio = new Date(hora.inicio_em);
+      const fim = new Date(hora.fim_em);
+      if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+        return false;
+      }
+      if (inicioFiltro && fim < inicioFiltro) return false;
+      if (fimFiltro && inicio > fimFiltro) return false;
+      if (colaboradorId && hora.colaborador_cobrindo_id !== colaboradorId) {
+        return false;
+      }
+      return true;
+    });
+  }, [horasExtras, periodo.inicioDe, periodo.inicioAte, colaboradorId]);
+
+  const filteredByStatus = useMemo(() => {
+    if (statusTab === STATUS_TODAS) return filteredHoras;
+    return filteredHoras.filter((hora) => hora.status === statusTab);
+  }, [filteredHoras, statusTab, STATUS_TODAS]);
+
+  const totalMin = useMemo(
+    () => filteredByStatus.reduce((acc, hora) => acc + calcDuracaoMin(hora), 0),
+    [filteredByStatus],
+  );
+
+  const totalColaboradores = useMemo(() => {
+    const set = new Set<string>();
+    filteredByStatus.forEach((hora) => {
+      if (hora.colaborador_cobrindo_id) {
+        set.add(hora.colaborador_cobrindo_id);
+      }
+    });
+    return set.size;
+  }, [filteredByStatus]);
+
+  const horasPorMes = useMemo(() => {
+    const map = new Map<
+      string,
+      { key: string; label: string; totalMin: number; totalRegistros: number }
+    >();
+    filteredByStatus.forEach((hora) => {
+      const inicio = new Date(hora.inicio_em);
+      if (Number.isNaN(inicio.getTime())) return;
+      const key = format(inicio, "yyyy-MM");
+      const label = format(inicio, "MM/yyyy");
+      if (!map.has(key)) {
+        map.set(key, { key, label, totalMin: 0, totalRegistros: 0 });
+      }
+      const item = map.get(key)!;
+      item.totalMin += calcDuracaoMin(hora);
+      item.totalRegistros += 1;
+    });
+    return Array.from(map.values()).sort((a, b) =>
+      a.key.localeCompare(b.key),
+    );
+  }, [filteredByStatus]);
+
+  const horasPorColaborador = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; nome: string; totalMin: number; totalRegistros: number }
+    >();
+    filteredByStatus.forEach((hora) => {
+      const colaboradorId = hora.colaborador_cobrindo_id;
+      if (!colaboradorId) return;
+      const nome = getColaboradorNome(
+        colaboradoresConveniaMap.get(colaboradorId),
+      );
+      if (!map.has(colaboradorId)) {
+        map.set(colaboradorId, {
+          id: colaboradorId,
+          nome,
+          totalMin: 0,
+          totalRegistros: 0,
+        });
+      }
+      const item = map.get(colaboradorId)!;
+      item.totalMin += calcDuracaoMin(hora);
+      item.totalRegistros += 1;
+    });
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.totalMin !== a.totalMin) return b.totalMin - a.totalMin;
+      return a.nome.localeCompare(b.nome);
+    });
+  }, [filteredByStatus, colaboradoresConveniaMap]);
+
+  const statusLabel =
+    statusTab === STATUS_TODAS
+      ? "Todas"
+      : STATUS_LABELS[statusTab as HoraExtraStatus] || statusTab;
+
+  const resetFilters = () => {
+    setPeriodo({ inicioDe: "", inicioAte: "" });
+    setColaboradorId("");
+    setStatusTab(STATUS_TODAS);
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 p-4 md:p-6">
+        <div>
+          <p className="text-sm text-muted-foreground uppercase tracking-wide">
+            Cobertura
+          </p>
+          <h1 className="text-3xl font-bold">Dashboard hora extra</h1>
+          <p className="text-sm text-muted-foreground">
+            Resumo mensal e por periodo das horas extras registradas.
+          </p>
+        </div>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Periodo</CardTitle>
+            <CardDescription>
+              Defina a data inicial e final para atualizar o dashboard.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-1">
+              <Label>Data inicial</Label>
+              <Input
+                type="date"
+                value={periodo.inicioDe}
+                onChange={(event) =>
+                  setPeriodo((prev) => ({
+                    ...prev,
+                    inicioDe: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Data final</Label>
+              <Input
+                type="date"
+                value={periodo.inicioAte}
+                onChange={(event) =>
+                  setPeriodo((prev) => ({
+                    ...prev,
+                    inicioAte: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label>Colaborador</Label>
+              <Select
+                value={colaboradorId || "__all__"}
+                onValueChange={(value) =>
+                  setColaboradorId(value === "__all__" ? "" : value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os colaboradores" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72 overflow-y-auto">
+                  <SelectItem value="__all__">Todos os colaboradores</SelectItem>
+                  {colaboradoresConvenia.map((colaborador) => (
+                    <SelectItem key={colaborador.id} value={colaborador.id}>
+                      {getColaboradorNome(colaborador)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button type="button" variant="outline" onClick={resetFilters}>
+                Limpar periodo
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Status</CardTitle>
+            <CardDescription>
+              Visualize as horas extras por status.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={statusTab} onValueChange={setStatusTab}>
+              <TabsList className="flex h-auto flex-wrap gap-2">
+                {statusTabs.map((status) => (
+                  <TabsTrigger key={status} value={status}>
+                    {status === STATUS_TODAS
+                      ? "Todas"
+                      : STATUS_LABELS[status as HoraExtraStatus] || status}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Total de horas</CardDescription>
+              <CardTitle>{formatDuracao(totalMin)}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {filteredByStatus.length} registro(s) no periodo ({statusLabel}).
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Colaboradores</CardDescription>
+              <CardTitle>{totalColaboradores}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Com horas extras registradas.
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Horas extras por mes</CardTitle>
+            <CardDescription>
+              {loading
+                ? "Carregando horas extras..."
+                : `${horasPorMes.length} mes(es) encontrado(s).`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!loading && horasPorMes.length === 0 && (
+              <div className="text-sm text-muted-foreground">
+                Nenhuma hora extra encontrada para o periodo.
+              </div>
+            )}
+            {!loading && horasPorMes.length > 0 && (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Mes</TableHead>
+                      <TableHead>Registros</TableHead>
+                      <TableHead>Total horas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {horasPorMes.map((item) => (
+                      <TableRow key={item.key}>
+                        <TableCell>{item.label}</TableCell>
+                        <TableCell>{item.totalRegistros}</TableCell>
+                        <TableCell>{formatDuracao(item.totalMin)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Horas extras por colaborador</CardTitle>
+            <CardDescription>
+              {loading
+                ? "Carregando horas extras..."
+                : `${horasPorColaborador.length} colaborador(es) encontrado(s).`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!loading && horasPorColaborador.length === 0 && (
+              <div className="text-sm text-muted-foreground">
+                Nenhuma hora extra encontrada para o periodo.
+              </div>
+            )}
+            {!loading && horasPorColaborador.length > 0 && (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Colaborador</TableHead>
+                      <TableHead>Registros</TableHead>
+                      <TableHead>Total horas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {horasPorColaborador.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{item.nome}</TableCell>
+                        <TableCell>{item.totalRegistros}</TableCell>
+                        <TableCell>{formatDuracao(item.totalMin)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+};
+
 export const HoraExtraPendentesPage = createStatusPage(STATUS_CONFIGS[0]);
 export const HoraExtraConfirmadasPage = createStatusPage(STATUS_CONFIGS[1]);
 export const HoraExtraAprovadasPage = createStatusPage(STATUS_CONFIGS[2]);
 export const HoraExtraReprovadasPage = createStatusPage(STATUS_CONFIGS[3]);
 export const HoraExtraCanceladasPage = createStatusPage(STATUS_CONFIGS[4]);
-
