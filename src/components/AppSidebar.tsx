@@ -93,6 +93,7 @@ const horaExtraChildren = [
   { title: "Aprovadas", url: "/cobertura/hora-extra/aprovadas", status: "aprovada" },
   { title: "Reprovadas", url: "/cobertura/hora-extra/reprovadas", status: "reprovada" },
   { title: "Canceladas", url: "/cobertura/hora-extra/canceladas", status: "cancelada" },
+  { title: "Dashboard", url: "/cobertura/hora-extra/dashboard" },
 ];
 
 const menuItems: MenuItem[] = [
