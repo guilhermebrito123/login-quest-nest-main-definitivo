@@ -262,22 +262,28 @@ const FALTAS_CONVENIA_REVERTER_LEVELS: AccessLevel[] = [
   "gestor_operacoes",
   "supervisor",
   "assistente_operacoes",
-  "analista_centro_controle",
 ];
 
 const FALTAS_CONVENIA_CREATE_LEVELS: AccessLevel[] = [
   "admin",
   "gestor_operacoes",
   "supervisor",
+  "assistente_operacoes",
 ];
 
 const FALTAS_CONVENIA_UPDATE_LEVELS: AccessLevel[] = [
   "admin",
   "gestor_operacoes",
   "supervisor",
+  "assistente_operacoes",
 ];
 
-const FALTAS_CONVENIA_DELETE_LEVELS: AccessLevel[] = ["admin"];
+const FALTAS_CONVENIA_DELETE_LEVELS: AccessLevel[] = [
+  "admin",
+  "gestor_operacoes",
+  "supervisor",
+  "assistente_operacoes",
+];
 
 type FaltaTipo = "convenia";
 
