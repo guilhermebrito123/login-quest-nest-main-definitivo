@@ -75,6 +75,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   useDiariasTemporariasData,
   DiariaTemporaria,
+  findDiariaTemporariaConflito,
+  buildDiariaTemporariaConflitoMessage,
 } from "./temporariasUtils";
 
 interface StatusPageConfig {
@@ -3563,24 +3565,18 @@ const createStatusPage = ({
         toast.error(`Diarista esta na blacklist${motivo}`);
         return;
       }
-      const diaristaOcupado = diarias.some((diaria) => {
-        if (diaria.id.toString() === editingDiariaId) return false;
-        if (
-          diaria.diarista_id !== editForm.diaristaId ||
-          diaria.data_diaria !== editForm.dataDiaria
-        ) {
-          return false;
+        const conflito = findDiariaTemporariaConflito({
+          diarias,
+          diaristaId: editForm.diaristaId,
+          dataDiaria: editForm.dataDiaria,
+          horarioInicio: editForm.horarioInicio,
+          horarioFim: editForm.horarioFim,
+          ignoreId: editingDiariaId,
+        });
+        if (conflito) {
+          toast.error(buildDiariaTemporariaConflitoMessage(conflito));
+          return;
         }
-        const statusNorm = normalizeStatus(diaria.status);
-        return (
-          statusNorm !== normalizedCancelStatus &&
-          statusNorm !== normalizedReprovadaStatus
-        );
-      });
-      if (diaristaOcupado) {
-        toast.error("Este diarista ja possui uma diaria ativa para esta data");
-        return;
-      }
 
       if (!editForm.centroCustoId) {
         toast.error("Selecione o centro de custo.");
@@ -4127,7 +4123,7 @@ const createStatusPage = ({
                     <TooltipLabel
                       htmlFor={`filtro-temp-id-${statusKey}`}
                       label="ID da diaria"
-                      tooltip="Filtra pelo identificador da diaria temporaria."
+                      tooltip="Filtra pelo identificador da diaria."
                     />
                     <Input
                       id={`filtro-temp-id-${statusKey}`}

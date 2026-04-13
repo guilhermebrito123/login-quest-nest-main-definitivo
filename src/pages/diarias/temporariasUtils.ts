@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { parseISO, isWithinInterval } from "date-fns";
-import { getMonthRange, Diarista } from "./utils";
+import { getMonthRange, Diarista, STATUS, normalizeStatus } from "./utils";
 import { useSession } from "@/hooks/useSession";
 
 export type PostoServicoResumo = {
@@ -112,6 +112,123 @@ export type DiariaTemporaria = {
   diarista?: Diarista | null;
   colaborador?: ColaboradorAlocado | null;
   posto?: PostoServicoResumo | null;
+};
+
+export type DiariaTemporariaConflito =
+  | {
+      type: "missing_horarios";
+      existente: DiariaTemporaria;
+    }
+  | {
+      type: "overlap";
+      existente: DiariaTemporaria;
+      noturno: boolean;
+    };
+
+const parseTimeToMinutes = (value?: string | null) => {
+  if (!value) return null;
+  const [hourRaw, minuteRaw] = value.split(":");
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  return hour * 60 + minute;
+};
+
+const isOvernightShift = (inicio: number, fim: number) => fim <= inicio;
+
+const hasHorarioOverlap = (
+  novoInicio: number,
+  novoFim: number,
+  existenteInicio: number,
+  existenteFim: number,
+) => {
+  const novoNoturno = isOvernightShift(novoInicio, novoFim);
+  const existenteNoturno = isOvernightShift(existenteInicio, existenteFim);
+
+  if (!novoNoturno && !existenteNoturno) {
+    return novoInicio < existenteFim && novoFim > existenteInicio;
+  }
+
+  if (novoNoturno) {
+    if (existenteNoturno) return true;
+    return existenteFim > novoInicio || existenteInicio < novoFim;
+  }
+
+  return novoFim > existenteInicio || novoInicio < existenteFim;
+};
+
+export const findDiariaTemporariaConflito = ({
+  diarias,
+  diaristaId,
+  dataDiaria,
+  horarioInicio,
+  horarioFim,
+  ignoreId,
+}: {
+  diarias: DiariaTemporaria[];
+  diaristaId?: string | null;
+  dataDiaria?: string | null;
+  horarioInicio?: string | null;
+  horarioFim?: string | null;
+  ignoreId?: string | number | null;
+}): DiariaTemporariaConflito | null => {
+  if (!diaristaId || !dataDiaria) return null;
+
+  const novoInicio = parseTimeToMinutes(horarioInicio);
+  const novoFim = parseTimeToMinutes(horarioFim);
+  const normalizedCancelada = normalizeStatus(STATUS.cancelada);
+  const normalizedReprovada = normalizeStatus(STATUS.reprovada);
+
+  for (const diaria of diarias) {
+    if (diaria.diarista_id !== diaristaId) continue;
+    if (diaria.data_diaria !== dataDiaria) continue;
+    if (ignoreId !== null && ignoreId !== undefined && String(diaria.id) === String(ignoreId)) {
+      continue;
+    }
+    const statusNorm = normalizeStatus(diaria.status);
+    if (statusNorm === normalizedCancelada || statusNorm === normalizedReprovada) continue;
+
+    const existenteInicio = parseTimeToMinutes(diaria.horario_inicio);
+    const existenteFim = parseTimeToMinutes(diaria.horario_fim);
+
+    if (
+      novoInicio === null ||
+      novoFim === null ||
+      existenteInicio === null ||
+      existenteFim === null
+    ) {
+      return { type: "missing_horarios", existente: diaria };
+    }
+
+    if (hasHorarioOverlap(novoInicio, novoFim, existenteInicio, existenteFim)) {
+      const noturno = isOvernightShift(novoInicio, novoFim) && isOvernightShift(existenteInicio, existenteFim);
+      return { type: "overlap", existente: diaria, noturno };
+    }
+  }
+
+  return null;
+};
+
+const formatHorario = (value?: string | null) => {
+  if (!value) return "";
+  const [hourRaw, minuteRaw] = value.split(":");
+  if (!hourRaw || minuteRaw === undefined) return value;
+  const hour = hourRaw.padStart(2, "0");
+  const minute = minuteRaw.padStart(2, "0");
+  return `${hour}:${minute}`;
+};
+
+export const buildDiariaTemporariaConflitoMessage = (conflito: DiariaTemporariaConflito) => {
+  if (conflito.type === "missing_horarios") {
+    return "Este diarista já possui uma diária ativa para esta data. Informe os horários de início e fim para permitir múltiplas diárias no mesmo dia.";
+  }
+
+  const inicio = formatHorario(conflito.existente.horario_inicio);
+  const fim = formatHorario(conflito.existente.horario_fim);
+  if (conflito.noturno) {
+    return `Conflito de horário: este diarista já possui uma diária noturna das ${inicio} às ${fim} nesta data.`;
+  }
+  return `Conflito de horário: este diarista já possui uma diária das ${inicio} às ${fim} nesta data.`;
 };
 
 export function useDiariasTemporariasData(selectedMonth?: string | null) {
