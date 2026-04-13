@@ -21,6 +21,7 @@ import {
   FolderTree,
   Fuel,
   Clock,
+  Landmark,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -127,6 +128,7 @@ const menuItems: MenuItem[] = [
     children: horaExtraChildren,
     statusCountsKey: "horaExtra",
   },
+  { title: "Controladoria", url: "/controladoria", icon: Landmark },
   { title: "Faltas", url: "/faltas", icon: AlertTriangle },
   { title: "Ativos", url: "/ativos", icon: Package },
   { title: "Estoque", url: "/estoque", icon: Package },

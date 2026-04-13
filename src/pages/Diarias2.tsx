@@ -19,7 +19,11 @@ import {
   currencyFormatter,
   formatDate,
 } from "./diarias/utils";
-import { useDiariasTemporariasData } from "./diarias/temporariasUtils";
+import {
+  useDiariasTemporariasData,
+  findDiariaTemporariaConflito,
+  buildDiariaTemporariaConflitoMessage,
+} from "./diarias/temporariasUtils";
 
 const MOTIVO_VAGO_DIARIA_SALARIO = "DIÁRIA - SALÁRIO";
 const MOTIVO_VAGO_LICENCA_NOJO_FALECIMENTO = "LICENÇA NOJO (FALECIMENTO)";
@@ -530,20 +534,17 @@ const Diarias2 = () => {
     const observacaoValue = toUpperOrNull(formState.observacao);
     const motivoVagoValue = (formState.motivoVago || "").toUpperCase();
 
-    const diaristaOcupado = diarias.some((diaria) => {
-      if (
-        diaria.diarista_id !== formState.diaristaId ||
-        diaria.data_diaria !== formState.dataDiaria
-      ) {
-        return false;
+      const conflito = findDiariaTemporariaConflito({
+        diarias,
+        diaristaId: formState.diaristaId,
+        dataDiaria: formState.dataDiaria,
+        horarioInicio: formState.horarioInicio,
+        horarioFim: formState.horarioFim,
+      });
+      if (conflito) {
+        toast.error(buildDiariaTemporariaConflitoMessage(conflito));
+        return;
       }
-      const statusNorm = normalizeStatus(diaria.status);
-      return statusNorm !== normalizedCancelada && statusNorm !== normalizedReprovada;
-    });
-    if (diaristaOcupado) {
-      toast.error("Este diarista ja possui uma diaria ativa para esta data");
-      return;
-    }
 
     try {
       const { data: userData, error: authError } = await supabase.auth.getUser();
