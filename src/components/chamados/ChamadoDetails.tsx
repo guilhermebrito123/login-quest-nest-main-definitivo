@@ -22,6 +22,7 @@ import {
   formatChamadoPrioridade,
   formatChamadoStatus,
   formatDateTime,
+  formatDateTimeBrSemTimezone,
   formatHistoricoOperacao,
   getChamadoPrioridadeClass,
   getChamadoStatusClass,
@@ -256,6 +257,15 @@ function renderHistoricoDetalhe(
   );
 }
 
+function InfoItem({ label, value }: { label: string; value: import("react").ReactNode }) {
+  return (
+    <div className="space-y-1 rounded-lg border p-3">
+      <p className="text-sm font-medium">{label}</p>
+      <p className="break-words text-sm text-muted-foreground">{value}</p>
+    </div>
+  );
+}
+
 export function ChamadoDetails({
   chamadoId,
   open,
@@ -448,18 +458,10 @@ export function ChamadoDetails({
     [responsavelHistoricoQuery.data]
   );
 
-  useState;
-
-  useMemo;
-
   const selectedResponsavelOption = useMemo(
     () => responsaveis.find((item) => item.id === selectedResponsavelId) ?? null,
     [responsaveis, selectedResponsavelId]
   );
-
-  useState;
-
-  useMemo;
 
   useEffect(() => {
     setSelectedResponsavelId(chamado?.responsavel_id ?? "none");
@@ -719,407 +721,456 @@ export function ChamadoDetails({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[96vw] max-h-[92vh] overflow-auto">
-        <DialogHeader>
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-2">
-              <DialogTitle className="flex flex-wrap items-center gap-2">
-                <span>{chamado ? formatChamadoNumero(chamado.numero) : "Chamado"}</span>
-                {chamado?.status && (
-                  <Badge variant="outline" className={getChamadoStatusClass(chamado.status)}>
-                    {formatChamadoStatus(chamado.status)}
-                  </Badge>
+      <DialogContent className="h-[100dvh] w-screen max-w-none overflow-hidden rounded-none p-0 sm:h-auto sm:max-h-[92vh] sm:w-[96vw] sm:max-w-6xl sm:rounded-xl">
+        <div className="flex h-full max-h-[100dvh] flex-col">
+          <DialogHeader className="space-y-4 border-b px-4 py-4 pr-12 text-left sm:px-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 space-y-2">
+                <DialogTitle className="flex flex-wrap items-center gap-2 text-lg sm:text-xl">
+                  <span>{chamado ? formatChamadoNumero(chamado.numero) : "Chamado"}</span>
+                  {chamado?.status && (
+                    <Badge variant="outline" className={getChamadoStatusClass(chamado.status)}>
+                      {formatChamadoStatus(chamado.status)}
+                    </Badge>
+                  )}
+                  {chamado?.prioridade && (
+                    <Badge
+                      variant="outline"
+                      className={getChamadoPrioridadeClass(chamado.prioridade)}
+                    >
+                      {formatChamadoPrioridade(chamado.prioridade)}
+                    </Badge>
+                  )}
+                </DialogTitle>
+                <DialogDescription className="text-sm">
+                  Acompanhe informações, interações, anexos e histórico completo do chamado.
+                </DialogDescription>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                {chamado && canEditChamado && (
+                  <Button variant="outline" onClick={() => onEdit(chamado)} className="w-full sm:w-auto">
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Editar
+                  </Button>
                 )}
-                {chamado?.prioridade && (
-                  <Badge variant="outline" className={getChamadoPrioridadeClass(chamado.prioridade)}>
-                    {formatChamadoPrioridade(chamado.prioridade)}
-                  </Badge>
+                {canDeleteChamado && (
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteChamado}
+                    disabled={deletingChamado}
+                    className="w-full sm:w-auto"
+                  >
+                    {deletingChamado ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Excluir
+                  </Button>
                 )}
-              </DialogTitle>
-              <DialogDescription>
-                Acompanhe informações, interações, anexos e histórico completo do chamado.
-              </DialogDescription>
+              </div>
             </div>
+          </DialogHeader>
 
-            <div className="flex flex-wrap gap-2">
-              {chamado && canEditChamado && (
-                <Button variant="outline" onClick={() => onEdit(chamado)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Editar
-                </Button>
-              )}
-              {canDeleteChamado && (
-                <Button variant="destructive" onClick={handleDeleteChamado} disabled={deletingChamado}>
-                  {deletingChamado ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                  Excluir
-                </Button>
-              )}
-            </div>
-          </div>
-        </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+            {chamadoQuery.isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-96 w-full" />
+              </div>
+            ) : chamado ? (
+              <Tabs defaultValue="geral" className="space-y-4">
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-2 p-1 sm:grid-cols-4">
+                  <TabsTrigger value="geral" className="min-h-10 text-xs sm:text-sm">
+                    Geral
+                  </TabsTrigger>
+                  <TabsTrigger value="interacoes" className="min-h-10 text-xs sm:text-sm">
+                    Interações
+                  </TabsTrigger>
+                  <TabsTrigger value="anexos" className="min-h-10 text-xs sm:text-sm">
+                    Anexos
+                  </TabsTrigger>
+                  <TabsTrigger value="historico" className="min-h-10 text-xs sm:text-sm">
+                    Histórico
+                  </TabsTrigger>
+                </TabsList>
 
-        {chamadoQuery.isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-96 w-full" />
-          </div>
-        ) : chamado ? (
-          <Tabs defaultValue="geral" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="geral">Geral</TabsTrigger>
-              <TabsTrigger value="interacoes">Interações</TabsTrigger>
-              <TabsTrigger value="anexos">Anexos</TabsTrigger>
-              <TabsTrigger value="historico">Histórico</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="geral" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl">{chamado.titulo}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">{chamado.descricao}</p>
-                  <Separator />
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Categoria</div>
-                      <div>{chamado.categoria?.nome || "Sem categoria"}</div>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Local</div>
-                      <div>{localSelecionado?.nome || "-"}</div>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Centro de custo</div>
-                      <div>{localSelecionado?.cost_center_name || "-"}</div>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Solicitante</div>
-                      <div>{chamado.solicitante?.full_name || chamado.solicitante?.email || "-"}</div>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Responsável</div>
-                      <div>{responsavelDisplay}</div>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Criado em</div>
-                      <div>{formatDateTime(chamado.created_at)}</div>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Atualizado em</div>
-                      <div>{formatDateTime(chamado.updated_at)}</div>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Resolvido em</div>
-                      <div>{formatDateTime(chamado.resolvido_em)}</div>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Fechado em</div>
-                      <div>{formatDateTime(chamado.data_fechamento)}</div>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="font-medium">Resolvido por</div>
-                      <div>
-                        {chamado.resolvido_por_usuario?.full_name ||
-                          chamado.resolvido_por_usuario?.email ||
-                          "-"}
+                <TabsContent value="geral" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="line-clamp-2 text-lg sm:text-xl">
+                        {chamado.titulo}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                        {chamado.descricao}
+                      </p>
+                      <Separator />
+                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        <InfoItem label="Categoria" value={chamado.categoria?.nome || "Sem categoria"} />
+                        <InfoItem label="Local" value={localSelecionado?.nome || "-"} />
+                        <InfoItem label="Centro de custo" value={localSelecionado?.cost_center_name || "-"} />
+                        <InfoItem
+                          label="Solicitante"
+                          value={chamado.solicitante?.full_name || chamado.solicitante?.email || "-"}
+                        />
+                        <InfoItem label="Responsável" value={responsavelDisplay} />
+                        <InfoItem label="Criado em" value={formatDateTime(chamado.created_at)} />
+                        <InfoItem label="Atualizado em" value={formatDateTime(chamado.updated_at)} />
+                        <InfoItem label="Resolvido em" value={formatDateTime(chamado.resolvido_em)} />
+                        <InfoItem label="Fechado em" value={formatDateTime(chamado.data_fechamento)} />
+                        <InfoItem
+                          label="Resolvido por"
+                          value={
+                            chamado.resolvido_por_usuario?.full_name ||
+                            chamado.resolvido_por_usuario?.email ||
+                            "-"
+                          }
+                        />
                       </div>
-                    </div>
-                    </div>
-                    {canSelfManageResponsavel && (
-                      <>
-                        <Separator />
-                        <div className="space-y-3">
-                          <div>
-                            <div className="font-medium">Responsabilidade</div>
-                            <p className="text-sm text-muted-foreground">
-                              Perfis internos podem assumir o chamado ou se desatribuir. Apenas admins e supervisores podem atribuir outras pessoas.
-                            </p>
-                          </div>
-                          <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-                            {canAssignOtherResponsavel && (
-                              <div className="xl:w-72">
-                                <label className="mb-2 block text-sm font-medium">Atribuir outro responsável</label>
-                                <Select
-                                  value={selectedResponsavelId}
-                                  onValueChange={setSelectedResponsavelId}
-                                  disabled={assigningResponsavel}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Selecione um responsável" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">Não atribuído</SelectItem>
-                                    {responsaveis.map((responsavel) => (
-                                      <SelectItem key={responsavel.id} value={responsavel.id}>
-                                        {responsavel.full_name || responsavel.cargo || "Usuário interno"}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            )}
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                variant="outline"
-                                disabled={assigningResponsavel || !currentUserId || chamado.responsavel_id === currentUserId}
-                                onClick={() =>
-                                  handleUpdateResponsavel(currentUserId, "Você se atribuiu como responsável.")
-                                }
-                              >
-                                {assigningResponsavel ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Assumir chamado
-                              </Button>
-                              <Button
-                                variant="outline"
-                                disabled={assigningResponsavel || chamado.responsavel_id !== currentUserId}
-                                onClick={() => handleUpdateResponsavel(null, "Responsável removido com sucesso.")}
-                              >
-                                Desatribuir-se
-                              </Button>
+
+                      {canSelfManageResponsavel && (
+                        <>
+                          <Separator />
+                          <div className="space-y-4">
+                            <div>
+                              <div className="font-medium">Responsabilidade</div>
+                              <p className="text-sm text-muted-foreground">
+                                Perfis internos podem assumir o chamado ou se desatribuir. Apenas admins e supervisores podem atribuir outras pessoas.
+                              </p>
+                            </div>
+                            <div className="space-y-4">
                               {canAssignOtherResponsavel && (
+                                <div className="space-y-2 sm:max-w-sm">
+                                  <label className="text-sm font-medium">Atribuir outro responsável</label>
+                                  <Select
+                                    value={selectedResponsavelId}
+                                    onValueChange={setSelectedResponsavelId}
+                                    disabled={assigningResponsavel}
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Selecione um responsável" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">Não atribuído</SelectItem>
+                                      {responsaveis.map((responsavel) => (
+                                        <SelectItem key={responsavel.id} value={responsavel.id}>
+                                          {responsavel.full_name || responsavel.cargo || "Usuário interno"}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
+                              <div className={`grid gap-2 ${canAssignOtherResponsavel ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
                                 <Button
+                                  variant="outline"
+                                  className="w-full"
                                   disabled={
                                     assigningResponsavel ||
-                                    !selectedResponsavelOption ||
-                                    selectedResponsavelOption.id === chamado.responsavel_id
+                                    !currentUserId ||
+                                    chamado.responsavel_id === currentUserId
                                   }
                                   onClick={() =>
-                                    handleUpdateResponsavel(
-                                      selectedResponsavelId === "none" ? null : selectedResponsavelId,
-                                      "Responsável atualizado com sucesso."
-                                    )
+                                    handleUpdateResponsavel(currentUserId, "Você se atribuiu como responsável.")
                                   }
                                 >
-                                  Atribuir selecionado
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                    {canManageStatus && (
-                      <>
-                        <Separator />
-                        <div className="space-y-3">
-                          <div>
-                            <div className="font-medium">Status do chamado</div>
-                            <p className="text-sm text-muted-foreground">
-                              O status só pode avançar pelas transições permitidas e uma ação por vez.
-                            </p>
-                          </div>
-                          {!chamado.responsavel_id ? (
-                            <p className="text-sm text-muted-foreground">
-                              Atribua um responsável antes de alterar o status.
-                            </p>
-                          ) : availableStatusTransitions.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">
-                              {chamado.status === "fechado"
-                                ? "Chamados fechados não podem mais ter o status alterado."
-                                : "Não há transições de status disponíveis para este chamado."}
-                            </p>
-                          ) : (
-                            <div className="flex flex-wrap gap-2">
-                              {availableStatusTransitions.map((status) => (
-                                <Button
-                                  key={status}
-                                  variant="outline"
-                                  disabled={!!updatingStatus}
-                                  onClick={() => handleUpdateStatus(status)}
-                                >
-                                  {updatingStatus === status ? (
+                                  {assigningResponsavel ? (
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                   ) : null}
-                                  Marcar como {formatChamadoStatus(status)}
+                                  Assumir chamado
                                 </Button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-            <TabsContent value="interacoes" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <MessageSquare className="h-4 w-4" />
-                    Nova interação
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Textarea
-                    rows={4}
-                    value={mensagem}
-                    onChange={(event) => setMensagem(event.target.value)}
-                    placeholder="Registre um comentário, atualização ou orientação."
-                  />
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <label className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <Switch checked={interno} onCheckedChange={setInterno} disabled={!canManageChamados} />
-                      Marcar como interação interna
-                    </label>
-                    <Button onClick={handleAddInteraction} disabled={!mensagem.trim() || sendingMessage}>
-                      {sendingMessage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                      Enviar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="space-y-3">
-                {interacoesQuery.isLoading ? (
-                  <Skeleton className="h-40 w-full" />
-                ) : interacoesQuery.data && interacoesQuery.data.length > 0 ? (
-                  interacoesQuery.data.map((interacao) => (
-                    <Card key={interacao.id}>
-                      <CardContent className="space-y-3 p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                          <div className="flex items-center gap-2 font-medium">
-                            <UserRound className="h-4 w-4 text-muted-foreground" />
-                            <span>{interacao.autor?.full_name || interacao.autor?.email || "Usuário"}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {interacao.interno && <Badge variant="secondary">Interno</Badge>}
-                            <span className="text-muted-foreground">{formatDateTime(interacao.created_at)}</span>
-                            {canDeleteChamadoRegistro(interacao.autor_id) && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleDeleteInteraction(interacao)}
-                                disabled={deletingInteractionId === interacao.id}
-                              >
-                                {deletingInteractionId === interacao.id ? (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="mr-2 h-4 w-4" />
+                                <Button
+                                  variant="outline"
+                                  className="w-full"
+                                  disabled={
+                                    assigningResponsavel || chamado.responsavel_id !== currentUserId
+                                  }
+                                  onClick={() =>
+                                    handleUpdateResponsavel(null, "Responsável removido com sucesso.")
+                                  }
+                                >
+                                  Desatribuir-se
+                                </Button>
+                                {canAssignOtherResponsavel && (
+                                  <Button
+                                    className="w-full"
+                                    disabled={
+                                      assigningResponsavel ||
+                                      !selectedResponsavelOption ||
+                                      selectedResponsavelOption.id === chamado.responsavel_id
+                                    }
+                                    onClick={() =>
+                                      handleUpdateResponsavel(
+                                        selectedResponsavelId === "none" ? null : selectedResponsavelId,
+                                        "Responsável atualizado com sucesso."
+                                      )
+                                    }
+                                  >
+                                    Atribuir selecionado
+                                  </Button>
                                 )}
-                                Excluir
-                              </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {canManageStatus && (
+                        <>
+                          <Separator />
+                          <div className="space-y-4">
+                            <div>
+                              <div className="font-medium">Status do chamado</div>
+                              <p className="text-sm text-muted-foreground">
+                                O status só pode avançar pelas transições permitidas e uma ação por vez.
+                              </p>
+                            </div>
+                            {!chamado.responsavel_id ? (
+                              <p className="text-sm text-muted-foreground">
+                                Atribua um responsável antes de alterar o status.
+                              </p>
+                            ) : availableStatusTransitions.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">
+                                {chamado.status === "fechado"
+                                  ? "Chamados fechados não podem mais ter o status alterado."
+                                  : "Não há transições de status disponíveis para este chamado."}
+                              </p>
+                            ) : (
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                {availableStatusTransitions.map((status) => (
+                                  <Button
+                                    key={status}
+                                    variant="outline"
+                                    className="w-full"
+                                    disabled={!!updatingStatus}
+                                    onClick={() => handleUpdateStatus(status)}
+                                  >
+                                    {updatingStatus === status ? (
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : null}
+                                    Marcar como {formatChamadoStatus(status)}
+                                  </Button>
+                                ))}
+                              </div>
                             )}
                           </div>
-                        </div>
-                        <p className="whitespace-pre-wrap text-sm">{interacao.mensagem}</p>
-                      </CardContent>
-                    </Card>
-                  ))
-                ) : (
-                  <Card>
-                    <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                      Nenhuma interação registrada.
+                        </>
+                      )}
                     </CardContent>
                   </Card>
-                )}
-              </div>
-            </TabsContent>
+                </TabsContent>
 
-            <TabsContent value="anexos" className="space-y-4">
+                <TabsContent value="interacoes" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <MessageSquare className="h-4 w-4" />
+                        Nova interação
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Textarea
+                        rows={4}
+                        value={mensagem}
+                        onChange={(event) => setMensagem(event.target.value)}
+                        placeholder="Registre um comentário, atualização ou orientação."
+                      />
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <label className="flex items-center gap-3 text-sm text-muted-foreground">
+                          <Switch
+                            checked={interno}
+                            onCheckedChange={setInterno}
+                            disabled={!canManageChamados}
+                          />
+                          Marcar como interação interna
+                        </label>
+                        <Button
+                          onClick={handleAddInteraction}
+                          disabled={!mensagem.trim() || sendingMessage}
+                          className="w-full sm:w-auto"
+                        >
+                          {sendingMessage ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="mr-2 h-4 w-4" />
+                          )}
+                          Enviar
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className="space-y-3">
+                    {interacoesQuery.isLoading ? (
+                      <Skeleton className="h-40 w-full" />
+                    ) : interacoesQuery.data && interacoesQuery.data.length > 0 ? (
+                      interacoesQuery.data.map((interacao) => (
+                        <Card key={interacao.id}>
+                          <CardContent className="space-y-3 p-4">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 font-medium">
+                                  <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                  <span className="break-words">
+                                    {interacao.autor?.full_name || interacao.autor?.email || "Usuário"}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                  {formatDateTime(interacao.created_at)}
+                                </p>
+                              </div>
+                              <div className="flex flex-col gap-2 sm:items-end">
+                                {interacao.interno && <Badge variant="secondary">Interno</Badge>}
+                                {canDeleteChamadoRegistro(interacao.autor_id) && (
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDeleteInteraction(interacao)}
+                                    disabled={deletingInteractionId === interacao.id}
+                                    className="w-full sm:w-auto"
+                                  >
+                                    {deletingInteractionId === interacao.id ? (
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                    )}
+                                    Excluir
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                            <p className="whitespace-pre-wrap break-words text-sm">{interacao.mensagem}</p>
+                          </CardContent>
+                        </Card>
+                      ))
+                    ) : (
+                      <Card>
+                        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                          Nenhuma interação registrada.
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="anexos" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Paperclip className="h-4 w-4" />
+                        Adicionar anexos
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Input type="file" multiple onChange={handleAttachmentUpload} disabled={uploading} />
+                      <p className="text-xs text-muted-foreground">
+                        Os anexos são armazenados no bucket `chamados-anexos` e auditados automaticamente.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <div className="space-y-3">
+                    {anexosQuery.isLoading ? (
+                      <Skeleton className="h-32 w-full" />
+                    ) : anexosQuery.data && anexosQuery.data.length > 0 ? (
+                      anexosQuery.data.map((anexo) => (
+                        <Card key={anexo.id}>
+                          <CardContent className="space-y-3 p-4">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0 space-y-1 text-sm">
+                                <div className="break-words font-medium">{anexo.nome_arquivo}</div>
+                                <div className="break-words text-muted-foreground">
+                                  {anexo.uploader?.full_name || anexo.uploader?.email || "Usuário"} ·{" "}
+                                  {formatDateTime(anexo.created_at)}
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => handleOpenAttachment(anexo)}
+                                  className="w-full sm:w-auto"
+                                >
+                                  <FileDown className="mr-2 h-4 w-4" />
+                                  Abrir
+                                </Button>
+                                {canDeleteChamadoRegistro(anexo.uploaded_by) && (
+                                  <Button
+                                    variant="destructive"
+                                    onClick={() => handleDeleteAttachment(anexo)}
+                                    disabled={deletingAttachmentId === anexo.id}
+                                    className="w-full sm:w-auto"
+                                  >
+                                    {deletingAttachmentId === anexo.id ? (
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                    )}
+                                    Excluir
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    ) : (
+                      <Card>
+                        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                          Nenhum anexo enviado.
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="historico" className="space-y-3">
+                  {historicoQuery.isLoading ? (
+                    <Skeleton className="h-48 w-full" />
+                  ) : historicoVisivel.length > 0 ? (
+                    historicoVisivel.map((item) => (
+                      <Card key={item.id}>
+                        <CardContent className="space-y-3 p-4">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="outline">{formatHistoricoOperacao(item.operacao)}</Badge>
+                              <span className="text-sm text-muted-foreground">
+                                {item.usuario?.full_name || item.usuario?.email || "Sistema"}
+                              </span>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {formatDateTimeBrSemTimezone(item.created_at)}
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <History className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0 flex-1">
+                              {renderHistoricoDetalhe(item, responsavelHistoricoMap, localHistoricoMap)}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <Card>
+                      <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                        Nenhum histórico encontrado.
+                      </CardContent>
+                    </Card>
+                  )}
+                </TabsContent>
+              </Tabs>
+            ) : (
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Paperclip className="h-4 w-4" />
-                    Adicionar anexos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Input type="file" multiple onChange={handleAttachmentUpload} disabled={uploading} />
-                  <p className="text-xs text-muted-foreground">
-                    Os anexos são armazenados no bucket `chamados-anexos` e auditados automaticamente.
-                  </p>
+                <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                  Não foi possível carregar o chamado.
                 </CardContent>
               </Card>
-
-              <div className="space-y-3">
-                {anexosQuery.isLoading ? (
-                  <Skeleton className="h-32 w-full" />
-                ) : anexosQuery.data && anexosQuery.data.length > 0 ? (
-                  anexosQuery.data.map((anexo) => (
-                    <Card key={anexo.id}>
-                      <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-                        <div className="space-y-1 text-sm">
-                          <div className="font-medium">{anexo.nome_arquivo}</div>
-                          <div className="text-muted-foreground">
-                            {anexo.uploader?.full_name || anexo.uploader?.email || "Usuário"} · {formatDateTime(anexo.created_at)}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" onClick={() => handleOpenAttachment(anexo)}>
-                            <FileDown className="mr-2 h-4 w-4" />
-                            Abrir
-                          </Button>
-                          {canDeleteChamadoRegistro(anexo.uploaded_by) && (
-                            <Button
-                              variant="destructive"
-                              onClick={() => handleDeleteAttachment(anexo)}
-                              disabled={deletingAttachmentId === anexo.id}
-                            >
-                              {deletingAttachmentId === anexo.id ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="mr-2 h-4 w-4" />
-                              )}
-                              Excluir
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                ) : (
-                  <Card>
-                    <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                      Nenhum anexo enviado.
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="historico" className="space-y-3">
-              {historicoQuery.isLoading ? (
-                <Skeleton className="h-48 w-full" />
-              ) : historicoVisivel.length > 0 ? (
-                historicoVisivel.map((item) => (
-                  <Card key={item.id}>
-                    <CardContent className="space-y-3 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{formatHistoricoOperacao(item.operacao)}</Badge>
-                          <span className="text-sm text-muted-foreground">
-                            {item.usuario?.full_name || item.usuario?.email || "Sistema"}
-                          </span>
-                        </div>
-                        <div className="text-sm text-muted-foreground">{formatDateTime(item.created_at)}</div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <History className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                        <div className="flex-1">
-                          {renderHistoricoDetalhe(item, responsavelHistoricoMap, localHistoricoMap)}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <Card>
-                  <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                    Nenhum histórico encontrado.
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-          </Tabs>
-        ) : (
-          <Card>
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              Não foi possível carregar o chamado.
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

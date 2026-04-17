@@ -20,6 +20,7 @@ import {
   getChamadoStatusClass,
 } from "@/lib/chamados";
 import { ChamadoDetails } from "@/components/chamados/ChamadoDetails";
+import { ChamadosDashboard } from "@/components/chamados/ChamadosDashboard";
 import {
   ChamadoForm,
   type ChamadoCostCenterOption,
@@ -140,12 +141,12 @@ function MultiSelectFilter({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="w-full justify-between font-normal">
+        <Button variant="outline" className="min-w-0 w-full justify-between font-normal">
           <span className="truncate">{summary}</span>
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[320px] p-0">
+      <PopoverContent align="start" className="w-[calc(100vw-2rem)] max-w-[320px] p-0">
         <div className="border-b p-3">
           <div className="text-sm font-medium">{title}</div>
           <div className="mt-2 flex gap-2">
@@ -209,6 +210,7 @@ export default function Chamados() {
   const queryClient = useQueryClient();
   const { accessContext, accessLoading } = useAccessContext();
   const shouldReduceMotion = useReducedMotion();
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilters, setStatusFilters] = useState<ChamadoRow["status"][]>([]);
   const [prioridadeFilters, setPrioridadeFilters] = useState<ChamadoRow["prioridade"][]>([]);
@@ -472,19 +474,21 @@ export default function Chamados() {
     return Array.from(map.values()).sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""));
   }, [chamados]);
 
-  const stats = useMemo(
-    () => ({
-      total: chamados.length,
-      abertos: chamados.filter((item) => item.status === "aberto").length,
-      emAndamento: chamados.filter((item) => item.status === "em_andamento").length,
-      pendentes: chamados.filter((item) => item.status === "pendente").length,
-      resolvidos: chamados.filter((item) => item.status === "resolvido" || item.status === "fechado").length,
-    }),
-    [chamados]
-  );
-
   const refreshChamadosData = async () => {
     await Promise.all([refetchChamados(), refetchCategorias()]);
+  };
+
+  const handleClearFilters = () => {
+    setStatusFilters([]);
+    setPrioridadeFilters([]);
+    setCategoriaFilters([]);
+    setLocalFilters([]);
+    setCostCenterFilter("all");
+    setResponsavelFilter("all");
+    setSolicitanteFilter("all");
+    setCreatedFrom("");
+    setCreatedTo("");
+    setSearchTerm("");
   };
 
   const handleOpenCreate = () => {
@@ -613,18 +617,18 @@ export default function Chamados() {
   return (
     <DashboardLayout>
       <div className="space-y-6 p-4 md:p-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Chamados</h1>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold md:text-3xl">Chamados</h1>
             <p className="text-sm text-muted-foreground">
               Gestão operacional baseada em locais, categorias, interações, anexos e auditoria.
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-col gap-2 md:items-end">
+            <div className="flex w-full items-center justify-end gap-2 md:w-auto">
               <motion.svg
                 aria-hidden="true"
-                className="h-10 w-40 text-primary drop-shadow-sm"
+                className="hidden h-10 w-40 text-primary drop-shadow-sm md:block"
                 viewBox="0 0 160 40"
                 fill="none"
                 initial={shouldReduceMotion ? false : { opacity: 0, x: -120, scale: 0.92 }}
@@ -661,18 +665,18 @@ export default function Chamados() {
                   strokeLinejoin="round"
                 />
               </motion.svg>
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-1.5 shadow-sm">
+              <div className="w-full rounded-lg border border-primary/20 bg-primary/5 p-1.5 shadow-sm md:w-auto">
                 <Button
                   onClick={handleOpenCreate}
                   disabled={!canCreateChamados || accessLoading}
-                  className="font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30"
+                  className="w-full font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 md:w-auto"
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Novo chamado
                 </Button>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="hidden text-xs text-muted-foreground md:block">
               Use este botão para registrar um novo chamado.
             </p>
           </div>
@@ -694,49 +698,254 @@ export default function Chamados() {
           </Card>
         ) : (
           <Tabs defaultValue="lista" className="space-y-4">
-            <TabsList className={`grid w-full ${canManageCategorias ? "grid-cols-2" : "grid-cols-1"}`}>
-              <TabsTrigger value="lista">Chamados</TabsTrigger>
-              {canManageCategorias && <TabsTrigger value="categorias">Categorias</TabsTrigger>}
+            <TabsList
+              className={`grid h-auto w-full gap-2 bg-muted/60 p-1 ${canManageCategorias ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}
+            >
+              <TabsTrigger value="lista" className="min-h-10 text-xs sm:text-sm">
+                Chamados
+              </TabsTrigger>
+              <TabsTrigger value="dashboard" className="min-h-10 text-xs sm:text-sm">
+                Dashboards
+              </TabsTrigger>
+              {canManageCategorias && (
+                <TabsTrigger
+                  value="categorias"
+                  className="col-span-2 min-h-10 text-xs sm:col-span-1 sm:text-sm"
+                >
+                  Categorias
+                </TabsTrigger>
+              )}
             </TabsList>
 
-            <TabsContent value="lista" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-4">
-                <Card><CardHeader><CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{stats.total}</div></CardContent></Card>
-                <Card><CardHeader><CardTitle className="text-sm font-medium text-muted-foreground">Abertos</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold text-sky-600">{stats.abertos}</div></CardContent></Card>
-                <Card><CardHeader><CardTitle className="text-sm font-medium text-muted-foreground">Em andamento</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold text-indigo-600">{stats.emAndamento}</div></CardContent></Card>
-                <Card><CardHeader><CardTitle className="text-sm font-medium text-muted-foreground">Resolvidos/fechados</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold text-emerald-600">{stats.resolvidos}</div></CardContent></Card>
-              </div>
-
-              <Card>
-                <CardContent className="space-y-4 p-4">
-                  <div className="grid gap-3 xl:grid-cols-4">
-                    <div className="relative xl:col-span-2">
-                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input className="pl-9" placeholder={isRestrictedToOwnChamados ? "Buscar por número, título, descrição, local ou centro" : "Buscar por número, título, descrição, local, centro, solicitante ou responsável"} value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
-                    </div>
-                    <MultiSelectFilter title="Status" emptyLabel="Todos os status" options={statusFilterOptions} values={statusFilters} onChange={(values) => setStatusFilters(values as ChamadoRow["status"][])} />
-                    <MultiSelectFilter title="Prioridade" emptyLabel="Todas as prioridades" options={prioridadeFilterOptions} values={prioridadeFilters} onChange={(values) => setPrioridadeFilters(values as ChamadoRow["prioridade"][])} />
+            <Card>
+              <CardContent className="space-y-4 p-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="relative md:col-span-2 xl:col-span-2">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      className="pl-9"
+                      placeholder={
+                        isRestrictedToOwnChamados
+                          ? "Buscar chamado"
+                          : "Buscar por número, título, local..."
+                      }
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                    />
                   </div>
+                  <MultiSelectFilter
+                    title="Status"
+                    emptyLabel="Todos os status"
+                    options={statusFilterOptions}
+                    values={statusFilters}
+                    onChange={(values) => setStatusFilters(values as ChamadoRow["status"][])}
+                  />
+                  <MultiSelectFilter
+                    title="Prioridade"
+                    emptyLabel="Todas as prioridades"
+                    options={prioridadeFilterOptions}
+                    values={prioridadeFilters}
+                    onChange={(values) =>
+                      setPrioridadeFilters(values as ChamadoRow["prioridade"][])
+                    }
+                  />
+                </div>
 
-                  <div className={`grid gap-3 ${showCostCenterFilter ? "xl:grid-cols-5" : !isRestrictedToOwnChamados ? "xl:grid-cols-4" : "xl:grid-cols-2"}`}>
-                    <MultiSelectFilter title="Categorias" emptyLabel="Todas as categorias" options={categoriaFilterOptions} values={categoriaFilters} onChange={setCategoriaFilters} />
-                    {showCostCenterFilter && <Select value={costCenterFilter} onValueChange={setCostCenterFilter}><SelectTrigger><SelectValue placeholder="Centro de custo" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os centros</SelectItem>{costCenters.map((center) => <SelectItem key={center.id} value={center.id}>{center.name}</SelectItem>)}</SelectContent></Select>}
-                    <MultiSelectFilter title="Locais" emptyLabel="Todos os locais" options={localFilterOptions} values={localFilters} onChange={setLocalFilters} />
-                    {!isRestrictedToOwnChamados && <Select value={responsavelFilter} onValueChange={setResponsavelFilter}><SelectTrigger><SelectValue placeholder="Responsável" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os responsáveis</SelectItem>{responsaveis.map((responsavel) => <SelectItem key={responsavel.id} value={responsavel.id}>{responsavel.full_name || responsavel.cargo || "Usuário interno"}</SelectItem>)}</SelectContent></Select>}
-                    {!isRestrictedToOwnChamados && <Select value={solicitanteFilter} onValueChange={setSolicitanteFilter}><SelectTrigger><SelectValue placeholder="Solicitante" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os solicitantes</SelectItem>{solicitantes.map((solicitante) => <SelectItem key={solicitante.id} value={solicitante.id}>{solicitante.full_name || solicitante.email || solicitante.id}</SelectItem>)}</SelectContent></Select>}
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => setMobileFiltersOpen((prev) => !prev)}
+                  >
+                    {mobileFiltersOpen ? "Ocultar filtros avançados" : "Mostrar filtros avançados"}
+                  </Button>
+                  <Button variant="outline" className="w-full sm:w-auto" onClick={handleClearFilters}>
+                    Limpar filtros
+                  </Button>
+                </div>
+
+                <div className={mobileFiltersOpen ? "block space-y-3" : "hidden space-y-3 md:block"}>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    <MultiSelectFilter
+                      title="Categorias"
+                      emptyLabel="Todas as categorias"
+                      options={categoriaFilterOptions}
+                      values={categoriaFilters}
+                      onChange={setCategoriaFilters}
+                    />
+                    {showCostCenterFilter && (
+                      <Select value={costCenterFilter} onValueChange={setCostCenterFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Centro de custo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os centros</SelectItem>
+                          {costCenters.map((center) => (
+                            <SelectItem key={center.id} value={center.id}>
+                              {center.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <MultiSelectFilter
+                      title="Locais"
+                      emptyLabel="Todos os locais"
+                      options={localFilterOptions}
+                      values={localFilters}
+                      onChange={setLocalFilters}
+                    />
+                    {!isRestrictedToOwnChamados && (
+                      <Select value={responsavelFilter} onValueChange={setResponsavelFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Responsável" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os responsáveis</SelectItem>
+                          {responsaveis.map((responsavel) => (
+                            <SelectItem key={responsavel.id} value={responsavel.id}>
+                              {responsavel.full_name || responsavel.cargo || "Usuário interno"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {!isRestrictedToOwnChamados && (
+                      <Select value={solicitanteFilter} onValueChange={setSolicitanteFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Solicitante" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os solicitantes</SelectItem>
+                          {solicitantes.map((solicitante) => (
+                            <SelectItem key={solicitante.id} value={solicitante.id}>
+                              {solicitante.full_name || solicitante.email || solicitante.id}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="space-y-2"><label className="text-sm font-medium">Criado de</label><Input type="date" value={createdFrom} onChange={(event) => setCreatedFrom(event.target.value)} /></div>
-                    <div className="space-y-2"><label className="text-sm font-medium">Criado até</label><Input type="date" value={createdTo} onChange={(event) => setCreatedTo(event.target.value)} /></div>
-                    <div className="flex items-end"><Button variant="outline" className="w-full" onClick={() => { setStatusFilters([]); setPrioridadeFilters([]); setCategoriaFilters([]); setLocalFilters([]); setCostCenterFilter("all"); setResponsavelFilter("all"); setSolicitanteFilter("all"); setCreatedFrom(""); setCreatedTo(""); setSearchTerm(""); }}>Limpar filtros</Button></div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Criado de</label>
+                      <Input
+                        type="date"
+                        value={createdFrom}
+                        onChange={(event) => setCreatedFrom(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Criado até</label>
+                      <Input
+                        type="date"
+                        value={createdTo}
+                        onChange={(event) => setCreatedTo(event.target.value)}
+                      />
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
+            <TabsContent value="lista" className="space-y-4">
               <Card>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
+                <CardContent className="p-3 md:p-0">
+                  <div className="space-y-3 md:hidden">
+                    {filteredChamados.length > 0 ? (
+                      filteredChamados.map((chamado) => {
+                        const local = localLookup.get(chamado.local_id);
+
+                        return (
+                          <button
+                            key={chamado.id}
+                            type="button"
+                            onClick={() => handleOpenDetails(chamado)}
+                            className="w-full rounded-xl border bg-card p-4 text-left shadow-sm transition hover:bg-accent/40"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold">
+                                  {formatChamadoNumero(chamado.numero)}
+                                </p>
+                                <p className="mt-1 line-clamp-2 text-sm font-medium">
+                                  {chamado.titulo}
+                                </p>
+                              </div>
+                              <div
+                                className="flex shrink-0 gap-2"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                {canEditChamado(chamado) && (
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => handleOpenEdit(chamado)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {canDeleteChamado(chamado) && (
+                                  <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={() => handleDeleteChamado(chamado)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Badge
+                                variant="outline"
+                                className={getChamadoStatusClass(chamado.status)}
+                              >
+                                {CHAMADO_STATUS_LABELS[chamado.status]}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className={getChamadoPrioridadeClass(chamado.prioridade)}
+                              >
+                                {CHAMADO_PRIORIDADE_LABELS[chamado.prioridade]}
+                              </Badge>
+                            </div>
+
+                            <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                              <p className="line-clamp-2">{chamado.descricao || "Sem descrição"}</p>
+                              <p>
+                                <span className="font-medium text-foreground">Categoria:</span>{" "}
+                                {chamado.categoria?.nome || "-"}
+                              </p>
+                              <p>
+                                <span className="font-medium text-foreground">Local:</span>{" "}
+                                {local?.nome || "-"}
+                              </p>
+                              <p>
+                                <span className="font-medium text-foreground">Responsável:</span>{" "}
+                                {getResponsavelDisplay(chamado)}
+                              </p>
+                              <p>
+                                <span className="font-medium text-foreground">Criado em:</span>{" "}
+                                {formatDateTime(chamado.created_at)}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-xl border py-10 text-center text-sm text-muted-foreground">
+                        {isFetching
+                          ? "Carregando chamados..."
+                          : "Nenhum chamado encontrado para os filtros informados."}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="hidden overflow-x-auto md:block">
                     <Table>
                       <TableHeader><TableRow><TableHead>Número</TableHead><TableHead>Título</TableHead><TableHead>Categoria</TableHead><TableHead>Local</TableHead><TableHead>Centro</TableHead><TableHead>Status</TableHead><TableHead>Prioridade</TableHead><TableHead>Solicitante</TableHead><TableHead>Responsável</TableHead><TableHead>Criado em</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
                       <TableBody>
@@ -765,27 +974,86 @@ export default function Chamados() {
               </Card>
             </TabsContent>
 
+            <TabsContent value="dashboard" className="space-y-4">
+              <ChamadosDashboard
+                chamados={filteredChamados}
+                localLookup={localLookup}
+                getResponsavelDisplay={getResponsavelDisplay}
+              />
+            </TabsContent>
+
             {canManageCategorias && <TabsContent value="categorias" className="space-y-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div><h2 className="text-xl font-semibold">Categorias de chamado</h2><p className="text-sm text-muted-foreground">Use categorias ativas para classificação no cadastro do chamado.</p></div>
-                <Button onClick={() => handleOpenCategoriaDialog()} disabled={!canManageCategorias}><Plus className="mr-2 h-4 w-4" />Nova categoria</Button>
+                <Button onClick={() => handleOpenCategoriaDialog()} disabled={!canManageCategorias} className="w-full md:w-auto"><Plus className="mr-2 h-4 w-4" />Nova categoria</Button>
               </div>
               <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Descrição</TableHead><TableHead>Status</TableHead><TableHead>Atualizado em</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {categorias.length > 0 ? categorias.map((categoria) => (
-                        <TableRow key={categoria.id}>
-                          <TableCell className="font-medium">{categoria.nome}</TableCell>
-                          <TableCell>{categoria.descricao || "-"}</TableCell>
-                          <TableCell><Badge variant={categoria.ativo ? "secondary" : "outline"}>{categoria.ativo ? "Ativa" : "Inativa"}</Badge></TableCell>
-                          <TableCell>{formatDateTime(categoria.updated_at)}</TableCell>
-                          <TableCell className="text-right"><div className="flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => handleOpenCategoriaDialog(categoria)} disabled={!canManageCategorias}><Pencil className="h-4 w-4" /></Button><Button variant="destructive" size="sm" onClick={() => handleDeleteCategoria(categoria)} disabled={!canManageCategorias || deletingCategoriaId === categoria.id}><Trash2 className="h-4 w-4" /></Button></div></TableCell>
-                        </TableRow>
-                      )) : <TableRow><TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">Nenhuma categoria cadastrada.</TableCell></TableRow>}
-                    </TableBody>
-                  </Table>
+                <CardContent className="p-3 md:p-0">
+                  <div className="space-y-3 md:hidden">
+                    {categorias.length > 0 ? (
+                      categorias.map((categoria) => (
+                        <div key={categoria.id} className="rounded-xl border p-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="font-semibold">{categoria.nome}</h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {categoria.descricao || "-"}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => handleOpenCategoriaDialog(categoria)}
+                                disabled={!canManageCategorias}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => handleDeleteCategoria(categoria)}
+                                disabled={!canManageCategorias || deletingCategoriaId === categoria.id}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Badge variant={categoria.ativo ? "secondary" : "outline"}>
+                              {categoria.ativo ? "Ativa" : "Inativa"}
+                            </Badge>
+                          </div>
+
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            Atualizado em: {formatDateTime(categoria.updated_at)}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-xl border py-10 text-center text-sm text-muted-foreground">
+                        Nenhuma categoria cadastrada.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Descrição</TableHead><TableHead>Status</TableHead><TableHead>Atualizado em</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {categorias.length > 0 ? categorias.map((categoria) => (
+                          <TableRow key={categoria.id}>
+                            <TableCell className="font-medium">{categoria.nome}</TableCell>
+                            <TableCell>{categoria.descricao || "-"}</TableCell>
+                            <TableCell><Badge variant={categoria.ativo ? "secondary" : "outline"}>{categoria.ativo ? "Ativa" : "Inativa"}</Badge></TableCell>
+                            <TableCell>{formatDateTime(categoria.updated_at)}</TableCell>
+                            <TableCell className="text-right"><div className="flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => handleOpenCategoriaDialog(categoria)} disabled={!canManageCategorias}><Pencil className="h-4 w-4" /></Button><Button variant="destructive" size="sm" onClick={() => handleDeleteCategoria(categoria)} disabled={!canManageCategorias || deletingCategoriaId === categoria.id}><Trash2 className="h-4 w-4" /></Button></div></TableCell>
+                          </TableRow>
+                        )) : <TableRow><TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">Nenhuma categoria cadastrada.</TableCell></TableRow>}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>}
