@@ -132,6 +132,13 @@ const Dashboard = () => {
       action: () => navigate("/mesa-operacoes"),
     },
     {
+      title: "Chamados",
+      description: "Abertura, triagem, anexos e histórico completo",
+      icon: MessageSquare,
+      color: "from-cyan-500 to-blue-500",
+      action: () => navigate("/chamados"),
+    },
+    {
       title: "Diárias (Cobertura)",
       description: "Gestão de diárias de cobertura",
       icon: Calendar,
@@ -144,13 +151,6 @@ const Dashboard = () => {
       icon: Clock,
       color: "from-amber-500 to-orange-500",
       action: () => navigate("/cobertura/hora-extra"),
-    },
-    {
-      title: "Chamados",
-      description: "Sistema de abertura e acompanhamento",
-      icon: MessageSquare,
-      color: "from-orange-500 to-amber-500",
-      action: () => navigate("/chamados"),
     },
     {
       title: "Ordens de Serviço",
@@ -186,6 +186,13 @@ const Dashboard = () => {
       icon: Users,
       color: "from-blue-500 to-indigo-500",
       action: () => navigate("/colaboradores"),
+    },
+    {
+      title: "Locais",
+      description: "Cadastro de locais vinculados aos centros de custo",
+      icon: MapPin,
+      color: "from-emerald-500 to-teal-500",
+      action: () => navigate("/locais-centro-custo"),
     },
     {
       title: "QSMMA",

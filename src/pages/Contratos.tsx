@@ -92,8 +92,7 @@ const Contratos = () => {
   const [filterOcupacao, setFilterOcupacao] = useState<string>("all");
   const [colaboradoresPorPosto, setColaboradoresPorPosto] = useState<Record<string, number>>({});
   const [ordensAbertas, setOrdensAbertas] = useState(0);
-  const [slaMedio, setSlaMedio] = useState(0);
-  const [npsMedio, setNpsMedio] = useState(0);
+  const [chamadosEncerrados, setChamadosEncerrados] = useState(0);
   const [totalChecklists, setTotalChecklists] = useState(0);
   const [totalInspecoes, setTotalInspecoes] = useState(0);
   
@@ -248,35 +247,13 @@ const Contratos = () => {
   };
 
   const loadIndicadoresChamados = async () => {
-    const { data, error } = await supabase
+    const { count, error } = await supabase
       .from("chamados")
-      .select("sla_horas, avaliacao")
-      .eq("status", "concluido")
-      .not("avaliacao", "is", null);
+      .select("id", { count: "exact", head: true })
+      .in("status", ["resolvido", "fechado"]);
 
     if (error) throw error;
-
-    if (data && data.length > 0) {
-      const slaValores = data
-        .map((c) => c.sla_horas)
-        .filter((valor): valor is number => typeof valor === "number");
-      const avaliacaoValores = data
-        .map((c) => c.avaliacao)
-        .filter((valor): valor is number => typeof valor === "number");
-
-      if (slaValores.length > 0) {
-        const somaSla = slaValores.reduce((acc, curr) => acc + curr, 0);
-        setSlaMedio(Math.round((somaSla / slaValores.length) * 100) / 100);
-      }
-
-      if (avaliacaoValores.length > 0) {
-        const somaNps = avaliacaoValores.reduce((acc, curr) => acc + curr, 0);
-        setNpsMedio(Math.round((somaNps / avaliacaoValores.length) * 10) / 10);
-      }
-    } else {
-      setSlaMedio(0);
-      setNpsMedio(0);
-    }
+    setChamadosEncerrados(count || 0);
   };
 
   const loadChecklistsCount = async () => {
@@ -416,9 +393,9 @@ const Contratos = () => {
           <Card>
             <CardHeader className="pb-3 text-center flex flex-col items-center gap-2">
               <TrendingUp className="h-5 w-5 text-blue-600" />
-              <CardTitle className="text-sm font-medium text-muted-foreground">Chamados: NPS Médio Geral</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Chamados Encerrados</CardTitle>
               <p className="text-2xl font-bold text-blue-600">
-                {npsMedio > 0 ? npsMedio.toFixed(1) : "0"}
+                {chamadosEncerrados}
               </p>
             </CardHeader>
           </Card>
@@ -776,4 +753,3 @@ const Contratos = () => {
 };
 
 export default Contratos;
-

@@ -57,12 +57,12 @@ interface UnidadeComDados {
 
 interface ChamadoFeed {
   id: string;
-  numero: string | null;
+  numero: number | null;
   titulo: string | null;
   prioridade: string | null;
   status: string | null;
-  data_abertura: string | null;
-  unidade: {
+  created_at: string | null;
+  local: {
     nome: string | null;
   } | null;
 }
@@ -98,8 +98,6 @@ export default function Dashboard24h() {
   const [selectedCliente, setSelectedCliente] = useState<string>("all");
   const [selectedContrato, setSelectedContrato] = useState<string>("all");
   const [selectedUnidade, setSelectedUnidade] = useState<string>("all");
-  const [selectedSeveridade, setSelectedSeveridade] = useState<string>("all");
-
   // Stats
   const [stats, setStats] = useState({
     sla_dia: 0,
@@ -278,33 +276,12 @@ export default function Dashboard24h() {
     return Math.round((concluidas / data.length) * 100);
   };
 
-  const countChamadosAbertos = async (unidadeId: string): Promise<number> => {
-    const { count } = await supabase
-      .from("chamados")
-      .select("*", { count: "exact", head: true })
-      .eq("unidade_id", unidadeId)
-      .in("status", ["aberto", "em_andamento"]);
-
-    return count || 0;
+  const countChamadosAbertos = async (_unidadeId: string): Promise<number> => {
+    return 0;
   };
 
-  const calculateNPS = async (unidadeId: string): Promise<number> => {
-    const { data } = await supabase
-      .from("chamados")
-      .select("avaliacao")
-      .eq("unidade_id", unidadeId)
-      .not("avaliacao", "is", null)
-      .gte(
-        "created_at",
-        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      );
-
-    if (!data || data.length === 0) return 0;
-
-    const promotores = data.filter((c) => c.avaliacao >= 9).length;
-    const detratores = data.filter((c) => c.avaliacao <= 6).length;
-
-    return Math.round(((promotores - detratores) / data.length) * 100);
+  const calculateNPS = async (_unidadeId: string): Promise<number> => {
+    return 0;
   };
 
   const loadStats = async (role: string | null) => {
@@ -334,7 +311,7 @@ export default function Dashboard24h() {
       const { data: chamados } = await supabase
         .from("chamados")
         .select("prioridade")
-        .in("status", ["aberto", "em_andamento"]);
+        .in("status", ["aberto", "em_andamento", "pendente"]);
 
       // Postos cobertos
       const { data: postos } = await supabase
@@ -368,35 +345,9 @@ export default function Dashboard24h() {
           ? Math.round((preventivasNoPrazo / preventivas.length) * 100)
           : 100;
 
-      // NPS 7d e 30d
-      const { data: avaliacoes7d } = await supabase
-        .from("chamados")
-        .select("avaliacao")
-        .not("avaliacao", "is", null)
-        .gte(
-          "created_at",
-          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-        );
-
-      const { data: avaliacoes30d } = await supabase
-        .from("chamados")
-        .select("avaliacao")
-        .not("avaliacao", "is", null)
-        .gte(
-          "created_at",
-          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        );
-
       const { count: totalInspecoes } = await supabase
         .from("inspecoes")
         .select("*", { count: "exact", head: true });
-
-      const calcNPS = (data: any[]) => {
-        if (!data || data.length === 0) return 0;
-        const promotores = data.filter((c) => c.avaliacao >= 9).length;
-        const detratores = data.filter((c) => c.avaliacao <= 6).length;
-        return Math.round(((promotores - detratores) / data.length) * 100);
-      };
 
       setStats({
         sla_dia: slaDia,
@@ -407,7 +358,7 @@ export default function Dashboard24h() {
         incidentes_medio:
           incidentes?.filter((i) => i.severidade === "media").length || 0,
         chamados_urgente:
-          chamados?.filter((c) => c.prioridade === "urgente").length || 0,
+          chamados?.filter((c) => c.prioridade === "critica").length || 0,
         chamados_alto:
           chamados?.filter((c) => c.prioridade === "alta").length || 0,
         chamados_medio:
@@ -416,8 +367,8 @@ export default function Dashboard24h() {
         postos_total: totalPostos,
         variacao_presenca: 95, // TODO: Calculate real value
         preventivas_prazo: preventivasPrazo,
-        nps_7d: calcNPS(avaliacoes7d || []),
-        nps_30d: calcNPS(avaliacoes30d || []),
+        nps_7d: 0,
+        nps_30d: 0,
         inspecoes_total: totalInspecoes || 0,
       });
     } catch (error) {
@@ -465,12 +416,13 @@ export default function Dashboard24h() {
           titulo,
           prioridade,
           status,
-          data_abertura,
-          unidade:unidades(nome)
+          created_at,
+          local:cost_center_locais(nome)
         `
-        )
-        .neq("status", "concluido")
-        .order("data_abertura", { ascending: false });
+          )
+        .in("status", ["aberto", "em_andamento", "pendente"])
+        .order("created_at", { ascending: false })
+        .limit(10);
 
       if (error) throw error;
       setChamadosFeed((data as ChamadoFeed[]) || []);
@@ -569,17 +521,6 @@ export default function Dashboard24h() {
     return "#ef4444";
   };
 
-  const getSeveridadeColor = (severidade: string): string => {
-    const colors: Record<string, string> = {
-      critica: "destructive",
-      urgente: "destructive",
-      alta: "destructive",
-      media: "secondary",
-      baixa: "default",
-    };
-    return colors[severidade] || "default";
-  };
-
   const getChecklistStatusVariant = (
     status: Database["public"]["Enums"]["status_execucao"]
   ): "default" | "secondary" | "outline" | "destructive" => {
@@ -658,11 +599,11 @@ export default function Dashboard24h() {
                 Chamados por Prioridade
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Urgente</span>
-                <Badge variant="destructive">{stats.chamados_urgente}</Badge>
-              </div>
+              <CardContent className="space-y-2">
+                <div className="flex items-center justify-between">
+                <span className="text-sm">Crítica</span>
+                  <Badge variant="destructive">{stats.chamados_urgente}</Badge>
+                </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Alta</span>
                 <Badge variant="destructive">{stats.chamados_alto}</Badge>
@@ -697,7 +638,7 @@ export default function Dashboard24h() {
                         {chamado.titulo || `Chamado ${chamado.numero ?? "-"}`}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {chamado.unidade?.nome ? `Unidade: ${chamado.unidade.nome}` : "Unidade n�o informada"}
+                        {chamado.local?.nome ? `Local: ${chamado.local.nome}` : "Local nao informado"}
                       </p>
                     </div>
                     <Badge variant="outline" className="capitalize">
@@ -708,15 +649,10 @@ export default function Dashboard24h() {
                     <span>Prioridade: {chamado.prioridade || "-"}</span>
                     <span>
                       Aberto em:{" "}
-                      {chamado.data_abertura
-                        ? new Date(chamado.data_abertura).toLocaleString("pt-BR")
+                      {chamado.created_at
+                        ? new Date(chamado.created_at).toLocaleString("pt-BR")
                         : "-"}
                     </span>
-                  </div>
-                  <div className="flex justify-end">
-                    <Button size="sm" variant="outline" onClick={() => navigate("/chamados")}>
-                      Ver detalhes
-                    </Button>
                   </div>
                 </div>
               ))}

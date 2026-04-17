@@ -15,6 +15,14 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -25,19 +33,37 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Search, Shield, UserCog, Trash2 } from "lucide-react";
 
 type UserType = Database["public"]["Enums"]["user_type"];
 type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
 type ProfileRow = Database["public"]["Tables"]["usuarios"]["Row"];
+type ColaboradorProfileRow = Database["public"]["Tables"]["colaborador_profiles"]["Row"];
+type CostCenterRow = Database["public"]["Tables"]["cost_center"]["Row"];
 
 interface UserWithRole extends ProfileRow {
   role: UserType;
   accessLevel?: AccessLevel | null;
   superior_name?: string | null;
   cpf?: string | null;
+  colaboradorProfile?: Pick<ColaboradorProfileRow, "cost_center_id" | "ativo" | "observacoes"> | null;
+  colaborador_cost_center_name?: string | null;
 }
+
+type ColaboradorDraft = {
+  cost_center_id: string;
+  ativo: boolean;
+  observacoes: string;
+};
+
+const EMPTY_COLABORADOR_DRAFT: ColaboradorDraft = {
+  cost_center_id: "",
+  ativo: true,
+  observacoes: "",
+};
 
 const userTypeOptions: UserType[] = ["candidato", "colaborador", "perfil_interno"];
 const userTypeLabels: Record<UserType, string> = {
@@ -96,14 +122,20 @@ const getAccessBadgeColor = (level: AccessLevel) => {
 
 const UserManagement = () => {
   const [users, setUsers] = useState<UserWithRole[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenterRow[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserWithRole[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminUserId, setAdminUserId] = useState<string | null>(null);
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
   const [updatingAccessId, setUpdatingAccessId] = useState<string | null>(null);
   const [updatingSuperiorId, setUpdatingSuperiorId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [colaboradorDialogOpen, setColaboradorDialogOpen] = useState(false);
+  const [selectedColaboradorUser, setSelectedColaboradorUser] = useState<UserWithRole | null>(null);
+  const [colaboradorDraft, setColaboradorDraft] = useState<ColaboradorDraft>(EMPTY_COLABORADOR_DRAFT);
+  const [savingColaboradorRole, setSavingColaboradorRole] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -145,7 +177,9 @@ const UserManagement = () => {
       }
 
       setIsAdmin(true);
-      await loadUsers();
+      setAdminUserId(user.id);
+      const centers = await loadCostCenters();
+      await loadUsers(centers);
     } catch (error) {
       console.error("Erro ao verificar permissao:", error);
       toast({
@@ -158,7 +192,7 @@ const UserManagement = () => {
     }
   };
 
-  const loadUsers = async () => {
+  const loadUsers = async (centers: CostCenterRow[] = costCenters) => {
     try {
       const { data, error } = await supabase
         .from("usuarios")
@@ -174,6 +208,11 @@ const UserManagement = () => {
           internal_profiles (
             nivel_acesso,
             cpf
+          ),
+          colaborador_profiles!colaborador_profiles_user_id_fkey (
+            cost_center_id,
+            ativo,
+            observacoes
           )
         `)
         .order("full_name", { ascending: true });
@@ -186,19 +225,31 @@ const UserManagement = () => {
       });
 
       const usersWithRoles: UserWithRole[] =
-        data?.map((user: any) => ({
-          id: user.id,
-          email: user.email,
-          full_name: user.full_name,
-          phone: user.phone,
-          role: user.role as UserType,
-          accessLevel: user.internal_profiles?.[0]?.nivel_acesso || null,
-          superior: user.superior ?? null,
-          created_at: user.created_at,
-          updated_at: user.updated_at,
-          superior_name: user.superior ? nameMap.get(user.superior) ?? null : null,
-          cpf: user.internal_profiles?.[0]?.cpf || null,
-        })) || [];
+        data?.map((user: any) => {
+          const internalProfile = Array.isArray(user.internal_profiles)
+            ? user.internal_profiles[0] ?? null
+            : user.internal_profiles ?? null;
+          const colaboradorProfile = Array.isArray(user.colaborador_profiles)
+            ? user.colaborador_profiles[0] ?? null
+            : user.colaborador_profiles ?? null;
+
+          return {
+            id: user.id,
+            email: user.email,
+            full_name: user.full_name,
+            phone: user.phone,
+            role: user.role as UserType,
+            accessLevel: internalProfile?.nivel_acesso || null,
+            superior: user.superior ?? null,
+            created_at: user.created_at,
+            updated_at: user.updated_at,
+            superior_name: user.superior ? nameMap.get(user.superior) ?? null : null,
+            cpf: internalProfile?.cpf || null,
+            colaboradorProfile,
+            colaborador_cost_center_name:
+              centers.find((center) => center.id === colaboradorProfile?.cost_center_id)?.name ?? null,
+          };
+        }) || [];
 
       setUsers(usersWithRoles);
       setFilteredUsers(usersWithRoles);
@@ -209,6 +260,14 @@ const UserManagement = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const loadCostCenters = async () => {
+    const { data, error } = await supabase.from("cost_center").select("*").order("name");
+    if (error) throw error;
+    const nextCenters = (data || []) as CostCenterRow[];
+    setCostCenters(nextCenters);
+    return nextCenters;
   };
 
   const filterUsers = () => {
@@ -228,6 +287,19 @@ const UserManagement = () => {
 
   const handleRoleChange = async (userId: string, newRole: UserType) => {
     const current = users.find((u) => u.id === userId);
+    if (!current || current.role === newRole) return;
+
+    if (newRole === "colaborador") {
+      setSelectedColaboradorUser(current);
+      setColaboradorDraft({
+        cost_center_id: current.colaboradorProfile?.cost_center_id ?? "",
+        ativo: current.colaboradorProfile?.ativo ?? true,
+        observacoes: current.colaboradorProfile?.observacoes ?? "",
+      });
+      setColaboradorDialogOpen(true);
+      return;
+    }
+
     const userName = current?.full_name || "o usuario";
     const confirmed = window.confirm(
       `Confirmar alteracao de perfil para ${userName}? O novo perfil sera: ${userTypeLabels[newRole]}.`
@@ -240,6 +312,22 @@ const UserManagement = () => {
         newRole === "perfil_interno" ? { role: newRole } : { role: newRole, superior: null };
       const { error } = await supabase.from("usuarios").update(updatePayload).eq("id", userId);
       if (error) throw error;
+
+      if (newRole !== "perfil_interno") {
+        const { error: deleteInternalError } = await supabase
+          .from("internal_profiles")
+          .delete()
+          .eq("user_id", userId);
+        if (deleteInternalError) throw deleteInternalError;
+      }
+
+      if (current.role === "colaborador") {
+        const { error: deleteColaboradorProfileError } = await supabase
+          .from("colaborador_profiles")
+          .delete()
+          .eq("user_id", userId);
+        if (deleteColaboradorProfileError) throw deleteColaboradorProfileError;
+      }
 
       toast({
         title: "Perfil atualizado",
@@ -254,6 +342,69 @@ const UserManagement = () => {
         variant: "destructive",
       });
     } finally {
+      setUpdatingRoleId(null);
+    }
+  };
+
+  const handleConfirmColaboradorRole = async () => {
+    if (!selectedColaboradorUser || !adminUserId) return;
+    if (!colaboradorDraft.cost_center_id) {
+      toast({
+        title: "Centro de custo obrigatório",
+        description: "Selecione o centro de custo do colaborador.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingColaboradorRole(true);
+    setUpdatingRoleId(selectedColaboradorUser.id);
+    try {
+      const { error: rpcError } = await supabase.rpc("definir_usuario_como_colaborador", {
+        p_user_id: selectedColaboradorUser.id,
+        p_cost_center_id: colaboradorDraft.cost_center_id,
+      });
+      if (rpcError) throw rpcError;
+
+      const { error: updateColaboradorProfileError } = await supabase
+        .from("colaborador_profiles")
+        .update({
+          ativo: colaboradorDraft.ativo,
+          observacoes: colaboradorDraft.observacoes.trim() || null,
+          updated_by: adminUserId,
+        })
+        .eq("user_id", selectedColaboradorUser.id);
+      if (updateColaboradorProfileError) throw updateColaboradorProfileError;
+
+      const { error: clearInternalProfileError } = await supabase
+        .from("internal_profiles")
+        .delete()
+        .eq("user_id", selectedColaboradorUser.id);
+      if (clearInternalProfileError) throw clearInternalProfileError;
+
+      const { error: clearSuperiorError } = await supabase
+        .from("usuarios")
+        .update({ superior: null })
+        .eq("id", selectedColaboradorUser.id);
+      if (clearSuperiorError) throw clearSuperiorError;
+
+      toast({
+        title: "Usuário promovido a colaborador",
+        description: "Perfil e vínculo com centro de custo atualizados com sucesso.",
+      });
+
+      setColaboradorDialogOpen(false);
+      setSelectedColaboradorUser(null);
+      setColaboradorDraft(EMPTY_COLABORADOR_DRAFT);
+      await loadUsers();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao definir colaborador",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingColaboradorRole(false);
       setUpdatingRoleId(null);
     }
   };
@@ -526,6 +677,23 @@ const UserManagement = () => {
                     </div>
                   )}
 
+                  {user.role === "colaborador" && (
+                    <div className="space-y-2 rounded-md border p-3">
+                      <label className="text-sm font-medium">Perfil de colaborador</label>
+                      <p className="text-sm text-muted-foreground">
+                        Centro de custo: {user.colaborador_cost_center_name || "Não vinculado"}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Status: {user.colaboradorProfile?.ativo ? "Ativo" : "Inativo"}
+                      </p>
+                      {user.colaboradorProfile?.observacoes && (
+                        <p className="text-sm text-muted-foreground">
+                          Observações: {user.colaboradorProfile.observacoes}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Superior imediato</label>
                     {user.role === "perfil_interno" ? (
@@ -576,6 +744,88 @@ const UserManagement = () => {
             </Card>
           )}
         </main>
+
+        <Dialog
+          open={colaboradorDialogOpen}
+          onOpenChange={(open) => {
+            setColaboradorDialogOpen(open);
+            if (!open) {
+              setSelectedColaboradorUser(null);
+              setColaboradorDraft(EMPTY_COLABORADOR_DRAFT);
+            }
+          }}
+        >
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Definir usuário como colaborador</DialogTitle>
+              <DialogDescription>
+                Informe os dados obrigatórios do perfil de colaborador antes de concluir a troca de role.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Usuário</label>
+                <Input
+                  value={selectedColaboradorUser?.full_name || selectedColaboradorUser?.email || ""}
+                  disabled
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Centro de custo</label>
+                <Select
+                  value={colaboradorDraft.cost_center_id}
+                  onValueChange={(value) =>
+                    setColaboradorDraft((prev) => ({ ...prev, cost_center_id: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o centro de custo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {costCenters.map((center) => (
+                      <SelectItem key={center.id} value={center.id}>
+                        {center.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Observações</label>
+                <Textarea
+                  rows={4}
+                  value={colaboradorDraft.observacoes}
+                  onChange={(event) =>
+                    setColaboradorDraft((prev) => ({ ...prev, observacoes: event.target.value }))
+                  }
+                  placeholder="Informações adicionais sobre o vínculo do colaborador."
+                />
+              </div>
+
+              <label className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
+                <Switch
+                  checked={colaboradorDraft.ativo}
+                  onCheckedChange={(checked) =>
+                    setColaboradorDraft((prev) => ({ ...prev, ativo: checked }))
+                  }
+                />
+                Perfil de colaborador ativo
+              </label>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setColaboradorDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleConfirmColaboradorRole} disabled={savingColaboradorRole}>
+                {savingColaboradorRole ? "Salvando..." : "Confirmar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
