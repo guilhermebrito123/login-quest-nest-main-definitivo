@@ -95,6 +95,22 @@ export function formatDateTime(value?: string | null) {
   }).format(date);
 }
 
+export function formatDateTimeBrSemTimezone(value?: string | null) {
+  if (!value) return "-";
+  const trimmed = value.trim();
+  if (!trimmed) return "-";
+  if (DATE_ONLY_REGEX.test(trimmed)) return trimmed.split("-").reverse().join("/");
+
+  const match = trimmed.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/
+  );
+
+  if (!match) return value;
+
+  const [, year, month, day, hour, minute, second = "00"] = match;
+  return `${day}/${month}/${year}, ${hour}:${minute}:${second}`;
+}
+
 export function getChamadoStatusClass(status?: ChamadoStatus | null) {
   switch (status) {
     case "aberto":
