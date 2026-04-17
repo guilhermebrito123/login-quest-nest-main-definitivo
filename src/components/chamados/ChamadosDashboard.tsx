@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertCircle, CheckCircle2, Clock3, FolderKanban, ListChecks, TimerReset } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import {
   Bar,
   BarChart,
@@ -71,6 +71,15 @@ const PRIORIDADE_COLORS: Record<ChamadoRow["prioridade"], string> = {
   critica: "hsl(0 84% 60%)",
 };
 
+const DASHBOARD_MOTION_DURATION = 1.05;
+const DASHBOARD_MOTION_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+const CHART_ANIMATION_DURATION = 1400;
+const CHART_ANIMATION_BEGIN = 180;
+
+function ChartPlaceholder({ height }: { height: number }) {
+  return <div style={{ height }} aria-hidden="true" />;
+}
+
 function getDateKey(value?: string | null) {
   if (!value) return null;
   const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -133,17 +142,21 @@ function DashboardPanel({
 }: {
   title: string;
   description: string;
-  children: ReactNode;
+  children: ReactNode | ((isInView: boolean) => ReactNode);
   className?: string;
 }) {
   const shouldReduceMotion = useReducedMotion();
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const isInView = useInView(panelRef, { once: true, amount: 0.35 });
+  const content = typeof children === "function" ? children(isInView) : children;
 
   return (
     <motion.div
-      initial={shouldReduceMotion ? false : { opacity: 0, y: 30 }}
+      ref={panelRef}
+      initial={shouldReduceMotion ? false : { opacity: 0.18, y: -38 }}
       whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.3 }}
-      transition={{ duration: 0.6 }}
+      transition={{ duration: DASHBOARD_MOTION_DURATION, ease: DASHBOARD_MOTION_EASE }}
       className={className}
     >
       <Card className="h-full border-border/70 shadow-sm">
@@ -151,7 +164,21 @@ function DashboardPanel({
           <CardTitle className="text-base">{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
-        <CardContent>{children}</CardContent>
+        <CardContent>
+          <motion.div
+            initial={shouldReduceMotion ? false : { opacity: 0.2, y: -22 }}
+            whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.35 }}
+            transition={{
+              duration: DASHBOARD_MOTION_DURATION + 0.12,
+              delay: shouldReduceMotion ? 0 : 0.08,
+              ease: DASHBOARD_MOTION_EASE,
+            }}
+            className="h-full"
+          >
+            {content}
+          </motion.div>
+        </CardContent>
       </Card>
     </motion.div>
   );
@@ -343,10 +370,14 @@ export function ChamadosDashboard({
         {kpis.map((item, index) => (
           <motion.div
             key={item.label}
-            initial={shouldReduceMotion ? false : { opacity: 0, y: 30 }}
+            initial={shouldReduceMotion ? false : { opacity: 0.18, y: 34 }}
             whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.6, delay: index * 0.04 }}
+            transition={{
+              duration: DASHBOARD_MOTION_DURATION,
+              delay: shouldReduceMotion ? 0 : index * 0.08,
+              ease: DASHBOARD_MOTION_EASE,
+            }}
           >
             <Card className={`overflow-hidden border-border/70 bg-gradient-to-br ${item.tone}`}>
               <CardContent className="flex items-start justify-between gap-4 p-5">
@@ -380,86 +411,128 @@ export function ChamadosDashboard({
               title="Volume por status"
               description="Comparação direta da quantidade de chamados em cada etapa."
             >
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={dashboardData.statusData}
-                  margin={{
-                    top: 16,
-                    right: 12,
-                    left: isMobileChart ? -12 : 0,
-                    bottom: isMobileChart ? 18 : 0,
-                  }}
-                >
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="label"
-                    tickLine={false}
-                    axisLine={false}
-                    interval={0}
-                    height={isMobileChart ? 64 : 48}
-                    tickMargin={isMobileChart ? 10 : 6}
-                    angle={isMobileChart ? -18 : 0}
-                    textAnchor={isMobileChart ? "end" : "middle"}
-                    tick={{ fontSize: isMobileChart ? 11 : 12 }}
-                    tickFormatter={(value, index) => {
-                      const status = dashboardData.statusData[index]?.status;
-                      if (!isMobileChart || !status) return value;
-                      return STATUS_SHORT_LABELS[status];
-                    }}
-                  />
-                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
-                    labelFormatter={(label: string) => label}
-                  />
-                  <Bar dataKey="total" radius={[10, 10, 0, 0]}>
-                    {dashboardData.statusData.map((entry) => (
-                      <Cell key={entry.status} fill={entry.fill} />
-                    ))}
-                    <LabelList dataKey="total" position="top" className="fill-foreground text-xs" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {(isChartVisible) =>
+                isChartVisible ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart
+                      data={dashboardData.statusData}
+                      margin={{
+                        top: 16,
+                        right: 12,
+                        left: isMobileChart ? -12 : 0,
+                        bottom: isMobileChart ? 18 : 0,
+                      }}
+                    >
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        axisLine={false}
+                        interval={0}
+                        height={isMobileChart ? 64 : 48}
+                        tickMargin={isMobileChart ? 10 : 6}
+                        angle={isMobileChart ? -18 : 0}
+                        textAnchor={isMobileChart ? "end" : "middle"}
+                        tick={{ fontSize: isMobileChart ? 11 : 12 }}
+                        tickFormatter={(value, index) => {
+                          const status = dashboardData.statusData[index]?.status;
+                          if (!isMobileChart || !status) return value;
+                          return STATUS_SHORT_LABELS[status];
+                        }}
+                      />
+                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
+                        labelFormatter={(label: string) => label}
+                      />
+                      <Bar
+                        dataKey="total"
+                        radius={[10, 10, 0, 0]}
+                        isAnimationActive={isChartVisible}
+                        animationBegin={CHART_ANIMATION_BEGIN}
+                        animationDuration={CHART_ANIMATION_DURATION}
+                        animationEasing="ease-out"
+                      >
+                        {dashboardData.statusData.map((entry) => (
+                          <Cell key={entry.status} fill={entry.fill} />
+                        ))}
+                        <LabelList dataKey="total" position="top" className="fill-foreground text-xs" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ChartPlaceholder height={300} />
+                )
+              }
             </DashboardPanel>
 
             <DashboardPanel
               title="Distribuição por prioridade"
               description="Leitura rápida da proporção entre prioridades na base filtrada."
             >
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Tooltip
-                      formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
-                      labelFormatter={(label: string) => label}
-                    />
-                    <Pie
-                      data={dashboardData.prioridadeData}
-                      dataKey="total"
-                      nameKey="label"
-                      innerRadius={70}
-                      outerRadius={105}
-                      paddingAngle={3}
+              {(isChartVisible) =>
+                isChartVisible ? (
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                    <motion.div
+                      initial={shouldReduceMotion ? false : { opacity: 0, y: -26, rotate: -160, scale: 0.88 }}
+                      animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0, rotate: 0, scale: 1 }}
+                      transition={{
+                        duration: CHART_ANIMATION_DURATION / 1000 + 0.15,
+                        ease: DASHBOARD_MOTION_EASE,
+                      }}
                     >
-                      {dashboardData.prioridadeData.map((entry) => (
-                        <Cell key={entry.prioridade} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Tooltip
+                            formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
+                            labelFormatter={(label: string) => label}
+                          />
+                          <Pie
+                            data={dashboardData.prioridadeData}
+                            dataKey="total"
+                            nameKey="label"
+                            innerRadius={70}
+                            outerRadius={105}
+                            paddingAngle={3}
+                            isAnimationActive={isChartVisible}
+                            animationBegin={CHART_ANIMATION_BEGIN + 120}
+                            animationDuration={CHART_ANIMATION_DURATION + 220}
+                            animationEasing="ease-out"
+                          >
+                            {dashboardData.prioridadeData.map((entry) => (
+                              <Cell key={entry.prioridade} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </motion.div>
 
-                <div className="space-y-3">
-                  {dashboardData.prioridadeData.map((item) => (
-                    <div key={item.prioridade} className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/70 px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.fill }} />
-                        <span className="text-sm">{item.label}</span>
-                      </div>
-                      <span className="text-sm font-semibold">{item.total.toLocaleString("pt-BR")}</span>
+                    <div className="space-y-3">
+                      {dashboardData.prioridadeData.map((item, index) => (
+                        <motion.div
+                          key={item.prioridade}
+                          initial={shouldReduceMotion ? false : { opacity: 0, y: -16 }}
+                          animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                          transition={{
+                            duration: 0.75,
+                            delay: shouldReduceMotion ? 0 : 0.14 + index * 0.06,
+                            ease: DASHBOARD_MOTION_EASE,
+                          }}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/70 px-3 py-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.fill }} />
+                            <span className="text-sm">{item.label}</span>
+                          </div>
+                          <span className="text-sm font-semibold">{item.total.toLocaleString("pt-BR")}</span>
+                        </motion.div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
+                ) : (
+                  <ChartPlaceholder height={300} />
+                )
+              }
             </DashboardPanel>
           </div>
 
@@ -468,32 +541,46 @@ export function ChamadosDashboard({
               title="Criados x resolvidos ao longo do tempo"
               description="Tendência diária para leitura de entrada e saída de demanda."
             >
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={dashboardData.timelineData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
-                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="criados"
-                    name="Criados"
-                    stroke="hsl(210 80% 42%)"
-                    strokeWidth={3}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="resolvidos"
-                    name="Resolvidos"
-                    stroke="hsl(142 72% 42%)"
-                    strokeWidth={3}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {(isChartVisible) =>
+                isChartVisible ? (
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={dashboardData.timelineData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
+                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                      <Tooltip />
+                      <Line
+                        type="monotone"
+                        dataKey="criados"
+                        name="Criados"
+                        stroke="hsl(210 80% 42%)"
+                        strokeWidth={3}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                        isAnimationActive={isChartVisible}
+                        animationBegin={CHART_ANIMATION_BEGIN}
+                        animationDuration={CHART_ANIMATION_DURATION}
+                        animationEasing="ease-out"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="resolvidos"
+                        name="Resolvidos"
+                        stroke="hsl(142 72% 42%)"
+                        strokeWidth={3}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                        isAnimationActive={isChartVisible}
+                        animationBegin={CHART_ANIMATION_BEGIN + 120}
+                        animationDuration={CHART_ANIMATION_DURATION}
+                        animationEasing="ease-out"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ChartPlaceholder height={320} />
+                )
+              }
             </DashboardPanel>
           </div>
 
@@ -502,66 +589,92 @@ export function ChamadosDashboard({
               title="Top categorias"
               description="Onde o volume filtrado se concentra por categoria."
             >
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={dashboardData.categoryData}
-                  layout="vertical"
-                  margin={{ top: 8, right: 20, left: 8, bottom: 0 }}
-                >
-                  <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                  <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="shortLabel"
-                    width={120}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
-                    labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ""}
-                  />
-                  <Bar dataKey="total" radius={[0, 10, 10, 0]}>
-                    {dashboardData.categoryData.map((entry) => (
-                      <Cell key={entry.label} fill={entry.fill} />
-                    ))}
-                    <LabelList dataKey="total" position="right" className="fill-foreground text-xs" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {(isChartVisible) =>
+                isChartVisible ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart
+                      data={dashboardData.categoryData}
+                      layout="vertical"
+                      margin={{ top: 8, right: 20, left: 8, bottom: 0 }}
+                    >
+                      <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                      <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="shortLabel"
+                        width={120}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
+                        labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ""}
+                      />
+                      <Bar
+                        dataKey="total"
+                        radius={[0, 10, 10, 0]}
+                        isAnimationActive={isChartVisible}
+                        animationBegin={CHART_ANIMATION_BEGIN}
+                        animationDuration={CHART_ANIMATION_DURATION}
+                        animationEasing="ease-out"
+                      >
+                        {dashboardData.categoryData.map((entry) => (
+                          <Cell key={entry.label} fill={entry.fill} />
+                        ))}
+                        <LabelList dataKey="total" position="right" className="fill-foreground text-xs" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ChartPlaceholder height={300} />
+                )
+              }
             </DashboardPanel>
 
             <DashboardPanel
               title="Top locais"
               description="Locais com maior concentração de chamados dentro do filtro atual."
             >
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={dashboardData.localData}
-                  layout="vertical"
-                  margin={{ top: 8, right: 20, left: 8, bottom: 0 }}
-                >
-                  <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                  <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="shortLabel"
-                    width={120}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
-                    labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ""}
-                  />
-                  <Bar dataKey="total" radius={[0, 10, 10, 0]}>
-                    {dashboardData.localData.map((entry) => (
-                      <Cell key={entry.label} fill={entry.fill} />
-                    ))}
-                    <LabelList dataKey="total" position="right" className="fill-foreground text-xs" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {(isChartVisible) =>
+                isChartVisible ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart
+                      data={dashboardData.localData}
+                      layout="vertical"
+                      margin={{ top: 8, right: 20, left: 8, bottom: 0 }}
+                    >
+                      <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                      <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="shortLabel"
+                        width={120}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
+                        labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ""}
+                      />
+                      <Bar
+                        dataKey="total"
+                        radius={[0, 10, 10, 0]}
+                        isAnimationActive={isChartVisible}
+                        animationBegin={CHART_ANIMATION_BEGIN}
+                        animationDuration={CHART_ANIMATION_DURATION}
+                        animationEasing="ease-out"
+                      >
+                        {dashboardData.localData.map((entry) => (
+                          <Cell key={entry.label} fill={entry.fill} />
+                        ))}
+                        <LabelList dataKey="total" position="right" className="fill-foreground text-xs" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ChartPlaceholder height={300} />
+                )
+              }
             </DashboardPanel>
           </div>
 
@@ -571,33 +684,47 @@ export function ChamadosDashboard({
                 title="Carga por responsável"
                 description="Distribuição de volume por responsável dentro do recorte atual."
               >
-                <ResponsiveContainer width="100%" height={320}>
-                  <BarChart
-                    data={dashboardData.responsavelData}
-                    layout="vertical"
-                    margin={{ top: 8, right: 20, left: 8, bottom: 0 }}
-                  >
-                    <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="shortLabel"
-                      width={160}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip
-                      formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
-                      labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ""}
-                    />
-                    <Bar dataKey="total" radius={[0, 10, 10, 0]} fill="hsl(197 92% 50%)">
-                      {dashboardData.responsavelData.map((entry) => (
-                        <Cell key={entry.label} fill={entry.fill} />
-                      ))}
-                      <LabelList dataKey="total" position="right" className="fill-foreground text-xs" />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                {(isChartVisible) =>
+                  isChartVisible ? (
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart
+                        data={dashboardData.responsavelData}
+                        layout="vertical"
+                        margin={{ top: 8, right: 20, left: 8, bottom: 0 }}
+                      >
+                        <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                        <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                        <YAxis
+                          type="category"
+                          dataKey="shortLabel"
+                          width={160}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
+                          labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ""}
+                        />
+                        <Bar
+                          dataKey="total"
+                          radius={[0, 10, 10, 0]}
+                          fill="hsl(197 92% 50%)"
+                          isAnimationActive={isChartVisible}
+                          animationBegin={CHART_ANIMATION_BEGIN}
+                          animationDuration={CHART_ANIMATION_DURATION}
+                          animationEasing="ease-out"
+                        >
+                          {dashboardData.responsavelData.map((entry) => (
+                            <Cell key={entry.label} fill={entry.fill} />
+                          ))}
+                          <LabelList dataKey="total" position="right" className="fill-foreground text-xs" />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ChartPlaceholder height={320} />
+                  )
+                }
               </DashboardPanel>
             </div>
           ) : null}
