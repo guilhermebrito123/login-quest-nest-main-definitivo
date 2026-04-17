@@ -195,272 +195,266 @@ export type Database = {
           },
         ]
       }
-      chamados: {
+      chamado_anexos: {
         Row: {
-          atribuido_para_id: string | null
-          avaliacao: number | null
-          canal: string | null
-          categoria: string | null
-          comentario_avaliacao: string | null
-          contrato_id: string | null
-          created_at: string | null
-          data_abertura: string | null
-          data_conclusao: string | null
-          descricao: string | null
+          caminho_storage: string
+          chamado_id: string
+          created_at: string
           id: string
-          numero: string
-          posto_servico_id: string | null
-          prioridade: string | null
-          responsavel_id: string | null
-          sla_horas: number | null
-          solicitante_id: string | null
-          status: string | null
-          subcategoria: string | null
-          tipo: string
-          titulo: string
-          unidade_id: string | null
-          updated_at: string | null
+          nome_arquivo: string
+          tamanho_bytes: number | null
+          tipo_arquivo: string | null
+          uploaded_by: string
         }
         Insert: {
-          atribuido_para_id?: string | null
-          avaliacao?: number | null
-          canal?: string | null
-          categoria?: string | null
-          comentario_avaliacao?: string | null
-          contrato_id?: string | null
-          created_at?: string | null
-          data_abertura?: string | null
-          data_conclusao?: string | null
-          descricao?: string | null
+          caminho_storage: string
+          chamado_id: string
+          created_at?: string
           id?: string
-          numero: string
-          posto_servico_id?: string | null
-          prioridade?: string | null
-          responsavel_id?: string | null
-          sla_horas?: number | null
-          solicitante_id?: string | null
-          status?: string | null
-          subcategoria?: string | null
-          tipo: string
-          titulo: string
-          unidade_id?: string | null
-          updated_at?: string | null
+          nome_arquivo: string
+          tamanho_bytes?: number | null
+          tipo_arquivo?: string | null
+          uploaded_by: string
         }
         Update: {
-          atribuido_para_id?: string | null
-          avaliacao?: number | null
-          canal?: string | null
-          categoria?: string | null
-          comentario_avaliacao?: string | null
-          contrato_id?: string | null
-          created_at?: string | null
-          data_abertura?: string | null
-          data_conclusao?: string | null
-          descricao?: string | null
+          caminho_storage?: string
+          chamado_id?: string
+          created_at?: string
           id?: string
-          numero?: string
-          posto_servico_id?: string | null
-          prioridade?: string | null
-          responsavel_id?: string | null
-          sla_horas?: number | null
-          solicitante_id?: string | null
-          status?: string | null
-          subcategoria?: string | null
-          tipo?: string
-          titulo?: string
-          unidade_id?: string | null
-          updated_at?: string | null
+          nome_arquivo?: string
+          tamanho_bytes?: number | null
+          tipo_arquivo?: string | null
+          uploaded_by?: string
         }
         Relationships: [
           {
-            foreignKeyName: "chamados_atribuido_para_id_fkey"
-            columns: ["atribuido_para_id"]
+            foreignKeyName: "chamado_anexos_chamado_id_fkey"
+            columns: ["chamado_id"]
+            isOneToOne: false
+            referencedRelation: "chamados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_anexos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chamado_categorias: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chamado_historico: {
+        Row: {
+          alteracoes: Json | null
+          campo_alterado: string | null
+          chamado_id: string
+          created_at: string
+          id: string
+          operacao: string
+          registro_completo: Json | null
+          usuario_id: string | null
+          valor_anterior: string | null
+          valor_novo: string | null
+        }
+        Insert: {
+          alteracoes?: Json | null
+          campo_alterado?: string | null
+          chamado_id: string
+          created_at?: string
+          id?: string
+          operacao: string
+          registro_completo?: Json | null
+          usuario_id?: string | null
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Update: {
+          alteracoes?: Json | null
+          campo_alterado?: string | null
+          chamado_id?: string
+          created_at?: string
+          id?: string
+          operacao?: string
+          registro_completo?: Json | null
+          usuario_id?: string | null
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chamado_historico_chamado_id_fkey"
+            columns: ["chamado_id"]
+            isOneToOne: false
+            referencedRelation: "chamados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamado_historico_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chamado_interacoes: {
+        Row: {
+          autor_id: string
+          chamado_id: string
+          created_at: string
+          id: string
+          interno: boolean
+          mensagem: string
+          updated_at: string
+        }
+        Insert: {
+          autor_id: string
+          chamado_id: string
+          created_at?: string
+          id?: string
+          interno?: boolean
+          mensagem: string
+          updated_at?: string
+        }
+        Update: {
+          autor_id?: string
+          chamado_id?: string
+          created_at?: string
+          id?: string
+          interno?: boolean
+          mensagem?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chamado_interacoes_autor_id_fkey"
+            columns: ["autor_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "chamados_contrato_id_fkey"
-            columns: ["contrato_id"]
+            foreignKeyName: "chamado_interacoes_chamado_id_fkey"
+            columns: ["chamado_id"]
             isOneToOne: false
-            referencedRelation: "contratos"
+            referencedRelation: "chamados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chamados: {
+        Row: {
+          categoria_id: string | null
+          created_at: string
+          data_fechamento: string | null
+          descricao: string
+          id: string
+          local_id: string
+          numero: number
+          prioridade: Database["public"]["Enums"]["chamado_prioridade"]
+          resolvido_em: string | null
+          resolvido_por: string | null
+          responsavel_id: string | null
+          solicitante_id: string
+          status: Database["public"]["Enums"]["chamado_status"]
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          categoria_id?: string | null
+          created_at?: string
+          data_fechamento?: string | null
+          descricao: string
+          id?: string
+          local_id: string
+          numero?: never
+          prioridade?: Database["public"]["Enums"]["chamado_prioridade"]
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          responsavel_id?: string | null
+          solicitante_id: string
+          status?: Database["public"]["Enums"]["chamado_status"]
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          categoria_id?: string | null
+          created_at?: string
+          data_fechamento?: string | null
+          descricao?: string
+          id?: string
+          local_id?: string
+          numero?: never
+          prioridade?: Database["public"]["Enums"]["chamado_prioridade"]
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          responsavel_id?: string | null
+          solicitante_id?: string
+          status?: Database["public"]["Enums"]["chamado_status"]
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chamados_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "chamado_categorias"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "chamados_posto_servico_id_fkey"
-            columns: ["posto_servico_id"]
+            foreignKeyName: "chamados_local_id_fkey"
+            columns: ["local_id"]
             isOneToOne: false
-            referencedRelation: "postos_servico"
+            referencedRelation: "cost_center_locais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chamados_resolvido_por_fkey"
+            columns: ["resolvido_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "chamados_responsavel_id_fkey"
             columns: ["responsavel_id"]
             isOneToOne: false
-            referencedRelation: "colaboradores"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chamados_unidade_id_fkey"
-            columns: ["unidade_id"]
-            isOneToOne: false
-            referencedRelation: "unidades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      chamados_anexos: {
-        Row: {
-          caminho_storage: string
-          chamado_id: string
-          created_at: string | null
-          id: string
-          nome_arquivo: string
-          tamanho_bytes: number | null
-          tipo_arquivo: string | null
-          usuario_id: string
-        }
-        Insert: {
-          caminho_storage: string
-          chamado_id: string
-          created_at?: string | null
-          id?: string
-          nome_arquivo: string
-          tamanho_bytes?: number | null
-          tipo_arquivo?: string | null
-          usuario_id: string
-        }
-        Update: {
-          caminho_storage?: string
-          chamado_id?: string
-          created_at?: string | null
-          id?: string
-          nome_arquivo?: string
-          tamanho_bytes?: number | null
-          tipo_arquivo?: string | null
-          usuario_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "chamados_anexos_chamado_id_fkey"
-            columns: ["chamado_id"]
-            isOneToOne: false
-            referencedRelation: "chamados"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chamados_anexos_usuario_id_fkey"
-            columns: ["usuario_id"]
-            isOneToOne: false
             referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      chamados_comentarios: {
-        Row: {
-          chamado_id: string
-          comentario: string
-          created_at: string | null
-          id: string
-          updated_at: string | null
-          usuario_id: string
-        }
-        Insert: {
-          chamado_id: string
-          comentario: string
-          created_at?: string | null
-          id?: string
-          updated_at?: string | null
-          usuario_id: string
-        }
-        Update: {
-          chamado_id?: string
-          comentario?: string
-          created_at?: string | null
-          id?: string
-          updated_at?: string | null
-          usuario_id?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "chamados_comentarios_chamado_id_fkey"
-            columns: ["chamado_id"]
-            isOneToOne: false
-            referencedRelation: "chamados"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chamados_comentarios_usuario_id_fkey"
-            columns: ["usuario_id"]
+            foreignKeyName: "chamados_solicitante_id_fkey"
+            columns: ["solicitante_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      checklist: {
-        Row: {
-          created_at: string
-          id: string
-          nome: string
-          periodicidade: Database["public"]["Enums"]["periodicidade_type"]
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          nome: string
-          periodicidade: Database["public"]["Enums"]["periodicidade_type"]
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          nome?: string
-          periodicidade?: Database["public"]["Enums"]["periodicidade_type"]
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      checklist_item: {
-        Row: {
-          checklist_id: string
-          created_at: string
-          descricao: string
-          id: string
-          item_id: string | null
-          periodicidade: Database["public"]["Enums"]["periodicidade_type"]
-        }
-        Insert: {
-          checklist_id: string
-          created_at?: string
-          descricao: string
-          id?: string
-          item_id?: string | null
-          periodicidade: Database["public"]["Enums"]["periodicidade_type"]
-        }
-        Update: {
-          checklist_id?: string
-          created_at?: string
-          descricao?: string
-          id?: string
-          item_id?: string | null
-          periodicidade?: Database["public"]["Enums"]["periodicidade_type"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "checklist_item_checklist_id_fkey"
-            columns: ["checklist_id"]
-            isOneToOne: false
-            referencedRelation: "checklist"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "checklist_item_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "itens_estoque"
             referencedColumns: ["id"]
           },
         ]
@@ -646,6 +640,68 @@ export type Database = {
             columns: ["posto_servico_id_origem"]
             isOneToOne: false
             referencedRelation: "postos_servico"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      colaborador_profiles: {
+        Row: {
+          ativo: boolean
+          cost_center_id: string
+          created_at: string
+          created_by: string
+          observacoes: string | null
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          cost_center_id: string
+          created_at?: string
+          created_by: string
+          observacoes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          cost_center_id?: string
+          created_at?: string
+          created_by?: string
+          observacoes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "colaborador_profiles_cost_center_id_fkey"
+            columns: ["cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_center"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "colaborador_profiles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "colaborador_profiles_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "colaborador_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -1096,6 +1152,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      cost_center_locais: {
+        Row: {
+          ativo: boolean
+          cost_center_id: string
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cost_center_id: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cost_center_id?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_center_locais_cost_center_id_fkey"
+            columns: ["cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_center"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cost_centers_convenia: {
         Row: {
@@ -1871,158 +1965,6 @@ export type Database = {
         }
         Relationships: []
       }
-      execucao_checklist: {
-        Row: {
-          checklist_id: string
-          contrato_id: string | null
-          created_at: string
-          data_prevista: string
-          finalizado_em: string | null
-          id: string
-          status: Database["public"]["Enums"]["status_execucao"]
-          supervisor_id: string | null
-          unidade_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          checklist_id: string
-          contrato_id?: string | null
-          created_at?: string
-          data_prevista: string
-          finalizado_em?: string | null
-          id: string
-          status?: Database["public"]["Enums"]["status_execucao"]
-          supervisor_id?: string | null
-          unidade_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          checklist_id?: string
-          contrato_id?: string | null
-          created_at?: string
-          data_prevista?: string
-          finalizado_em?: string | null
-          id?: string
-          status?: Database["public"]["Enums"]["status_execucao"]
-          supervisor_id?: string | null
-          unidade_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "execucao_checklist_checklist_id_fkey"
-            columns: ["checklist_id"]
-            isOneToOne: false
-            referencedRelation: "checklist"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "execucao_checklist_contrato_id_fkey"
-            columns: ["contrato_id"]
-            isOneToOne: false
-            referencedRelation: "contratos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "execucao_checklist_supervisor_id_fkey"
-            columns: ["supervisor_id"]
-            isOneToOne: false
-            referencedRelation: "usuarios"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "execucao_checklist_unidade_id_fkey"
-            columns: ["unidade_id"]
-            isOneToOne: false
-            referencedRelation: "unidades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      execucao_checklist_item: {
-        Row: {
-          checklist_item_id: string
-          contrato_id: string | null
-          created_at: string
-          data_prevista: string
-          execucao_checklist_id: string
-          finalizado_em: string | null
-          foto: string | null
-          id: string
-          resposta: string | null
-          status: Database["public"]["Enums"]["status_execucao"]
-          supervisor_id: string | null
-          unidade_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          checklist_item_id: string
-          contrato_id?: string | null
-          created_at?: string
-          data_prevista: string
-          execucao_checklist_id: string
-          finalizado_em?: string | null
-          foto?: string | null
-          id: string
-          resposta?: string | null
-          status?: Database["public"]["Enums"]["status_execucao"]
-          supervisor_id?: string | null
-          unidade_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          checklist_item_id?: string
-          contrato_id?: string | null
-          created_at?: string
-          data_prevista?: string
-          execucao_checklist_id?: string
-          finalizado_em?: string | null
-          foto?: string | null
-          id?: string
-          resposta?: string | null
-          status?: Database["public"]["Enums"]["status_execucao"]
-          supervisor_id?: string | null
-          unidade_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "execucao_checklist_item_checklist_item_id_fkey"
-            columns: ["checklist_item_id"]
-            isOneToOne: false
-            referencedRelation: "checklist_item"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "execucao_checklist_item_contrato_id_fkey"
-            columns: ["contrato_id"]
-            isOneToOne: false
-            referencedRelation: "contratos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "execucao_checklist_item_execucao_checklist_id_fkey"
-            columns: ["execucao_checklist_id"]
-            isOneToOne: false
-            referencedRelation: "execucao_checklist"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "execucao_checklist_item_supervisor_id_fkey"
-            columns: ["supervisor_id"]
-            isOneToOne: false
-            referencedRelation: "usuarios"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "execucao_checklist_item_unidade_id_fkey"
-            columns: ["unidade_id"]
-            isOneToOne: false
-            referencedRelation: "unidades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       faltas_colaboradores_convenia: {
         Row: {
           atestado_path: string | null
@@ -2321,78 +2263,6 @@ export type Database = {
             columns: ["unidade_id"]
             isOneToOne: false
             referencedRelation: "unidades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      inspecoes: {
-        Row: {
-          acompanhamento_cliente: string | null
-          apresentacao_pessoal: string | null
-          colaborador_id: string | null
-          created_at: string | null
-          data_hora: string
-          disponibilidade_equipamentos: string | null
-          disponibilidade_recursos: string | null
-          id: string
-          inspetor: string
-          observacoes: string | null
-          outras_observacoes: string | null
-          posto_servico_id: string | null
-          problemas_po: string | null
-          status_inspecao: string | null
-          updated_at: string | null
-          uso_uniforme: string | null
-        }
-        Insert: {
-          acompanhamento_cliente?: string | null
-          apresentacao_pessoal?: string | null
-          colaborador_id?: string | null
-          created_at?: string | null
-          data_hora?: string
-          disponibilidade_equipamentos?: string | null
-          disponibilidade_recursos?: string | null
-          id?: string
-          inspetor: string
-          observacoes?: string | null
-          outras_observacoes?: string | null
-          posto_servico_id?: string | null
-          problemas_po?: string | null
-          status_inspecao?: string | null
-          updated_at?: string | null
-          uso_uniforme?: string | null
-        }
-        Update: {
-          acompanhamento_cliente?: string | null
-          apresentacao_pessoal?: string | null
-          colaborador_id?: string | null
-          created_at?: string | null
-          data_hora?: string
-          disponibilidade_equipamentos?: string | null
-          disponibilidade_recursos?: string | null
-          id?: string
-          inspetor?: string
-          observacoes?: string | null
-          outras_observacoes?: string | null
-          posto_servico_id?: string | null
-          problemas_po?: string | null
-          status_inspecao?: string | null
-          updated_at?: string | null
-          uso_uniforme?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "inspecoes_colaborador_id_fkey"
-            columns: ["colaborador_id"]
-            isOneToOne: false
-            referencedRelation: "colaboradores"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inspecoes_posto_servico_id_fkey"
-            columns: ["posto_servico_id"]
-            isOneToOne: false
-            referencedRelation: "postos_servico"
             referencedColumns: ["id"]
           },
         ]
@@ -3128,82 +2998,6 @@ export type Database = {
           },
         ]
       }
-      resposta_execucao_checklist: {
-        Row: {
-          conforme: boolean
-          execucao_checklist_id: string
-          foto: string | null
-          id: string
-          observacoes: string | null
-          registrado_em: string
-          resposta: string
-        }
-        Insert: {
-          conforme: boolean
-          execucao_checklist_id: string
-          foto?: string | null
-          id?: string
-          observacoes?: string | null
-          registrado_em?: string
-          resposta: string
-        }
-        Update: {
-          conforme?: boolean
-          execucao_checklist_id?: string
-          foto?: string | null
-          id?: string
-          observacoes?: string | null
-          registrado_em?: string
-          resposta?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "resposta_execucao_checklist_execucao_checklist_id_fkey"
-            columns: ["execucao_checklist_id"]
-            isOneToOne: false
-            referencedRelation: "execucao_checklist"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      resposta_execucao_checklist_item: {
-        Row: {
-          conforme: boolean
-          execucao_checklist_item_id: string
-          foto: string | null
-          id: string
-          observacoes: string | null
-          registrado_em: string
-          resposta: string
-        }
-        Insert: {
-          conforme: boolean
-          execucao_checklist_item_id: string
-          foto?: string | null
-          id?: string
-          observacoes?: string | null
-          registrado_em?: string
-          resposta: string
-        }
-        Update: {
-          conforme?: boolean
-          execucao_checklist_item_id?: string
-          foto?: string | null
-          id?: string
-          observacoes?: string | null
-          registrado_em?: string
-          resposta?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "resposta_execucao_checklist_ite_execucao_checklist_item_id_fkey"
-            columns: ["execucao_checklist_item_id"]
-            isOneToOne: false
-            referencedRelation: "execucao_checklist_item"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       subitens: {
         Row: {
           cliente_id: number
@@ -3634,7 +3428,14 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      usuarios_public: {
+        Row: {
+          cargo: string | null
+          full_name: string | null
+          id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       adicionar_diarista_blacklist: {
@@ -3809,8 +3610,20 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["internal_access_level"]
       }
+      definir_usuario_como_colaborador: {
+        Args: { p_cost_center_id: string; p_user_id: string }
+        Returns: undefined
+      }
       fn_diff_jsonb: { Args: { new_row: Json; old_row: Json }; Returns: Json }
       gerar_dias_trabalho_proximo_mes: { Args: never; Returns: undefined }
+      get_visible_internal_users_public: {
+        Args: never
+        Returns: {
+          cargo: string
+          full_name: string
+          id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["internal_access_level"]
@@ -3878,6 +3691,14 @@ export type Database = {
     }
     Enums: {
       acumulo_funcao_options: "Sim" | "Não" | "Especial"
+      chamado_prioridade: "baixa" | "media" | "alta" | "critica"
+      chamado_status:
+        | "aberto"
+        | "em_andamento"
+        | "pendente"
+        | "resolvido"
+        | "fechado"
+        | "cancelado"
       estado_civil:
         | "Solteiro"
         | "Casado"
@@ -4126,6 +3947,15 @@ export const Constants = {
   public: {
     Enums: {
       acumulo_funcao_options: ["Sim", "Não", "Especial"],
+      chamado_prioridade: ["baixa", "media", "alta", "critica"],
+      chamado_status: [
+        "aberto",
+        "em_andamento",
+        "pendente",
+        "resolvido",
+        "fechado",
+        "cancelado",
+      ],
       estado_civil: [
         "Solteiro",
         "Casado",
