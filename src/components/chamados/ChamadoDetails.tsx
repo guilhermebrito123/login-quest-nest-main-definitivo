@@ -721,8 +721,8 @@ export function ChamadoDetails({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[100dvh] w-screen max-w-none overflow-hidden rounded-none p-0 sm:h-auto sm:max-h-[92vh] sm:w-[96vw] sm:max-w-6xl sm:rounded-xl">
-        <div className="flex h-full max-h-[100dvh] flex-col">
+      <DialogContent className="h-[100dvh] w-screen max-w-none overflow-hidden rounded-none p-0 lg:h-auto lg:max-h-[92vh] lg:w-[96vw] lg:max-w-6xl lg:rounded-xl">
+        <div className="flex h-full min-h-0 max-h-[100dvh] flex-col lg:max-h-[92vh]">
           <DialogHeader className="space-y-4 border-b px-4 py-4 pr-12 text-left sm:px-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 space-y-2">
@@ -773,14 +773,14 @@ export function ChamadoDetails({
             </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6">
             {chamadoQuery.isLoading ? (
               <div className="space-y-4">
                 <Skeleton className="h-24 w-full" />
                 <Skeleton className="h-96 w-full" />
               </div>
             ) : chamado ? (
-              <Tabs defaultValue="geral" className="space-y-4">
+              <Tabs defaultValue="geral" className="flex min-h-0 flex-1 flex-col space-y-4">
                 <TabsList className="grid h-auto w-full grid-cols-2 gap-2 p-1 sm:grid-cols-4">
                   <TabsTrigger value="geral" className="min-h-10 text-xs sm:text-sm">
                     Geral
@@ -796,7 +796,7 @@ export function ChamadoDetails({
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="geral" className="space-y-4">
+                <TabsContent value="geral" className="mt-0 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
                   <Card>
                     <CardHeader>
                       <CardTitle className="line-clamp-2 text-lg sm:text-xl">
@@ -963,7 +963,7 @@ export function ChamadoDetails({
                   </Card>
                 </TabsContent>
 
-                <TabsContent value="interacoes" className="space-y-4">
+                <TabsContent value="interacoes" className="mt-0 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-base">
@@ -1056,7 +1056,7 @@ export function ChamadoDetails({
                   </div>
                 </TabsContent>
 
-                <TabsContent value="anexos" className="space-y-4">
+                <TabsContent value="anexos" className="mt-0 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-base">
@@ -1126,7 +1126,7 @@ export function ChamadoDetails({
                   </div>
                 </TabsContent>
 
-                <TabsContent value="historico" className="space-y-3">
+                <TabsContent value="historico" className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
                   {historicoQuery.isLoading ? (
                     <Skeleton className="h-48 w-full" />
                   ) : historicoVisivel.length > 0 ? (
