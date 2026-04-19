@@ -14,6 +14,172 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_recovery_audit: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          request_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          request_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          request_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_recovery_audit_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_recovery_audit_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "account_recovery_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_recovery_audit_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      account_recovery_requests: {
+        Row: {
+          created_at: string
+          id: string
+          ip: string | null
+          opened_at: string
+          reason: string | null
+          rejection_reason: string | null
+          requested_identifier: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip?: string | null
+          opened_at?: string
+          reason?: string | null
+          rejection_reason?: string | null
+          requested_identifier: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip?: string | null
+          opened_at?: string
+          reason?: string | null
+          rejection_reason?: string | null
+          requested_identifier?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_recovery_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_recovery_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      account_recovery_sessions: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          ip: string | null
+          request_id: string
+          token_hash: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip?: string | null
+          request_id: string
+          token_hash: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip?: string | null
+          request_id?: string
+          token_hash?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_recovery_sessions_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "account_recovery_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_recovery_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ativos: {
         Row: {
           categoria: string | null
@@ -2267,6 +2433,52 @@ export type Database = {
           },
         ]
       }
+      internal_profile_cost_centers: {
+        Row: {
+          cost_center_id: string
+          created_at: string
+          created_by: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          cost_center_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          cost_center_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_profile_cost_centers_cost_center_id_fkey"
+            columns: ["cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_center"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_profile_cost_centers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_profile_cost_centers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       internal_profiles: {
         Row: {
           cargo: string | null
@@ -3631,8 +3843,26 @@ export type Database = {
         }
         Returns: boolean
       }
+      internal_user_can_access_chamado: {
+        Args: { p_chamado_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      internal_user_can_access_local: {
+        Args: { p_local_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      internal_user_can_use_local_for_chamado: {
+        Args: { p_local_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      internal_user_has_cost_center_access: {
+        Args: { p_cost_center_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      internal_user_is_admin: { Args: { p_user_id: string }; Returns: boolean }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_admin_user: { Args: never; Returns: boolean }
+      is_colaborador_user: { Args: { p_user_id: string }; Returns: boolean }
       is_internal_user: { Args: never; Returns: boolean }
       justificar_falta_convenia: {
         Args: {

@@ -319,6 +319,11 @@ export function ChamadosDashboard({
     };
   }, [chamados, getResponsavelDisplay, localLookup]);
 
+  const maxResponsavelTotal = Math.max(
+    ...dashboardData.responsavelData.map((item) => item.total),
+    1,
+  );
+
   const kpis = [
     {
       label: "Total filtrado",
@@ -686,41 +691,97 @@ export function ChamadosDashboard({
               >
                 {(isChartVisible) =>
                   isChartVisible ? (
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart
-                        data={dashboardData.responsavelData}
-                        layout="vertical"
-                        margin={{ top: 8, right: 20, left: 8, bottom: 0 }}
-                      >
-                        <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                        <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                        <YAxis
-                          type="category"
-                          dataKey="shortLabel"
-                          width={160}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <Tooltip
-                          formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
-                          labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ""}
-                        />
-                        <Bar
-                          dataKey="total"
-                          radius={[0, 10, 10, 0]}
-                          fill="hsl(197 92% 50%)"
-                          isAnimationActive={isChartVisible}
-                          animationBegin={CHART_ANIMATION_BEGIN}
-                          animationDuration={CHART_ANIMATION_DURATION}
-                          animationEasing="ease-out"
+                    isMobileChart ? (
+                      <div className="space-y-3">
+                        {dashboardData.responsavelData.map((entry, index) => (
+                          <motion.div
+                            key={entry.label}
+                            initial={shouldReduceMotion ? false : { opacity: 0, y: -14 }}
+                            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                            transition={{
+                              duration: 0.55,
+                              delay: shouldReduceMotion ? 0 : index * 0.08,
+                              ease: DASHBOARD_MOTION_EASE,
+                            }}
+                            className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <p
+                                className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+                                title={entry.label}
+                              >
+                                {entry.label}
+                              </p>
+                              <div className="shrink-0 text-right">
+                                <p className="text-sm font-semibold text-foreground">
+                                  {entry.total.toLocaleString("pt-BR")}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">chamados</p>
+                              </div>
+                            </div>
+                            <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                              <motion.div
+                                initial={shouldReduceMotion ? false : { width: 0, opacity: 0.75 }}
+                                animate={{
+                                  width: `${(entry.total / maxResponsavelTotal) * 100}%`,
+                                  opacity: 1,
+                                }}
+                                transition={{
+                                  duration: shouldReduceMotion ? 0 : 0.95,
+                                  delay: shouldReduceMotion ? 0 : 0.12 + index * 0.08,
+                                  ease: DASHBOARD_MOTION_EASE,
+                                }}
+                                className="h-full rounded-full"
+                                style={{ backgroundColor: entry.fill }}
+                              />
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={320}>
+                        <BarChart
+                          data={dashboardData.responsavelData}
+                          layout="vertical"
+                          margin={{ top: 8, right: 20, left: 8, bottom: 0 }}
                         >
-                          {dashboardData.responsavelData.map((entry) => (
-                            <Cell key={entry.label} fill={entry.fill} />
-                          ))}
-                          <LabelList dataKey="total" position="right" className="fill-foreground text-xs" />
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                          <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                          <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                          <YAxis
+                            type="category"
+                            dataKey="shortLabel"
+                            width={18}
+                            tickLine={false}
+                            axisLine={false}
+                            tick={false}
+                          />
+                          <Tooltip
+                            formatter={(value: number) => [value.toLocaleString("pt-BR"), "Chamados"]}
+                            labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ""}
+                          />
+                          <Bar
+                            dataKey="total"
+                            radius={[0, 10, 10, 0]}
+                            fill="hsl(197 92% 50%)"
+                            isAnimationActive={isChartVisible}
+                            animationBegin={CHART_ANIMATION_BEGIN}
+                            animationDuration={CHART_ANIMATION_DURATION}
+                            animationEasing="ease-out"
+                          >
+                            {dashboardData.responsavelData.map((entry) => (
+                              <Cell key={entry.label} fill={entry.fill} />
+                            ))}
+                            <LabelList
+                              dataKey="shortLabel"
+                              position="insideLeft"
+                              offset={10}
+                              className="fill-white text-[11px] font-medium"
+                            />
+                            <LabelList dataKey="total" position="right" className="fill-foreground text-xs" />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )
                   ) : (
                     <ChartPlaceholder height={320} />
                   )

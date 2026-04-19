@@ -18,6 +18,8 @@ import {
   formatDateTime,
   getChamadoPrioridadeClass,
   getChamadoStatusClass,
+  matchesChamadoNumeroFilter,
+  normalizeChamadoNumeroFilter,
 } from "@/lib/chamados";
 import { ChamadoDetails } from "@/components/chamados/ChamadoDetails";
 import { ChamadosDashboard } from "@/components/chamados/ChamadosDashboard";
@@ -74,6 +76,7 @@ type ChamadoResponsavelOption = {
 type ChamadoListItem = ChamadoRow & {
   categoria?: Pick<CategoriaRow, "id" | "nome" | "ativo"> | null;
   solicitante?: Pick<UsuarioRow, "id" | "full_name" | "email" | "role"> | null;
+  responsavel?: Pick<UsuarioRow, "id" | "full_name" | "email" | "role"> | null;
 };
 
 type CategoriaDraft = {
@@ -121,6 +124,25 @@ function getMultiSelectSummary(
   if (!selectedLabels.length) return emptyLabel;
   if (selectedLabels.length <= 2) return selectedLabels.join(", ");
   return `${selectedLabels.length} selecionados`;
+}
+
+async function filterCostCentersByInternalScope(
+  userId: string,
+  costCenters: CostCenterRow[]
+) {
+  const scopedCenters = await Promise.all(
+    costCenters.map(async (center) => {
+      const { data, error } = await supabase.rpc("internal_user_has_cost_center_access", {
+        p_user_id: userId,
+        p_cost_center_id: center.id,
+      });
+
+      if (error) throw error;
+      return data ? center : null;
+    })
+  );
+
+  return scopedCenters.filter((center): center is CostCenterRow => center !== null);
 }
 
 function MultiSelectFilter({
@@ -212,6 +234,7 @@ export default function Chamados() {
   const shouldReduceMotion = useReducedMotion();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [numeroFilter, setNumeroFilter] = useState("");
   const [statusFilters, setStatusFilters] = useState<ChamadoRow["status"][]>([]);
   const [prioridadeFilters, setPrioridadeFilters] = useState<ChamadoRow["prioridade"][]>([]);
   const [categoriaFilters, setCategoriaFilters] = useState<string[]>([]);
@@ -239,9 +262,15 @@ export default function Chamados() {
     accessContext.role === "perfil_interno" &&
     !!accessContext.accessLevel &&
     accessContext.accessLevel !== "cliente_view";
+  const isInternalScopedByCostCenter =
+    isInternalAboveClienteView && !accessContext.isAdmin;
   const showCostCenterFilter = isInternalAboveClienteView;
   const isRestrictedToOwnChamados =
     isColaborador || accessContext.accessLevel === "cliente_view";
+  const canReadScopedData =
+    accessContext.isAdmin ||
+    isColaborador ||
+    (isInternalAboveClienteView && !!accessContext.userId);
   const canEditChamado = (chamado: ChamadoRow) =>
     accessContext.canManageChamados ||
     (isColaborador && accessContext.userId === chamado.solicitante_id);
@@ -259,35 +288,72 @@ export default function Chamados() {
   });
 
   const { data: costCenters = [] } = useQuery({
-    queryKey: ["cost-centers-module", "chamados", accessContext.colaboradorCostCenterId],
-    enabled: !accessLoading,
+    queryKey: [
+      "cost-centers-module",
+      "chamados",
+      accessContext.userId,
+      accessContext.role,
+      accessContext.accessLevel,
+      accessContext.colaboradorCostCenterId,
+    ],
+    enabled: !accessLoading && canReadScopedData,
     queryFn: async () => {
-      let query = supabase
+      if (isColaborador && accessContext.colaboradorCostCenterId) {
+        const { data, error } = await supabase
+          .from("cost_center")
+          .select("id, name, convenia_id, created_at, updated_at")
+          .eq("id", accessContext.colaboradorCostCenterId)
+          .order("name");
+
+        if (error) throw error;
+        return (data || []) as CostCenterRow[];
+      }
+
+      const { data, error } = await supabase
         .from("cost_center")
         .select("id, name, convenia_id, created_at, updated_at")
         .order("name");
-      if (accessContext.colaboradorCostCenterId) {
-        query = query.eq("id", accessContext.colaboradorCostCenterId);
-      }
-      const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as CostCenterRow[];
+
+      const loadedCostCenters = (data || []) as CostCenterRow[];
+      if (accessContext.isAdmin) return loadedCostCenters;
+      if (!isInternalScopedByCostCenter || !accessContext.userId) return [];
+
+      return filterCostCentersByInternalScope(accessContext.userId, loadedCostCenters);
     },
   });
 
+  const scopedCostCenterIds = useMemo(
+    () => costCenters.map((center) => center.id),
+    [costCenters]
+  );
+
   const { data: locais = [] } = useQuery({
-    queryKey: ["chamado-locais-module", accessContext.colaboradorCostCenterId],
-    enabled: !accessLoading,
+    queryKey: [
+      "chamado-locais-module",
+      accessContext.userId,
+      accessContext.role,
+      accessContext.accessLevel,
+      scopedCostCenterIds.join(","),
+    ],
+    enabled: !accessLoading && canReadScopedData,
     queryFn: async () => {
       let query = supabase.from("cost_center_locais").select("*").order("nome");
-      if (accessContext.colaboradorCostCenterId) {
-        query = query.eq("cost_center_id", accessContext.colaboradorCostCenterId);
+
+      if (!accessContext.isAdmin) {
+        if (scopedCostCenterIds.length === 0) return [] as LocalRow[];
+        query = query.in("cost_center_id", scopedCostCenterIds);
       }
+
       const { data, error } = await query;
       if (error) throw error;
       return (data || []) as LocalRow[];
     },
   });
+
+  const canCreateChamadosResolved =
+    canCreateChamados &&
+    (accessContext.isAdmin || isColaborador || costCenters.length > 0);
 
   const { data: responsaveis = [], isLoading: responsaveisLoading } = useQuery({
     queryKey: ["chamado-responsaveis-module", accessContext.userId],
@@ -380,6 +446,10 @@ export default function Chamados() {
     [categoriaFilters]
   );
   const localFilterKey = useMemo(() => [...localFilters].sort().join(","), [localFilters]);
+  const numeroFilterKey = useMemo(
+    () => normalizeChamadoNumeroFilter(numeroFilter),
+    [numeroFilter]
+  );
 
   const { data: chamados = [], refetch: refetchChamados, isFetching } = useQuery({
     queryKey: [
@@ -395,6 +465,7 @@ export default function Chamados() {
       createdFrom,
       createdTo,
       costCenterFilter,
+      numeroFilterKey,
       localIdsByCostCenter?.join(",") ?? "all",
     ],
     enabled: !!accessContext.userId && canReadChamados,
@@ -406,7 +477,8 @@ export default function Chamados() {
         .select(`
           *,
           categoria:chamado_categorias(id, nome, ativo),
-          solicitante:usuarios!chamados_solicitante_id_fkey(id, full_name, email, role)
+          solicitante:usuarios!chamados_solicitante_id_fkey(id, full_name, email, role),
+          responsavel:usuarios!chamados_responsavel_id_fkey(id, full_name, email, role)
         `)
         .order("created_at", { ascending: false });
 
@@ -419,6 +491,7 @@ export default function Chamados() {
       if (!isRestrictedToOwnChamados && solicitanteFilter !== "all") query = query.eq("solicitante_id", solicitanteFilter);
       if (createdFrom) query = query.gte("created_at", `${createdFrom}T00:00:00`);
       if (createdTo) query = query.lte("created_at", `${createdTo}T23:59:59`);
+      if (numeroFilterKey) query = query.eq("numero", Number(numeroFilterKey));
       if (localIdsByCostCenter && localIdsByCostCenter.length > 0) query = query.in("local_id", localIdsByCostCenter);
 
       const { data, error } = await query;
@@ -430,7 +503,14 @@ export default function Chamados() {
     () => new Map(responsaveis.map((user) => [user.id, user])),
     [responsaveis]
   );
-  const getResponsavelDisplay = (chamado: Pick<ChamadoRow, "responsavel_id">) => {
+  const getResponsavelDisplay = (
+    chamado: Pick<ChamadoRow, "responsavel_id"> & {
+      responsavel?: Pick<UsuarioRow, "full_name" | "email"> | null;
+    }
+  ) => {
+    if (chamado.responsavel?.full_name) return chamado.responsavel.full_name;
+    if (chamado.responsavel?.email) return chamado.responsavel.email;
+
     const responsavel = chamado.responsavel_id ? responsavelMap.get(chamado.responsavel_id) : null;
     if (responsavel?.full_name) return responsavel.full_name;
     if (chamado.responsavel_id && responsaveisLoading) {
@@ -443,9 +523,11 @@ export default function Chamados() {
 
   const filteredChamados = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return chamados;
 
     return chamados.filter((chamado) => {
+      if (!matchesChamadoNumeroFilter(chamado.numero, numeroFilter)) return false;
+      if (!term) return true;
+
       const local = localLookup.get(chamado.local_id);
       const haystack = [
         chamado.titulo,
@@ -464,7 +546,7 @@ export default function Chamados() {
 
       return haystack.includes(term);
     });
-  }, [chamados, searchTerm, localLookup, responsavelMap, responsaveisLoading]);
+  }, [chamados, searchTerm, numeroFilter, localLookup, responsavelMap, responsaveisLoading]);
 
   const solicitantes = useMemo(() => {
     const map = new Map<string, UsuarioRow>();
@@ -488,6 +570,7 @@ export default function Chamados() {
     setSolicitanteFilter("all");
     setCreatedFrom("");
     setCreatedTo("");
+    setNumeroFilter("");
     setSearchTerm("");
   };
 
@@ -668,7 +751,7 @@ export default function Chamados() {
               <div className="w-full rounded-lg border border-primary/20 bg-primary/5 p-1.5 shadow-sm md:w-auto">
                 <Button
                   onClick={handleOpenCreate}
-                  disabled={!canCreateChamados || accessLoading}
+                  disabled={!canCreateChamadosResolved || accessLoading}
                   className="w-full font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 md:w-auto"
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -696,6 +779,20 @@ export default function Chamados() {
               </div>
             </CardContent>
           </Card>
+        ) : isInternalScopedByCostCenter && costCenters.length === 0 && !accessLoading ? (
+          <Card>
+            <CardContent className="space-y-4 py-10 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <MessageSquare className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold">Nenhum centro de custo vinculado</h2>
+                <p className="text-sm text-muted-foreground">
+                  Seu perfil interno precisa de ao menos um vínculo de centro de custo para operar chamados.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         ) : (
           <Tabs defaultValue="lista" className="space-y-4">
             <TabsList
@@ -719,7 +816,7 @@ export default function Chamados() {
 
             <Card>
               <CardContent className="space-y-4 p-4">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                   <div className="relative md:col-span-2 xl:col-span-2">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -733,6 +830,12 @@ export default function Chamados() {
                       onChange={(event) => setSearchTerm(event.target.value)}
                     />
                   </div>
+                  <Input
+                    inputMode="numeric"
+                    placeholder="Número do chamado"
+                    value={numeroFilter}
+                    onChange={(event) => setNumeroFilter(event.target.value)}
+                  />
                   <MultiSelectFilter
                     title="Status"
                     emptyLabel="Todos os status"

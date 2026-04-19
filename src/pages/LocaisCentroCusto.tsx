@@ -8,6 +8,7 @@ import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useAccessContext } from "@/hooks/useAccessContext";
+import { canManageLocaisByAccess } from "@/lib/chamados";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -72,6 +73,25 @@ const normalizeLocalName = (value: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase();
 
+async function filterManageableCostCenters(
+  userId: string,
+  costCenters: CostCenterRow[]
+) {
+  const scopedCenters = await Promise.all(
+    costCenters.map(async (center) => {
+      const { data, error } = await supabase.rpc("internal_user_has_cost_center_access", {
+        p_user_id: userId,
+        p_cost_center_id: center.id,
+      });
+
+      if (error) throw error;
+      return data ? center : null;
+    })
+  );
+
+  return scopedCenters.filter((center): center is CostCenterRow => center !== null);
+}
+
 export default function LocaisCentroCusto() {
   const { accessContext, accessLoading } = useAccessContext();
   const shouldReduceMotion = useReducedMotion();
@@ -115,7 +135,37 @@ export default function LocaisCentroCusto() {
     setDraft(buildDraft(editingLocal));
   }, [dialogOpen, editingLocal]);
 
-  const canManageLocais = accessContext.canManageLocais;
+  const { data: manageableCostCenters = [] } = useQuery({
+    queryKey: [
+      "manageable-cost-centers-module",
+      accessContext.userId,
+      accessContext.role,
+      accessContext.accessLevel,
+      costCenters.map((center) => center.id).join(","),
+    ],
+    enabled:
+      !accessLoading &&
+      !!accessContext.userId &&
+      costCenters.length > 0 &&
+      accessContext.role === "perfil_interno" &&
+      canManageLocaisByAccess(accessContext.accessLevel),
+    queryFn: async () => {
+      if (accessContext.isAdmin) return costCenters;
+      if (!accessContext.userId) return [] as CostCenterRow[];
+      return filterManageableCostCenters(accessContext.userId, costCenters);
+    },
+  });
+
+  const manageableCostCenterIds = useMemo(
+    () => new Set(manageableCostCenters.map((center) => center.id)),
+    [manageableCostCenters]
+  );
+  const canManageLocais =
+    accessContext.role === "perfil_interno" &&
+    canManageLocaisByAccess(accessContext.accessLevel) &&
+    (accessContext.isAdmin || manageableCostCenters.length > 0);
+  const canManageLocal = (local: Pick<LocalRow, "cost_center_id">) =>
+    accessContext.isAdmin || manageableCostCenterIds.has(local.cost_center_id);
 
   const costCenterMap = useMemo(
     () =>
@@ -154,12 +204,20 @@ export default function LocaisCentroCusto() {
   }, [locais, costCenterMap, searchTerm, costCenterFilter, statusFilter]);
 
   const handleOpenCreate = () => {
+    if (!canManageLocais) {
+      toast.error("Seu perfil não pode criar locais neste momento.");
+      return;
+    }
     setEditingLocal(null);
     setDraft(EMPTY_DRAFT);
     setDialogOpen(true);
   };
 
   const handleOpenEdit = (local: LocalRow) => {
+    if (!canManageLocal(local)) {
+      toast.error("Seu perfil não pode editar este local.");
+      return;
+    }
     setEditingLocal(local);
     setDraft(buildDraft(local));
     setDialogOpen(true);
@@ -184,6 +242,11 @@ export default function LocaisCentroCusto() {
 
     if (!draft.cost_center_id) {
       toast.error("Selecione um centro de custo.");
+      return;
+    }
+
+    if (!accessContext.isAdmin && !manageableCostCenterIds.has(draft.cost_center_id)) {
+      toast.error("Seu perfil não possui acesso ao centro de custo selecionado.");
       return;
     }
 
@@ -242,7 +305,7 @@ export default function LocaisCentroCusto() {
   };
 
   const handleDelete = async (local: LocalRow) => {
-    if (!canManageLocais) {
+    if (!canManageLocais || !canManageLocal(local)) {
       toast.error("Seu perfil não pode excluir locais.");
       return;
     }
@@ -273,6 +336,14 @@ export default function LocaisCentroCusto() {
             <p className="text-sm text-muted-foreground">
               Cadastre e mantenha os locais vinculados aos centros de custo.
             </p>
+            {accessContext.role === "perfil_interno" &&
+              canManageLocaisByAccess(accessContext.accessLevel) &&
+              !accessContext.isAdmin &&
+              manageableCostCenters.length === 0 && (
+                <p className="text-xs text-amber-700">
+                  Nenhum centro de custo estÃ¡ vinculado ao seu perfil para criaÃ§Ã£o ou ediÃ§Ã£o.
+                </p>
+              )}
           </div>
 
           <div className="flex flex-col items-end gap-2">
@@ -383,7 +454,7 @@ export default function LocaisCentroCusto() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os centros</SelectItem>
-                  {costCenters.map((center) => (
+                  {manageableCostCenters.map((center) => (
                     <SelectItem key={center.id} value={center.id}>
                       {center.name}
                     </SelectItem>
@@ -443,7 +514,7 @@ export default function LocaisCentroCusto() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleOpenEdit(local)}
-                                disabled={!canManageLocais}
+                                disabled={!canManageLocais || !canManageLocal(local)}
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
@@ -451,7 +522,7 @@ export default function LocaisCentroCusto() {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => handleDelete(local)}
-                                disabled={!canManageLocais || deletingId === local.id}
+                                disabled={!canManageLocais || !canManageLocal(local) || deletingId === local.id}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -494,13 +565,18 @@ export default function LocaisCentroCusto() {
                   <SelectValue placeholder="Selecione o centro de custo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {costCenters.map((center) => (
+                  {manageableCostCenters.map((center) => (
                     <SelectItem key={center.id} value={center.id}>
                       {center.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {!accessContext.isAdmin && manageableCostCenters.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Seu perfil nÃ£o possui centros de custo habilitados para ediÃ§Ã£o.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

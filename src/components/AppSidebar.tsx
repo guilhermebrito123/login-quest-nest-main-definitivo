@@ -5,6 +5,7 @@ import {
   UserCog,
   FileText,
   MessageSquare,
+  History,
   Headphones,
   ClipboardList,
   UserCheck,
@@ -23,12 +24,15 @@ import {
   Clock,
   Landmark,
   MapPin,
+  KeyRound,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAccessContext } from "@/hooks/useAccessContext";
 import { useSession } from "@/hooks/useSession";
+import { canOperateInternalModules } from "@/lib/internalAccess";
 
 import {
   Sidebar,
@@ -49,6 +53,8 @@ type MenuItem = {
   children?: { title: string; url: string; status?: string }[];
   statusCountsKey?: "diarias" | "diariasTemporarias" | "horaExtra";
   badge?: string;
+  requiresInternalOperational?: boolean;
+  requiresAdmin?: boolean;
 };
 type UserRole = "candidato" | "colaborador" | "perfil_interno";
 
@@ -99,12 +105,24 @@ const horaExtraChildren = [
 ];
 
 const menuItems: MenuItem[] = [
+  {
+    title: "Recuperacao de acesso",
+    url: "/admin/recuperacoes",
+    icon: KeyRound,
+    requiresAdmin: true,
+  },
   { title: "Minha conta", url: "/minha-conta", icon: UserCog },
   { title: "Dados empresariais", url: "/dados-empresariais", icon: Briefcase },
   { title: "Dashboard 24/7", url: "/dashboard-24h", icon: LayoutDashboard },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Gestão de Usuários", url: "/users", icon: Users },
   { title: "Chamados", url: "/chamados", icon: MessageSquare },
+  {
+    title: "Historico de Chamados",
+    url: "/chamados/historico",
+    icon: History,
+    requiresInternalOperational: true,
+  },
   { title: "Contratos", url: "/contratos", icon: FileText },
   { title: "Mesa de Operações", url: "/mesa-operacoes", icon: Headphones },
   { title: "Ordens de Serviço", url: "/ordens-servico", icon: ClipboardList },
@@ -157,6 +175,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { session } = useSession();
+  const { accessContext } = useAccessContext();
   const currentPath = location.pathname;
   const [diariasCounts, setDiariasCounts] = useState<Record<string, number>>(
     {}
@@ -167,6 +186,7 @@ export function AppSidebar() {
   const [horaExtraCounts, setHoraExtraCounts] = useState<Record<string, number>>(
     {}
   );
+  const [recoveryPendingCount, setRecoveryPendingCount] = useState(0);
   const [enterprisePending, setEnterprisePending] = useState(false);
   useEffect(() => {
     let isMounted = true;
@@ -221,6 +241,37 @@ export function AppSidebar() {
       isMounted = false;
     };
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadRecoveryPendingCount = async () => {
+      if (!session || accessContext.accessLevel !== "admin") {
+        if (active) setRecoveryPendingCount(0);
+        return;
+      }
+
+      const { count, error } = await supabase
+        .from("account_recovery_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+
+      if (error) {
+        console.error("Erro ao carregar pedidos pendentes de recuperacao:", error);
+        return;
+      }
+
+      if (active) {
+        setRecoveryPendingCount(count || 0);
+      }
+    };
+
+    void loadRecoveryPendingCount();
+
+    return () => {
+      active = false;
+    };
+  }, [accessContext.accessLevel, session]);
 
   useEffect(() => {
     let active = true;
@@ -299,12 +350,30 @@ export function AppSidebar() {
 
   const computedMenuItems = useMemo(
     () =>
-      menuItems.map((item) =>
-        item.url === "/dados-empresariais" && enterprisePending
-          ? { ...item, badge: "!" }
-          : item
-      ),
-    [enterprisePending]
+      menuItems
+        .filter((item) => {
+          if (item.requiresAdmin && accessContext.accessLevel !== "admin") {
+            return false;
+          }
+
+          if (!item.requiresInternalOperational) return true;
+
+          return (
+            accessContext.role === "perfil_interno" &&
+            canOperateInternalModules(accessContext.accessLevel)
+          );
+        })
+        .map((item) =>
+          item.url === "/dados-empresariais"
+            ? { ...item, badge: enterprisePending ? "!" : undefined }
+            : item.url === "/admin/recuperacoes"
+              ? {
+                  ...item,
+                  badge: recoveryPendingCount > 0 ? String(recoveryPendingCount) : undefined,
+                }
+              : item
+        ),
+    [accessContext.accessLevel, accessContext.role, enterprisePending, recoveryPendingCount]
   );
 
   const isActive = (path: string, exact = true) =>
