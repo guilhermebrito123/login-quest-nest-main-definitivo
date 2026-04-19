@@ -60,3 +60,9 @@ inspector_port = 8083
 
 [functions.send-email]
 verify_jwt = false
+
+[functions.request-manual-recovery]
+verify_jwt = false
+
+[functions.complete-manual-recovery]
+verify_jwt = false

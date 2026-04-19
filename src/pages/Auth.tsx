@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useSession } from "@/hooks/useSession";
 import { Building2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { sendWelcomeEmail } from "@/lib/emailService";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
@@ -60,26 +62,19 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { session, loading: sessionLoading, refreshSession } = useSession();
+  const redirectTo =
+    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ??
+    "/dashboard";
 
   useEffect(() => {
-    // Redirect if already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/dashboard");
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        navigate("/dashboard");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+    if (!sessionLoading && session) {
+      navigate(redirectTo, { replace: true });
+    }
+  }, [navigate, redirectTo, session, sessionLoading]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,10 +92,20 @@ const Auth = () => {
 
         if (error) throw error;
 
+        const nextSession = await refreshSession();
+
+        if (!nextSession) {
+          throw new Error("Nao foi possivel carregar a sessao apos o login.");
+        }
+
+        await queryClient.invalidateQueries();
+
         toast({
           title: "Login realizado!",
           description: "Bem-vindo de volta ao Facilities Hub.",
         });
+
+        navigate(redirectTo, { replace: true });
       } else {
         // Validate signup data
         const validatedData = signUpSchema.parse({

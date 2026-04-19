@@ -4,13 +4,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AuthProvider } from "@/hooks/useSession";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Dashboard24h from "./pages/Dashboard24h";
 import UserManagement from "./pages/UserManagement";
 import ResetPassword from "./pages/ResetPassword";
+import RecuperarAcesso from "./pages/RecuperarAcesso";
+import RecuperacoesAdmin from "./pages/RecuperacoesAdmin";
 import Chamados from "./pages/Chamados";
+import ChamadosHistorico from "./pages/ChamadosHistorico";
 import Contratos from "./pages/Contratos";
 import MesaOperacoes from "./pages/MesaOperacoes";
 import OrdensServico from "./pages/OrdensServico";
@@ -82,96 +86,101 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/redefinir-senha" element={<ResetPassword />} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/dashboard-24h" element={<ProtectedRoute><Dashboard24h /></ProtectedRoute>} />
-          <Route path="/minha-conta" element={<ProtectedRoute><MinhaConta /></ProtectedRoute>} />
-          <Route path="/dados-empresariais" element={<ProtectedRoute><DadosEmpresariais /></ProtectedRoute>} />
-          <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
-          <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
-          <Route path="/candidatos" element={<CandidatoCadastro />} />
-          <Route path="/chamados" element={<ProtectedRoute><Chamados /></ProtectedRoute>} />
-          <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
-          <Route path="/mesa-operacoes" element={<ProtectedRoute><MesaOperacoes /></ProtectedRoute>} />
-          <Route path="/ordens-servico" element={<ProtectedRoute><OrdensServico /></ProtectedRoute>} />
-          <Route path="/colaboradores" element={<ProtectedRoute><Colaboradores /></ProtectedRoute>} />
-          <Route path="/centros-custo" element={<ProtectedRoute><CentrosCusto /></ProtectedRoute>} />
-          <Route path="/locais-centro-custo" element={<ProtectedRoute><LocaisCentroCusto /></ProtectedRoute>} />
-          <Route path="/postos-servico" element={<ProtectedRoute><PostosServico /></ProtectedRoute>} />
-          <Route path="/escalas" element={<ProtectedRoute><Escalas /></ProtectedRoute>} />
-          <Route path="/ativos" element={<ProtectedRoute><Ativos /></ProtectedRoute>} />
-          <Route path="/estoque" element={<ProtectedRoute><Estoque /></ProtectedRoute>} />
-          <Route path="/diaristas" element={<ProtectedRoute><Diaristas /></ProtectedRoute>} />
-          <Route path="/diaristas-restritos" element={<ProtectedRoute><DiaristasRestritos /></ProtectedRoute>} />
-          <Route path="/diaristas/logs" element={<ProtectedRoute><DiaristasLogs /></ProtectedRoute>} />
-          <Route path="/diarias/aguardando" element={<ProtectedRoute><DiariasAguardandoPage /></ProtectedRoute>} />
-          <Route path="/diarias/confirmadas" element={<ProtectedRoute><DiariasConfirmadasPage /></ProtectedRoute>} />
-          <Route path="/diarias/aprovadas" element={<ProtectedRoute><DiariasAprovadasPage /></ProtectedRoute>} />
-          <Route path="/diarias/lancadas" element={<ProtectedRoute><DiariasLancadasPage /></ProtectedRoute>} />
-          <Route path="/diarias/reprovadas" element={<ProtectedRoute><DiariasReprovadasPage /></ProtectedRoute>} />
-          <Route path="/diarias/pagas" element={<ProtectedRoute><DiariasPagasPage /></ProtectedRoute>} />
-          <Route path="/diarias/canceladas" element={<ProtectedRoute><DiariasCanceladasPage /></ProtectedRoute>} />
-          <Route path="/diarias" element={<ProtectedRoute><Diarias /></ProtectedRoute>} />
-          <Route path="/diarias2/aguardando" element={<ProtectedRoute><Diarias2AguardandoPage /></ProtectedRoute>} />
-          <Route path="/diarias2/confirmadas" element={<ProtectedRoute><Diarias2ConfirmadasPage /></ProtectedRoute>} />
-          <Route path="/diarias2/aprovadas" element={<ProtectedRoute><Diarias2AprovadasPage /></ProtectedRoute>} />
-          <Route path="/diarias2/lancadas" element={<ProtectedRoute><Diarias2LancadasPage /></ProtectedRoute>} />
-          <Route path="/diarias2/reprovadas" element={<ProtectedRoute><Diarias2ReprovadasPage /></ProtectedRoute>} />
-          <Route path="/diarias2/canceladas" element={<ProtectedRoute><Diarias2CanceladasPage /></ProtectedRoute>} />
-          <Route path="/diarias2/pagas" element={<ProtectedRoute><Diarias2PagasPage /></ProtectedRoute>} />
-          <Route path="/diarias2/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
-          <Route path="/diarias2" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
-          <Route path="/cobertura/diarias/aguardando" element={<ProtectedRoute><Diarias2AguardandoPage /></ProtectedRoute>} />
-          <Route path="/cobertura/diarias/confirmadas" element={<ProtectedRoute><Diarias2ConfirmadasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/diarias/aprovadas" element={<ProtectedRoute><Diarias2AprovadasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/diarias/lancadas" element={<ProtectedRoute><Diarias2LancadasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/diarias/reprovadas" element={<ProtectedRoute><Diarias2ReprovadasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/diarias/canceladas" element={<ProtectedRoute><Diarias2CanceladasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/diarias/pagas" element={<ProtectedRoute><Diarias2PagasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/diarias/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
-          <Route path="/cobertura/diarias" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
-          <Route path="/hora-extra" element={<ProtectedRoute><HoraExtra /></ProtectedRoute>} />
-          <Route path="/hora-extra/dashboard" element={<ProtectedRoute><HoraExtraDashboardPage /></ProtectedRoute>} />
-          <Route path="/hora-extra/pendentes" element={<ProtectedRoute><HoraExtraPendentesPage /></ProtectedRoute>} />
-          <Route path="/hora-extra/confirmadas" element={<ProtectedRoute><HoraExtraConfirmadasPage /></ProtectedRoute>} />
-          <Route path="/hora-extra/aprovadas" element={<ProtectedRoute><HoraExtraAprovadasPage /></ProtectedRoute>} />
-          <Route path="/hora-extra/reprovadas" element={<ProtectedRoute><HoraExtraReprovadasPage /></ProtectedRoute>} />
-          <Route path="/hora-extra/canceladas" element={<ProtectedRoute><HoraExtraCanceladasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/hora-extra" element={<ProtectedRoute><HoraExtra /></ProtectedRoute>} />
-          <Route path="/cobertura/hora-extra/dashboard" element={<ProtectedRoute><HoraExtraDashboardPage /></ProtectedRoute>} />
-          <Route path="/cobertura/hora-extra/pendentes" element={<ProtectedRoute><HoraExtraPendentesPage /></ProtectedRoute>} />
-          <Route path="/cobertura/hora-extra/confirmadas" element={<ProtectedRoute><HoraExtraConfirmadasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/hora-extra/aprovadas" element={<ProtectedRoute><HoraExtraAprovadasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/hora-extra/reprovadas" element={<ProtectedRoute><HoraExtraReprovadasPage /></ProtectedRoute>} />
-          <Route path="/cobertura/hora-extra/canceladas" element={<ProtectedRoute><HoraExtraCanceladasPage /></ProtectedRoute>} />
-          <Route path="/faltas" element={<ProtectedRoute><Faltas /></ProtectedRoute>} />
-          <Route path="/controladoria" element={<ProtectedRoute><Controladoria /></ProtectedRoute>} />
-          <Route path="/inspecao" element={<ProtectedRoute><Inspecao /></ProtectedRoute>} />
-          <Route path="/checklists" element={<ProtectedRoute><Checklist /></ProtectedRoute>} />
-          <Route path="/checklist-itens" element={<ProtectedRoute><ChecklistItens /></ProtectedRoute>} />
-          <Route path="/checklist-execucoes" element={<ProtectedRoute><ChecklistExecucoes /></ProtectedRoute>} />
-          <Route path="/checklist-respostas" element={<ProtectedRoute><ChecklistRespostas /></ProtectedRoute>} />
-          <Route
-            path="/checklist-respostas-lista"
-            element={
-              <ProtectedRoute>
-                <ChecklistRespostasLista />
-              </ProtectedRoute>
-            }
-          />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/redefinir-senha" element={<ResetPassword />} />
+            <Route path="/recuperar-acesso/:token" element={<RecuperarAcesso />} />
+            <Route path="/admin/recuperacoes" element={<ProtectedRoute><RecuperacoesAdmin /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard-24h" element={<ProtectedRoute><Dashboard24h /></ProtectedRoute>} />
+            <Route path="/minha-conta" element={<ProtectedRoute><MinhaConta /></ProtectedRoute>} />
+            <Route path="/dados-empresariais" element={<ProtectedRoute><DadosEmpresariais /></ProtectedRoute>} />
+            <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+            <Route path="/candidatos" element={<CandidatoCadastro />} />
+            <Route path="/chamados" element={<ProtectedRoute><Chamados /></ProtectedRoute>} />
+            <Route path="/chamados/historico" element={<ProtectedRoute><ChamadosHistorico /></ProtectedRoute>} />
+            <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
+            <Route path="/mesa-operacoes" element={<ProtectedRoute><MesaOperacoes /></ProtectedRoute>} />
+            <Route path="/ordens-servico" element={<ProtectedRoute><OrdensServico /></ProtectedRoute>} />
+            <Route path="/colaboradores" element={<ProtectedRoute><Colaboradores /></ProtectedRoute>} />
+            <Route path="/centros-custo" element={<ProtectedRoute><CentrosCusto /></ProtectedRoute>} />
+            <Route path="/locais-centro-custo" element={<ProtectedRoute><LocaisCentroCusto /></ProtectedRoute>} />
+            <Route path="/postos-servico" element={<ProtectedRoute><PostosServico /></ProtectedRoute>} />
+            <Route path="/escalas" element={<ProtectedRoute><Escalas /></ProtectedRoute>} />
+            <Route path="/ativos" element={<ProtectedRoute><Ativos /></ProtectedRoute>} />
+            <Route path="/estoque" element={<ProtectedRoute><Estoque /></ProtectedRoute>} />
+            <Route path="/diaristas" element={<ProtectedRoute><Diaristas /></ProtectedRoute>} />
+            <Route path="/diaristas-restritos" element={<ProtectedRoute><DiaristasRestritos /></ProtectedRoute>} />
+            <Route path="/diaristas/logs" element={<ProtectedRoute><DiaristasLogs /></ProtectedRoute>} />
+            <Route path="/diarias/aguardando" element={<ProtectedRoute><DiariasAguardandoPage /></ProtectedRoute>} />
+            <Route path="/diarias/confirmadas" element={<ProtectedRoute><DiariasConfirmadasPage /></ProtectedRoute>} />
+            <Route path="/diarias/aprovadas" element={<ProtectedRoute><DiariasAprovadasPage /></ProtectedRoute>} />
+            <Route path="/diarias/lancadas" element={<ProtectedRoute><DiariasLancadasPage /></ProtectedRoute>} />
+            <Route path="/diarias/reprovadas" element={<ProtectedRoute><DiariasReprovadasPage /></ProtectedRoute>} />
+            <Route path="/diarias/pagas" element={<ProtectedRoute><DiariasPagasPage /></ProtectedRoute>} />
+            <Route path="/diarias/canceladas" element={<ProtectedRoute><DiariasCanceladasPage /></ProtectedRoute>} />
+            <Route path="/diarias" element={<ProtectedRoute><Diarias /></ProtectedRoute>} />
+            <Route path="/diarias2/aguardando" element={<ProtectedRoute><Diarias2AguardandoPage /></ProtectedRoute>} />
+            <Route path="/diarias2/confirmadas" element={<ProtectedRoute><Diarias2ConfirmadasPage /></ProtectedRoute>} />
+            <Route path="/diarias2/aprovadas" element={<ProtectedRoute><Diarias2AprovadasPage /></ProtectedRoute>} />
+            <Route path="/diarias2/lancadas" element={<ProtectedRoute><Diarias2LancadasPage /></ProtectedRoute>} />
+            <Route path="/diarias2/reprovadas" element={<ProtectedRoute><Diarias2ReprovadasPage /></ProtectedRoute>} />
+            <Route path="/diarias2/canceladas" element={<ProtectedRoute><Diarias2CanceladasPage /></ProtectedRoute>} />
+            <Route path="/diarias2/pagas" element={<ProtectedRoute><Diarias2PagasPage /></ProtectedRoute>} />
+            <Route path="/diarias2/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
+            <Route path="/diarias2" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
+            <Route path="/cobertura/diarias/aguardando" element={<ProtectedRoute><Diarias2AguardandoPage /></ProtectedRoute>} />
+            <Route path="/cobertura/diarias/confirmadas" element={<ProtectedRoute><Diarias2ConfirmadasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/diarias/aprovadas" element={<ProtectedRoute><Diarias2AprovadasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/diarias/lancadas" element={<ProtectedRoute><Diarias2LancadasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/diarias/reprovadas" element={<ProtectedRoute><Diarias2ReprovadasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/diarias/canceladas" element={<ProtectedRoute><Diarias2CanceladasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/diarias/pagas" element={<ProtectedRoute><Diarias2PagasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/diarias/logs" element={<ProtectedRoute><DiariasTemporariasLogsPage /></ProtectedRoute>} />
+            <Route path="/cobertura/diarias" element={<ProtectedRoute><Diarias2 /></ProtectedRoute>} />
+            <Route path="/hora-extra" element={<ProtectedRoute><HoraExtra /></ProtectedRoute>} />
+            <Route path="/hora-extra/dashboard" element={<ProtectedRoute><HoraExtraDashboardPage /></ProtectedRoute>} />
+            <Route path="/hora-extra/pendentes" element={<ProtectedRoute><HoraExtraPendentesPage /></ProtectedRoute>} />
+            <Route path="/hora-extra/confirmadas" element={<ProtectedRoute><HoraExtraConfirmadasPage /></ProtectedRoute>} />
+            <Route path="/hora-extra/aprovadas" element={<ProtectedRoute><HoraExtraAprovadasPage /></ProtectedRoute>} />
+            <Route path="/hora-extra/reprovadas" element={<ProtectedRoute><HoraExtraReprovadasPage /></ProtectedRoute>} />
+            <Route path="/hora-extra/canceladas" element={<ProtectedRoute><HoraExtraCanceladasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/hora-extra" element={<ProtectedRoute><HoraExtra /></ProtectedRoute>} />
+            <Route path="/cobertura/hora-extra/dashboard" element={<ProtectedRoute><HoraExtraDashboardPage /></ProtectedRoute>} />
+            <Route path="/cobertura/hora-extra/pendentes" element={<ProtectedRoute><HoraExtraPendentesPage /></ProtectedRoute>} />
+            <Route path="/cobertura/hora-extra/confirmadas" element={<ProtectedRoute><HoraExtraConfirmadasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/hora-extra/aprovadas" element={<ProtectedRoute><HoraExtraAprovadasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/hora-extra/reprovadas" element={<ProtectedRoute><HoraExtraReprovadasPage /></ProtectedRoute>} />
+            <Route path="/cobertura/hora-extra/canceladas" element={<ProtectedRoute><HoraExtraCanceladasPage /></ProtectedRoute>} />
+            <Route path="/faltas" element={<ProtectedRoute><Faltas /></ProtectedRoute>} />
+            <Route path="/controladoria" element={<ProtectedRoute><Controladoria /></ProtectedRoute>} />
+            <Route path="/inspecao" element={<ProtectedRoute><Inspecao /></ProtectedRoute>} />
+            <Route path="/checklists" element={<ProtectedRoute><Checklist /></ProtectedRoute>} />
+            <Route path="/checklist-itens" element={<ProtectedRoute><ChecklistItens /></ProtectedRoute>} />
+            <Route path="/checklist-execucoes" element={<ProtectedRoute><ChecklistExecucoes /></ProtectedRoute>} />
+            <Route path="/checklist-respostas" element={<ProtectedRoute><ChecklistRespostas /></ProtectedRoute>} />
+            <Route
+              path="/checklist-respostas-lista"
+              element={
+                <ProtectedRoute>
+                  <ChecklistRespostasLista />
+                </ProtectedRoute>
+              }
+            />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

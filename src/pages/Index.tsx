@@ -1,32 +1,18 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, CheckCircle2, Users, Shield, BarChart3, FileText, Activity } from "lucide-react";
+import { useSession } from "@/hooks/useSession";
 
 const Index = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const { session, loading } = useSession();
 
   useEffect(() => {
-    // Check if user is already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/dashboard");
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        navigate("/dashboard");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+    if (!loading && session) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [loading, navigate, session]);
 
   if (loading) {
     return null; // or a loading spinner

@@ -6,6 +6,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -37,12 +38,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Search, Shield, UserCog, Trash2 } from "lucide-react";
+import { requiresInternalCostCenterScope } from "@/lib/internalAccess";
 
 type UserType = Database["public"]["Enums"]["user_type"];
 type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
 type ProfileRow = Database["public"]["Tables"]["usuarios"]["Row"];
 type ColaboradorProfileRow = Database["public"]["Tables"]["colaborador_profiles"]["Row"];
 type CostCenterRow = Database["public"]["Tables"]["cost_center"]["Row"];
+type InternalProfileCostCenterRow =
+  Database["public"]["Tables"]["internal_profile_cost_centers"]["Row"];
 
 interface UserWithRole extends ProfileRow {
   role: UserType;
@@ -51,6 +55,8 @@ interface UserWithRole extends ProfileRow {
   cpf?: string | null;
   colaboradorProfile?: Pick<ColaboradorProfileRow, "cost_center_id" | "ativo" | "observacoes"> | null;
   colaborador_cost_center_name?: string | null;
+  internalCostCenters: Pick<InternalProfileCostCenterRow, "cost_center_id">[];
+  internal_cost_center_names: string[];
 }
 
 type ColaboradorDraft = {
@@ -64,6 +70,8 @@ const EMPTY_COLABORADOR_DRAFT: ColaboradorDraft = {
   ativo: true,
   observacoes: "",
 };
+
+const EMPTY_INTERNAL_COST_CENTER_IDS: string[] = [];
 
 const userTypeOptions: UserType[] = ["candidato", "colaborador", "perfil_interno"];
 const userTypeLabels: Record<UserType, string> = {
@@ -120,6 +128,9 @@ const getAccessBadgeColor = (level: AccessLevel) => {
   return colors[level] || "bg-gray-500";
 };
 
+const toggleValue = (values: string[], value: string) =>
+  values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+
 const UserManagement = () => {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [costCenters, setCostCenters] = useState<CostCenterRow[]>([]);
@@ -136,6 +147,12 @@ const UserManagement = () => {
   const [selectedColaboradorUser, setSelectedColaboradorUser] = useState<UserWithRole | null>(null);
   const [colaboradorDraft, setColaboradorDraft] = useState<ColaboradorDraft>(EMPTY_COLABORADOR_DRAFT);
   const [savingColaboradorRole, setSavingColaboradorRole] = useState(false);
+  const [internalScopeDialogOpen, setInternalScopeDialogOpen] = useState(false);
+  const [selectedInternalScopeUser, setSelectedInternalScopeUser] = useState<UserWithRole | null>(null);
+  const [selectedInternalCostCenterIds, setSelectedInternalCostCenterIds] = useState<string[]>(
+    EMPTY_INTERNAL_COST_CENTER_IDS
+  );
+  const [savingInternalScope, setSavingInternalScope] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -209,6 +226,9 @@ const UserManagement = () => {
             nivel_acesso,
             cpf
           ),
+          internal_profile_cost_centers!internal_profile_cost_centers_user_id_fkey (
+            cost_center_id
+          ),
           colaborador_profiles!colaborador_profiles_user_id_fkey (
             cost_center_id,
             ativo,
@@ -232,6 +252,11 @@ const UserManagement = () => {
           const colaboradorProfile = Array.isArray(user.colaborador_profiles)
             ? user.colaborador_profiles[0] ?? null
             : user.colaborador_profiles ?? null;
+          const internalCostCenters = Array.isArray(user.internal_profile_cost_centers)
+            ? user.internal_profile_cost_centers
+            : user.internal_profile_cost_centers
+              ? [user.internal_profile_cost_centers]
+              : [];
 
           return {
             id: user.id,
@@ -248,6 +273,12 @@ const UserManagement = () => {
             colaboradorProfile,
             colaborador_cost_center_name:
               centers.find((center) => center.id === colaboradorProfile?.cost_center_id)?.name ?? null,
+            internalCostCenters,
+            internal_cost_center_names: internalCostCenters
+              .map((link: Pick<InternalProfileCostCenterRow, "cost_center_id">) =>
+                centers.find((center) => center.id === link.cost_center_id)?.name ?? null
+              )
+              .filter((name: string | null): name is string => !!name),
           };
         }) || [];
 
@@ -285,6 +316,99 @@ const UserManagement = () => {
     setFilteredUsers(filtered);
   };
 
+  const clearInternalCostCenterScope = async (userId: string) => {
+    const { error } = await supabase
+      .from("internal_profile_cost_centers")
+      .delete()
+      .eq("user_id", userId);
+
+    if (error) throw error;
+  };
+
+  const handleOpenInternalScopeDialog = (user: UserWithRole) => {
+    if (user.role !== "perfil_interno") return;
+    if (!requiresInternalCostCenterScope(user.accessLevel)) {
+      toast({
+        title: "Escopo não aplicável",
+        description: "Somente perfis internos operacionais usam vínculo por centro de custo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedInternalScopeUser(user);
+    setSelectedInternalCostCenterIds(user.internalCostCenters.map((link) => link.cost_center_id));
+    setInternalScopeDialogOpen(true);
+  };
+
+  const handleSaveInternalScope = async () => {
+    if (!selectedInternalScopeUser || !adminUserId) return;
+
+    if (
+      requiresInternalCostCenterScope(selectedInternalScopeUser.accessLevel) &&
+      selectedInternalCostCenterIds.length === 0
+    ) {
+      toast({
+        title: "Selecione ao menos um centro de custo",
+        description: "Perfis internos operacionais precisam de ao menos um vínculo ativo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingInternalScope(true);
+    try {
+      const currentIds = new Set(
+        selectedInternalScopeUser.internalCostCenters.map((link) => link.cost_center_id)
+      );
+      const nextIds = new Set(selectedInternalCostCenterIds);
+      const idsToDelete = [...currentIds].filter((id) => !nextIds.has(id));
+      const rowsToInsert = [...nextIds]
+        .filter((id) => !currentIds.has(id))
+        .map((costCenterId) => ({
+          user_id: selectedInternalScopeUser.id,
+          cost_center_id: costCenterId,
+          created_by: adminUserId,
+        }));
+
+      if (idsToDelete.length > 0) {
+        const { error } = await supabase
+          .from("internal_profile_cost_centers")
+          .delete()
+          .eq("user_id", selectedInternalScopeUser.id)
+          .in("cost_center_id", idsToDelete);
+
+        if (error) throw error;
+      }
+
+      if (rowsToInsert.length > 0) {
+        const { error } = await supabase
+          .from("internal_profile_cost_centers")
+          .insert(rowsToInsert);
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Escopo atualizado",
+        description: "Os vínculos de centro de custo foram salvos com sucesso.",
+      });
+
+      setInternalScopeDialogOpen(false);
+      setSelectedInternalScopeUser(null);
+      setSelectedInternalCostCenterIds(EMPTY_INTERNAL_COST_CENTER_IDS);
+      await loadUsers();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar escopo",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingInternalScope(false);
+    }
+  };
+
   const handleRoleChange = async (userId: string, newRole: UserType) => {
     const current = users.find((u) => u.id === userId);
     if (!current || current.role === newRole) return;
@@ -314,6 +438,7 @@ const UserManagement = () => {
       if (error) throw error;
 
       if (newRole !== "perfil_interno") {
+        await clearInternalCostCenterScope(userId);
         const { error: deleteInternalError } = await supabase
           .from("internal_profiles")
           .delete()
@@ -382,6 +507,8 @@ const UserManagement = () => {
         .eq("user_id", selectedColaboradorUser.id);
       if (clearInternalProfileError) throw clearInternalProfileError;
 
+      await clearInternalCostCenterScope(selectedColaboradorUser.id);
+
       const { error: clearSuperiorError } = await supabase
         .from("usuarios")
         .update({ superior: null })
@@ -423,8 +550,25 @@ const UserManagement = () => {
         .upsert({ user_id: userId, nivel_acesso: newLevel }, { onConflict: "user_id" });
       if (error) throw error;
 
+      if (!requiresInternalCostCenterScope(newLevel)) {
+        await clearInternalCostCenterScope(userId);
+      }
+
       setUsers((prev) =>
-        prev.map((user) => (user.id === userId ? { ...user, accessLevel: newLevel } : user)),
+        prev.map((user) =>
+          user.id === userId
+            ? {
+                ...user,
+                accessLevel: newLevel,
+                internalCostCenters: requiresInternalCostCenterScope(newLevel)
+                  ? user.internalCostCenters
+                  : [],
+                internal_cost_center_names: requiresInternalCostCenterScope(newLevel)
+                  ? user.internal_cost_center_names
+                  : [],
+              }
+            : user
+        ),
       );
       toast({
         title: "Nivel de acesso atualizado",
@@ -648,33 +792,83 @@ const UserManagement = () => {
                   </div>
 
                   {user.role === "perfil_interno" && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Nivel de acesso interno</label>
-                      <Select
-                        value={user.accessLevel || ""}
-                        onValueChange={(value) => handleAccessLevelChange(user.id, value as AccessLevel)}
-                        disabled={updatingAccessId === user.id}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o nivel" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {accessLevelOptions.map((value) => (
-                            <SelectItem key={value} value={value}>
-                              <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${getAccessBadgeColor(value)}`} />
-                                {accessLevelLabels[value]}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {user.accessLevel && (
-                        <Badge className={`${getAccessBadgeColor(user.accessLevel)} text-white`}>
-                          {accessLevelLabels[user.accessLevel]}
-                        </Badge>
-                      )}
-                    </div>
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Nivel de acesso interno</label>
+                        <Select
+                          value={user.accessLevel || ""}
+                          onValueChange={(value) => handleAccessLevelChange(user.id, value as AccessLevel)}
+                          disabled={updatingAccessId === user.id}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o nivel" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {accessLevelOptions.map((value) => (
+                              <SelectItem key={value} value={value}>
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-2 h-2 rounded-full ${getAccessBadgeColor(value)}`} />
+                                  {accessLevelLabels[value]}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {user.accessLevel && (
+                          <Badge className={`${getAccessBadgeColor(user.accessLevel)} text-white`}>
+                            {accessLevelLabels[user.accessLevel]}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="space-y-3 rounded-md border p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <label className="text-sm font-medium">Escopo por centro de custo</label>
+                            <p className="text-xs text-muted-foreground">
+                              Admin tem acesso total. Perfis operacionais precisam de vÃ­nculos explÃ­citos.
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenInternalScopeDialog(user)}
+                            disabled={!requiresInternalCostCenterScope(user.accessLevel) || savingInternalScope}
+                          >
+                            Gerenciar
+                          </Button>
+                        </div>
+
+                        {requiresInternalCostCenterScope(user.accessLevel) ? (
+                          user.internal_cost_center_names.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {user.internal_cost_center_names.map((centerName) => (
+                                <Badge key={`${user.id}-${centerName}`} variant="secondary">
+                                  {centerName}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-amber-700">
+                              Nenhum centro de custo vinculado para este perfil operacional.
+                            </p>
+                          )
+                        ) : user.accessLevel === "admin" ? (
+                          <p className="text-xs text-muted-foreground">
+                            Administradores nÃ£o dependem de vÃ­nculo por centro de custo.
+                          </p>
+                        ) : user.accessLevel === "cliente_view" ? (
+                          <p className="text-xs text-muted-foreground">
+                            Cliente view nÃ£o utiliza escopo operacional por centro de custo.
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Defina primeiro o nÃ­vel de acesso interno para configurar o escopo.
+                          </p>
+                        )}
+                      </div>
+                    </>
                   )}
 
                   {user.role === "colaborador" && (
@@ -822,6 +1016,75 @@ const UserManagement = () => {
               </Button>
               <Button onClick={handleConfirmColaboradorRole} disabled={savingColaboradorRole}>
                 {savingColaboradorRole ? "Salvando..." : "Confirmar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={internalScopeDialogOpen}
+          onOpenChange={(open) => {
+            setInternalScopeDialogOpen(open);
+            if (!open) {
+              setSelectedInternalScopeUser(null);
+              setSelectedInternalCostCenterIds(EMPTY_INTERNAL_COST_CENTER_IDS);
+            }
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Vincular centros de custo</DialogTitle>
+              <DialogDescription>
+                Defina os centros de custo disponÃ­veis para o perfil interno operacional selecionado.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">UsuÃ¡rio</label>
+                <Input
+                  value={selectedInternalScopeUser?.full_name || selectedInternalScopeUser?.email || ""}
+                  disabled
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Centros de custo vinculados</label>
+                <div className="max-h-80 space-y-2 overflow-auto rounded-md border p-3">
+                  {costCenters.length > 0 ? (
+                    costCenters.map((center) => {
+                      const checked = selectedInternalCostCenterIds.includes(center.id);
+
+                      return (
+                        <label
+                          key={center.id}
+                          className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() =>
+                              setSelectedInternalCostCenterIds((prev) => toggleValue(prev, center.id))
+                            }
+                          />
+                          <span>{center.name}</span>
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum centro de custo cadastrado.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setInternalScopeDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveInternalScope} disabled={savingInternalScope}>
+                {savingInternalScope ? "Salvando..." : "Salvar vínculos"}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -1,4 +1,5 @@
 import type { Database, Tables } from "@/integrations/supabase/types";
+import { canOperateInternalModules } from "@/lib/internalAccess";
 
 export type ChamadoStatus = Database["public"]["Enums"]["chamado_status"];
 export type ChamadoPrioridade = Database["public"]["Enums"]["chamado_prioridade"];
@@ -68,6 +69,26 @@ export function formatChamadoPrioridade(prioridade?: ChamadoPrioridade | null) {
 export function formatChamadoNumero(numero?: number | null) {
   if (typeof numero !== "number") return "-";
   return `#${String(numero).padStart(6, "0")}`;
+}
+
+export function normalizeChamadoNumeroFilter(value?: string | number | null) {
+  if (value === null || value === undefined) return "";
+
+  const digits = String(value).replace(/\D/g, "");
+  if (!digits) return "";
+
+  return digits.replace(/^0+(?=\d)/, "");
+}
+
+export function matchesChamadoNumeroFilter(
+  numero?: number | null,
+  filterValue?: string | number | null
+) {
+  const normalizedFilter = normalizeChamadoNumeroFilter(filterValue);
+  if (!normalizedFilter) return true;
+  if (typeof numero !== "number") return false;
+
+  return normalizeChamadoNumeroFilter(numero) === normalizedFilter;
 }
 
 export function formatDateTime(value?: string | null) {
@@ -146,11 +167,11 @@ export function getChamadoPrioridadeClass(prioridade?: ChamadoPrioridade | null)
 }
 
 export function canManageChamadoByAccess(accessLevel?: AccessLevel | null) {
-  return !!accessLevel && accessLevel !== "cliente_view";
+  return canOperateInternalModules(accessLevel);
 }
 
 export function canManageLocaisByAccess(accessLevel?: AccessLevel | null) {
-  return accessLevel === "admin" || accessLevel === "supervisor";
+  return canOperateInternalModules(accessLevel);
 }
 
 export function canManageCategoriasByAccess(accessLevel?: AccessLevel | null) {

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Database, Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
+import { canOperateInternalModules } from "@/lib/internalAccess";
 
 export type AccessLevel = Database["public"]["Enums"]["internal_access_level"] | null;
 export type UserRole = Database["public"]["Enums"]["user_type"] | null;
@@ -83,13 +84,14 @@ export function useAccessContext() {
       const isInternal = role === "perfil_interno";
       const isColaborador = role === "colaborador";
       const isAdmin = accessLevel === "admin";
+      const canOperateInternally = isInternal && canOperateInternalModules(accessLevel);
       const colaboradorCostCenterId = colaboradorProfile?.ativo ? colaboradorProfile.cost_center_id : null;
-      const canReadChamados = isInternal || isColaborador;
-      const canCreateChamados = isColaborador ? !!colaboradorCostCenterId : accessLevel !== null;
-      const canManageChamados = accessLevel !== null && accessLevel !== "cliente_view";
-      const canDeleteChamados = isAdmin;
+      const canReadChamados = canOperateInternally || isColaborador;
+      const canCreateChamados = isColaborador ? !!colaboradorCostCenterId : canOperateInternally;
+      const canManageChamados = canOperateInternally;
+      const canDeleteChamados = canOperateInternally;
       const canManageCategorias = isAdmin;
-      const canManageLocais = accessLevel === "admin" || accessLevel === "supervisor";
+      const canManageLocais = canOperateInternally;
 
       return {
         userId,

@@ -17,6 +17,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import type { AccessLevel, UserRole } from "@/hooks/useAccessContext";
 import type { ChamadoLocalOption } from "@/components/chamados/ChamadoForm";
+import { canOperateInternalModules } from "@/lib/internalAccess";
 import {
   formatChamadoNumero,
   formatChamadoPrioridade,
@@ -75,6 +76,7 @@ type CategoriaResumo = {
 type ChamadoDetalhado = ChamadoRow & {
   categoria?: CategoriaResumo | null;
   solicitante?: UsuarioResumo | null;
+  responsavel?: UsuarioResumo | null;
   resolvido_por_usuario?: UsuarioResumo | null;
 };
 
@@ -88,6 +90,12 @@ type ChamadoAnexoDetalhado = ChamadoAnexoRow & {
 
 type ChamadoHistoricoDetalhado = ChamadoHistoricoRow & {
   usuario?: UsuarioResumo | null;
+};
+
+type UsuarioHistoricoLookup = {
+  id: string;
+  full_name: string | null;
+  cargo?: string | null;
 };
 
 type ChamadoResponsavelOption = {
@@ -182,11 +190,132 @@ function formatHistoricoCampoValor(
   return valor;
 }
 
+function formatHistoricoValorGenerico(
+  campo: string,
+  valor: unknown,
+  responsavelNames: Map<string, string>,
+  localNames: Map<string, string>
+) {
+  if (valor === null || valor === undefined || valor === "") return "-";
+
+  if (typeof valor === "string") {
+    return formatHistoricoCampoValor(campo, valor, responsavelNames, localNames);
+  }
+
+  if (typeof valor === "number" || typeof valor === "boolean") {
+    return String(valor);
+  }
+
+  try {
+    return JSON.stringify(valor);
+  } catch {
+    return String(valor);
+  }
+}
+
+function formatHistoricoJson(json?: unknown) {
+  if (!json) return "";
+
+  try {
+    return JSON.stringify(json, null, 2);
+  } catch {
+    return String(json);
+  }
+}
+
+function getHistoricoDiffValues(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  if ("old" in record || "new" in record) {
+    return {
+      previous: record.old ?? null,
+      next: record.new ?? null,
+    };
+  }
+
+  if ("before" in record || "after" in record) {
+    return {
+      previous: record.before ?? null,
+      next: record.after ?? null,
+    };
+  }
+
+  if ("valor_anterior" in record || "valor_novo" in record) {
+    return {
+      previous: record.valor_anterior ?? null,
+      next: record.valor_novo ?? null,
+    };
+  }
+
+  if ("anterior" in record || "novo" in record) {
+    return {
+      previous: record.anterior ?? null,
+      next: record.novo ?? null,
+    };
+  }
+
+  return null;
+}
+
+function renderHistoricoAlteracoes(
+  alteracoes: Record<string, unknown>,
+  responsavelNames: Map<string, string>,
+  localNames: Map<string, string>
+) {
+  const entries = Object.entries(alteracoes).filter(([campo]) => campo !== "updated_at");
+
+  if (!entries.length) return null;
+
+  return (
+    <div className="space-y-2 text-sm">
+      {entries.map(([campo, valor]) => {
+        const diff = getHistoricoDiffValues(valor);
+
+        if (diff) {
+          return (
+            <div key={campo} className="space-y-1 rounded-md border p-3">
+              <div>
+                <span className="font-medium">Campo:</span> {formatHistoricoCampoLabel(campo)}
+              </div>
+              <div>
+                <span className="font-medium">De:</span>{" "}
+                {formatHistoricoValorGenerico(campo, diff.previous, responsavelNames, localNames)}
+              </div>
+              <div>
+                <span className="font-medium">Para:</span>{" "}
+                {formatHistoricoValorGenerico(campo, diff.next, responsavelNames, localNames)}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={campo} className="space-y-1 rounded-md border p-3">
+            <div>
+              <span className="font-medium">Campo:</span> {formatHistoricoCampoLabel(campo)}
+            </div>
+            <div>
+              <span className="font-medium">Valor:</span>{" "}
+              {formatHistoricoValorGenerico(campo, valor, responsavelNames, localNames)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function renderHistoricoDetalhe(
   item: ChamadoHistoricoDetalhado,
   responsavelNames: Map<string, string>,
   localNames: Map<string, string>
 ) {
+  const alteracoes = (item.alteracoes as Record<string, unknown> | null) ?? null;
+
   if (item.operacao === "update" && item.campo_alterado) {
     const valorAnterior = formatHistoricoCampoValor(
       item.campo_alterado,
@@ -212,47 +341,83 @@ function renderHistoricoDetalhe(
         <div>
           <span className="font-medium">Para:</span> {valorNovo}
         </div>
+        {alteracoes && Object.keys(alteracoes).length > 0 ? (
+          <details className="rounded-md border p-3">
+            <summary className="cursor-pointer font-medium">Ver alteracoes completas</summary>
+            <div className="mt-3">
+              {renderHistoricoAlteracoes(alteracoes, responsavelNames, localNames)}
+            </div>
+          </details>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (item.operacao === "update" && alteracoes && Object.keys(alteracoes).length > 0) {
+    return (
+      <div className="space-y-3">
+        <div className="text-sm font-medium">Alteracoes registradas</div>
+        {renderHistoricoAlteracoes(alteracoes, responsavelNames, localNames)}
       </div>
     );
   }
 
   if (item.operacao === "comentario") {
-    const alteracoes = (item.alteracoes as Record<string, unknown> | null) ?? {};
+    const comentarioAlteracoes = alteracoes ?? {};
     return (
       <div className="space-y-1 text-sm">
         <div>
           <span className="font-medium">Tipo:</span> Interação
         </div>
         <div>
-          <span className="font-medium">Mensagem:</span> {String(alteracoes.mensagem || "-")}
+          <span className="font-medium">Mensagem:</span> {String(comentarioAlteracoes.mensagem || "-")}
         </div>
         <div>
-          <span className="font-medium">Interno:</span> {alteracoes.interno ? "Sim" : "Não"}
+          <span className="font-medium">Interno:</span> {comentarioAlteracoes.interno ? "Sim" : "Não"}
         </div>
       </div>
     );
   }
 
   if (item.operacao === "anexo") {
-    const alteracoes = (item.alteracoes as Record<string, unknown> | null) ?? {};
+    const anexoAlteracoes = alteracoes ?? {};
     return (
       <div className="space-y-1 text-sm">
         <div>
-          <span className="font-medium">Arquivo:</span> {String(alteracoes.nome_arquivo || "-")}
+          <span className="font-medium">Arquivo:</span> {String(anexoAlteracoes.nome_arquivo || "-")}
         </div>
         <div>
-          <span className="font-medium">Tipo:</span> {String(alteracoes.tipo_arquivo || "-")}
+          <span className="font-medium">Tipo:</span> {String(anexoAlteracoes.tipo_arquivo || "-")}
         </div>
         <div>
-          <span className="font-medium">Tamanho:</span> {String(alteracoes.tamanho_bytes || "-")}
+          <span className="font-medium">Tamanho:</span> {String(anexoAlteracoes.tamanho_bytes || "-")}
         </div>
       </div>
     );
   }
 
+  if (alteracoes && Object.keys(alteracoes).length > 0) {
+    return (
+      <div className="space-y-3">
+        {renderHistoricoAlteracoes(alteracoes, responsavelNames, localNames)}
+      </div>
+    );
+  }
+
+  if (item.registro_completo) {
+    return (
+      <details className="rounded-md border p-3 text-sm">
+        <summary className="cursor-pointer font-medium">Ver registro completo</summary>
+        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-xs">
+          {formatHistoricoJson(item.registro_completo)}
+        </pre>
+      </details>
+    );
+  }
+
   return (
     <div className="text-sm text-muted-foreground">
-      {item.registro_completo ? "Registro completo armazenado." : "Sem detalhes adicionais."}
+      Sem detalhes adicionais.
     </div>
   );
 }
@@ -292,6 +457,7 @@ export function ChamadoDetails({
   const [selectedResponsavelId, setSelectedResponsavelId] = useState("none");
 
   const canManageChamados = !!accessLevel && accessLevel !== "cliente_view";
+  const canReadBasicUsers = userRole === "perfil_interno" && canOperateInternalModules(accessLevel);
   const canManageStatus =
     userRole === "perfil_interno" && !!accessLevel && accessLevel !== "cliente_view";
   const canSelfManageResponsavel =
@@ -313,6 +479,7 @@ export function ChamadoDetails({
             *,
             categoria:chamado_categorias(id, nome, descricao, ativo),
             solicitante:usuarios!chamados_solicitante_id_fkey(id, full_name, email, role),
+            responsavel:usuarios!chamados_responsavel_id_fkey(id, full_name, email, role),
             resolvido_por_usuario:usuarios!chamados_resolvido_por_fkey(id, full_name, email, role)
           `
         )
@@ -401,9 +568,26 @@ export function ChamadoDetails({
   }, [historicoVisivel]);
 
   const responsavelHistoricoQuery = useQuery({
-    queryKey: ["chamado-historico-responsaveis", chamadoId, responsavelHistoricoIds.join(",")],
+    queryKey: [
+      "chamado-historico-responsaveis",
+      chamadoId,
+      responsavelHistoricoIds.join(","),
+      canReadBasicUsers ? "usuarios" : "usuarios_public",
+    ],
     enabled: open && responsavelHistoricoIds.length > 0,
     queryFn: async () => {
+      if (canReadBasicUsers) {
+        const { data, error } = await supabase
+          .from("usuarios")
+          .select("id, full_name")
+          .in("id", responsavelHistoricoIds);
+
+        if (error) throw error;
+        return ((data || []) as UsuarioHistoricoLookup[]).filter(
+          (user): user is UsuarioHistoricoLookup & { id: string } => !!user.id
+        );
+      }
+
       const { data, error } = await supabase
         .from("usuarios_public")
         .select("id, full_name, cargo")
@@ -432,6 +616,8 @@ export function ChamadoDetails({
   );
   const responsavelAtual = chamado?.responsavel_id ? responsavelMap.get(chamado.responsavel_id) : null;
   const responsavelDisplay =
+    chamado?.responsavel?.full_name ||
+    chamado?.responsavel?.email ||
     responsavelAtual?.full_name ||
     responsavelAtual?.cargo ||
     (chamado?.responsavel_id
@@ -467,13 +653,42 @@ export function ChamadoDetails({
     setSelectedResponsavelId(chamado?.responsavel_id ?? "none");
   }, [chamado?.responsavel_id]);
 
-  const invalidateChamado = async () => {
+  const mergeChamadoInCache = (updatedChamado: Partial<ChamadoDetalhado> & Pick<ChamadoRow, "id">) => {
+    queryClient.setQueryData(
+      ["chamado-details", updatedChamado.id],
+      (current: ChamadoDetalhado | undefined) =>
+        current
+          ? {
+              ...current,
+              ...updatedChamado,
+            }
+          : current
+    );
+
+    queryClient.setQueriesData(
+      { queryKey: ["chamados-module"] },
+      (current: ChamadoDetalhado[] | undefined) =>
+        Array.isArray(current)
+          ? current.map((item) =>
+              item.id === updatedChamado.id
+                ? {
+                    ...item,
+                    ...updatedChamado,
+                  }
+                : item
+            )
+          : current
+    );
+  };
+
+  const refreshChamadoQueries = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["chamados-module"] }),
-      queryClient.invalidateQueries({ queryKey: ["chamado-details", chamadoId] }),
-      queryClient.invalidateQueries({ queryKey: ["chamado-interacoes", chamadoId] }),
-      queryClient.invalidateQueries({ queryKey: ["chamado-anexos", chamadoId] }),
-      queryClient.invalidateQueries({ queryKey: ["chamado-historico", chamadoId] }),
+      queryClient.refetchQueries({ queryKey: ["chamados-module"], type: "active" }),
+      queryClient.invalidateQueries({ queryKey: ["chamados-historico-geral"] }),
+      chamadoQuery.refetch(),
+      interacoesQuery.refetch(),
+      anexosQuery.refetch(),
+      historicoQuery.refetch(),
     ]);
   };
 
@@ -499,7 +714,7 @@ export function ChamadoDetails({
 
       setMensagem("");
       setInterno(false);
-      await invalidateChamado();
+      await refreshChamadoQueries();
       toast.success("Interação registrada.");
     } catch (error: any) {
       console.error("Erro ao registrar interação:", error);
@@ -547,7 +762,7 @@ export function ChamadoDetails({
         if (insertError) throw insertError;
       }
 
-      await invalidateChamado();
+      await refreshChamadoQueries();
       toast.success("Anexo(s) enviado(s) com sucesso.");
     } catch (error: any) {
       console.error("Erro ao enviar anexo:", error);
@@ -589,7 +804,7 @@ export function ChamadoDetails({
         .eq("id", anexo.id);
       if (deleteError) throw deleteError;
 
-      await invalidateChamado();
+      await refreshChamadoQueries();
       toast.success("Anexo excluído.");
     } catch (error: any) {
       console.error("Erro ao excluir anexo:", error);
@@ -608,7 +823,7 @@ export function ChamadoDetails({
       const { error } = await supabase.from("chamado_interacoes").delete().eq("id", interacao.id);
       if (error) throw error;
 
-      await invalidateChamado();
+      await refreshChamadoQueries();
       toast.success("Interação excluída.");
     } catch (error: any) {
       console.error("Erro ao excluir interação:", error);
@@ -645,14 +860,28 @@ export function ChamadoDetails({
 
     setAssigningResponsavel(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("chamados")
         .update({ responsavel_id: responsavelId })
-        .eq("id", chamadoId);
+        .eq("id", chamadoId)
+        .select(
+          `
+            *,
+            categoria:chamado_categorias(id, nome, descricao, ativo),
+            solicitante:usuarios!chamados_solicitante_id_fkey(id, full_name, email, role),
+            responsavel:usuarios!chamados_responsavel_id_fkey(id, full_name, email, role),
+            resolvido_por_usuario:usuarios!chamados_resolvido_por_fkey(id, full_name, email, role)
+          `
+        )
+        .single();
 
       if (error) throw error;
 
-      await invalidateChamado();
+      if (data) {
+        mergeChamadoInCache(data as ChamadoDetalhado);
+      }
+
+      await refreshChamadoQueries();
       toast.success(successMessage);
     } catch (error: any) {
       console.error("Erro ao atualizar responsável:", error);
@@ -697,7 +926,7 @@ export function ChamadoDetails({
 
     setUpdatingStatus(nextStatus);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("chamados")
         .update({
           status: nextStatus,
@@ -705,11 +934,25 @@ export function ChamadoDetails({
           resolvido_por: resolvidoPor,
           data_fechamento: dataFechamento,
         })
-        .eq("id", chamadoId);
+        .eq("id", chamadoId)
+        .select(
+          `
+            *,
+            categoria:chamado_categorias(id, nome, descricao, ativo),
+            solicitante:usuarios!chamados_solicitante_id_fkey(id, full_name, email, role),
+            responsavel:usuarios!chamados_responsavel_id_fkey(id, full_name, email, role),
+            resolvido_por_usuario:usuarios!chamados_resolvido_por_fkey(id, full_name, email, role)
+          `
+        )
+        .single();
 
       if (error) throw error;
 
-      await invalidateChamado();
+      if (data) {
+        mergeChamadoInCache(data as ChamadoDetalhado);
+      }
+
+      await refreshChamadoQueries();
       toast.success(`Status alterado para ${formatChamadoStatus(nextStatus)}.`);
     } catch (error: any) {
       console.error("Erro ao atualizar status do chamado:", error);
