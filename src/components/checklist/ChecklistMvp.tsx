@@ -325,7 +325,7 @@ export function KanbanCard({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-2xl border bg-card p-3 shadow-sm", className)}>
+    <div className={cn("w-full rounded-2xl border bg-card p-4 shadow-sm", className)}>
       <div className="space-y-1">
         <p className="font-medium leading-tight">{title}</p>
         {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}

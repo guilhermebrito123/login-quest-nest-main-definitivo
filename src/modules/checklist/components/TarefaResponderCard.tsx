@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 
 type TarefaResponderCardProps = {
+  canManageInstance: boolean;
   currentUserId: string | null;
   currentUserRole: UserRole;
   instanceEditable: boolean;
@@ -197,6 +198,7 @@ function TaskAnswerField({
 }
 
 export function TarefaResponderCard({
+  canManageInstance,
   currentUserId,
   currentUserRole,
   instanceEditable,
@@ -229,6 +231,10 @@ export function TarefaResponderCard({
     !!activeResponsibility &&
     currentUserIsResponsible &&
     !hasExistingResponse;
+  const canUploadAttachments =
+    instanceEditable &&
+    !!response?.id &&
+    (currentUserIsResponsible || canManageInstance);
 
   const [value, setValue] = useState<ChecklistResponseInputValue>(
     getChecklistResponseValue(task.tipo_resposta_snapshot, response),
@@ -252,6 +258,15 @@ export function TarefaResponderCard({
           : currentUserIsResponsible
             ? "Você é o responsável ativo por esta tarefa."
             : "Você não é o responsável ativo por esta tarefa.";
+  const attachmentPermissionHint = !instanceEditable
+    ? "A instância não está mais editável."
+    : !response?.id
+      ? "Primeiro registre a resposta da tarefa para vincular os anexos."
+      : canManageInstance
+        ? "Você pode gerenciar os anexos desta tarefa."
+        : currentUserIsResponsible
+          ? "Você é o responsável ativo por esta tarefa."
+          : "Somente o responsável ativo ou um gestor autorizado pode anexar arquivos nesta tarefa.";
 
   async function handleSubmit() {
     if (!activeResponsibility) {
@@ -416,10 +431,10 @@ export function TarefaResponderCard({
         {task.permite_anexo ? (
           <AnexosResposta
             anexos={attachments}
-            canDeleteAsManager={false}
-            canUpload={canRespond}
+            canDeleteAsManager={canManageInstance}
+            canUpload={canUploadAttachments}
             currentUserId={currentUserId}
-            disabledReason={permissionHint}
+            disabledReason={attachmentPermissionHint}
             instanciaId={task.checklist_instancia_id}
             resposta={response}
             tarefaId={task.id}

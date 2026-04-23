@@ -75,7 +75,6 @@ type PostarAtualizacaoInput = {
   statusAnterior: ActionPlanStatus | null;
   statusNovo?: ActionPlanStatus | null;
   comentario?: string;
-  progressoPercentual?: number | null;
 };
 
 type AtribuirResponsavelInput = {
@@ -145,7 +144,6 @@ const PLANO_ACAO_DETAIL_SELECT = `
     status_anterior,
     status_novo,
     comentario,
-    progresso_percentual,
     created_at,
     autor:usuarios!plano_acao_atualizacoes_autor_user_id_fkey (
       id,
@@ -380,17 +378,14 @@ export function usePostarAtualizacao() {
       statusAnterior,
       statusNovo,
       comentario,
-      progressoPercentual,
     }: PostarAtualizacaoInput) => {
       const userId = requireUserId(session?.user?.id);
       const trimmedComment = comentario?.trim() ?? "";
       const hasComment = trimmedComment.length > 0;
       const hasStatus = typeof statusNovo === "string" && statusNovo.length > 0;
-      const hasProgress =
-        typeof progressoPercentual === "number" && !Number.isNaN(progressoPercentual);
 
-      if (!hasComment && !hasStatus && !hasProgress) {
-        throw new Error("Informe comentário, novo status ou progresso.");
+      if (!hasComment && !hasStatus) {
+        throw new Error("Informe comentário ou novo status.");
       }
 
       if (hasStatus) {
@@ -416,7 +411,6 @@ export function usePostarAtualizacao() {
         status_anterior: statusAnterior,
         status_novo: hasStatus ? statusNovo ?? null : null,
         comentario: hasComment ? trimmedComment : null,
-        progresso_percentual: hasProgress ? progressoPercentual ?? null : null,
       });
 
       if (error) {

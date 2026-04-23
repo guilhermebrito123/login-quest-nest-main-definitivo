@@ -1401,7 +1401,6 @@ export const checklistActionPlansService = {
               status_anterior,
               status_novo,
               comentario,
-              progresso_percentual,
               created_at,
               autor:usuarios!plano_acao_atualizacoes_autor_user_id_fkey (
                 id,
@@ -1461,7 +1460,6 @@ export const checklistActionPlansService = {
     status_anterior: ActionPlanStatus | null;
     status_novo: ActionPlanStatus | null;
     comentario: string | null;
-    progresso_percentual: number | null;
   }) {
     try {
       return unwrap(await supabase.from("plano_acao_atualizacoes").insert(payload));

@@ -90,6 +90,9 @@ export default function ChecklistKanbanPage() {
       costCenterId: card.task?.instance?.cost_center_id,
     });
 
+  const formatDueLabel = (prazoEm?: string | null) =>
+    prazoEm ? `Prazo: ${new Date(prazoEm).toLocaleString("pt-BR")}` : undefined;
+
   async function changeStatus(cardId: string, nextStatus: ChecklistTaskKanbanStatus) {
     const card = scopedCards.find((item) => item.id === cardId);
     if (!card || !card.task?.id || !supervisorContext.userId) return;
@@ -202,11 +205,11 @@ export default function ChecklistKanbanPage() {
         />
       ) : (
         <>
-          <div className="hidden gap-4 xl:grid xl:grid-cols-6">
+          <div className="hidden gap-4 overflow-x-auto pb-2 xl:flex">
             {kanbanBoardOrder.map((status) => (
               <Card
                 key={status}
-                className="min-h-[240px]"
+                className="min-h-[240px] w-[360px] min-w-[360px] shrink-0"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
@@ -235,7 +238,7 @@ export default function ChecklistKanbanPage() {
                       return (
                         <div
                           key={card.id}
-                          className="rounded-md border p-3"
+                          className="w-full rounded-md border p-3"
                           draggable={canEdit}
                           onDragStart={(event) => {
                             if (!canEdit) return;
@@ -248,11 +251,7 @@ export default function ChecklistKanbanPage() {
                             title={card.task?.titulo_snapshot || "-"}
                             subtitle={card.task?.instance?.titulo_snapshot || "Instância não identificada"}
                             responsible={card.assigned_user?.full_name || card.assigned_user_id}
-                            dueLabel={
-                              card.task?.instance?.prazo_em
-                                ? `Prazo ${new Date(card.task.instance.prazo_em).toLocaleDateString("pt-BR")}`
-                                : undefined
-                            }
+                            dueLabel={formatDueLabel(card.task?.instance?.prazo_em)}
                             badges={
                               <>
                                 <ChecklistKanbanStatusBadge status={card.status_kanban} />
@@ -329,11 +328,7 @@ export default function ChecklistKanbanPage() {
                           title={card.task?.titulo_snapshot || "-"}
                           subtitle={card.task?.instance?.titulo_snapshot || "Instância não identificada"}
                           responsible={card.assigned_user?.full_name || card.assigned_user_id}
-                          dueLabel={
-                            card.task?.instance?.prazo_em
-                              ? `Prazo ${new Date(card.task.instance.prazo_em).toLocaleDateString("pt-BR")}`
-                              : undefined
-                          }
+                          dueLabel={formatDueLabel(card.task?.instance?.prazo_em)}
                           badges={
                             <>
                               <ChecklistKanbanStatusBadge status={card.status_kanban} />
@@ -402,6 +397,7 @@ export default function ChecklistKanbanPage() {
                     title={card.task?.titulo_snapshot || "-"}
                     subtitle={card.task?.instance?.titulo_snapshot || "Instância não identificada"}
                     responsible={card.assigned_user?.full_name || card.assigned_user_id}
+                    dueLabel={formatDueLabel(card.task?.instance?.prazo_em)}
                     badges={<ChecklistKanbanStatusBadge status={card.status_kanban} />}
                     actions={
                       <Button
