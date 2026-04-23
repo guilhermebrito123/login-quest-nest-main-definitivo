@@ -262,6 +262,7 @@ export default function ResponderChecklistPage() {
               ) : tarefas.length ? (
                 tarefas.map((task) => (
                   <TarefaResponderCard
+                    canManageInstance={canManageSelectedInstance}
                     key={task.id}
                     task={task}
                     currentUserId={accessContext.userId}

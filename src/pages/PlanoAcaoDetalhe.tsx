@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,13 +42,11 @@ import type { ActionPlanStatus } from "@/modules/checklist/types";
 
 type UpdateFormState = {
   statusNovo: ActionPlanStatus | "none";
-  progressoPercentual: string;
   comentario: string;
 };
 
 const initialUpdateForm: UpdateFormState = {
   statusNovo: "none",
-  progressoPercentual: "",
   comentario: "",
 };
 
@@ -178,10 +175,6 @@ export default function PlanoAcaoDetalhe() {
         planoId: plano.id,
         statusAnterior: plano.status,
         statusNovo: updateForm.statusNovo === "none" ? null : updateForm.statusNovo,
-        progressoPercentual:
-          updateForm.progressoPercentual === ""
-            ? null
-            : Number(updateForm.progressoPercentual),
         comentario: updateForm.comentario,
       });
 
@@ -440,23 +433,6 @@ export default function PlanoAcaoDetalhe() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="progresso">Progresso (%)</Label>
-                        <Input
-                          id="progresso"
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={updateForm.progressoPercentual}
-                          onChange={(event) =>
-                            setUpdateForm((current) => ({
-                              ...current,
-                              progressoPercentual: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <div className="space-y-2">
                         <Label htmlFor="comentario">Comentário</Label>
                         <Textarea
                           id="comentario"
@@ -495,7 +471,7 @@ export default function PlanoAcaoDetalhe() {
               <CardHeader>
                 <CardTitle>Linha do tempo</CardTitle>
                 <CardDescription>
-                  Histórico cronológico de comentários, progresso e mudanças de status.
+                  Histórico cronológico de comentários e mudanças de status.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -511,14 +487,6 @@ export default function PlanoAcaoDetalhe() {
                             {formatActionPlanDateTime(update.created_at)}
                           </p>
                         </div>
-                        {update.progresso_percentual != null ? (
-                          <div className="w-full max-w-44 space-y-2">
-                            <div className="text-right text-sm text-muted-foreground">
-                              {update.progresso_percentual}%
-                            </div>
-                            <Progress value={update.progresso_percentual} />
-                          </div>
-                        ) : null}
                       </div>
 
                       {(update.status_anterior || update.status_novo) ? (

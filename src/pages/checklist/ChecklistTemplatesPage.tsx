@@ -119,6 +119,13 @@ const initialTaskForm: TaskFormState = {
   config_json: "",
 };
 
+const taskResponseTypeOptionsForTemplateForm: ChecklistTaskResponseType[] = [
+  "conformity_radio",
+  "text",
+  "textarea",
+  "boolean",
+];
+
 export default function ChecklistTemplatesPage() {
   const queryClient = useQueryClient();
   const { supervisorContext } = useChecklistSupervisorScope();
@@ -986,9 +993,9 @@ export default function ChecklistTemplatesPage() {
                       <SelectValue placeholder="Tipo de resposta" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(checklistTaskResponseTypeLabels).map(([value, label]) => (
+                      {taskResponseTypeOptionsForTemplateForm.map((value) => (
                         <SelectItem key={value} value={value}>
-                          {label}
+                          {checklistTaskResponseTypeLabels[value]}
                         </SelectItem>
                       ))}
                     </SelectContent>

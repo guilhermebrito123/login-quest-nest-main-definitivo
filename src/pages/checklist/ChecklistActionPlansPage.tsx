@@ -68,7 +68,6 @@ type PlanFormState = {
 
 type UpdateFormState = {
   comentario: string;
-  progresso_percentual: string;
   status_novo: ActionPlanStatus;
 };
 
@@ -85,7 +84,6 @@ const initialPlanForm: PlanFormState = {
 
 const initialUpdateForm: UpdateFormState = {
   comentario: "",
-  progresso_percentual: "",
   status_novo: "in_progress",
 };
 
@@ -510,7 +508,6 @@ export default function ChecklistActionPlansPage() {
         status_anterior: selectedPlan.status,
         status_novo: updateForm.status_novo,
         comentario: updateForm.comentario.trim() || null,
-        progresso_percentual: updateForm.progresso_percentual ? Number(updateForm.progresso_percentual) : null,
       });
       setUpdateForm(initialUpdateForm);
       await refreshAll();
@@ -705,7 +702,7 @@ export default function ChecklistActionPlansPage() {
       <div className="space-y-4">
         <div>
           <p className="font-medium">Atualizacoes e status</p>
-          <p className="text-xs text-muted-foreground">Acompanhe o progresso e registre a evolucao do plano.</p>
+          <p className="text-xs text-muted-foreground">Registre a evolucao do plano e o historico de status.</p>
         </div>
 
         {canManageSelectedPlan ? (
@@ -736,41 +733,25 @@ export default function ChecklistActionPlansPage() {
 
         {canPostSelectedPlanUpdate ? (
           <form className="space-y-4 rounded-2xl border p-4" onSubmit={handleUpdateSubmit}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <ChecklistField label="Novo status" tooltip="Status registrado nesta atualizacao." />
-                <Select
-                  value={updateForm.status_novo}
-                  onValueChange={(value: ActionPlanStatus) =>
-                    setUpdateForm((current) => ({ ...current, status_novo: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(actionPlanStatusLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <ChecklistField label="Progresso (%)" tooltip="Percentual estimado de evolucao." />
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={updateForm.progresso_percentual}
-                  onChange={(event) =>
-                    setUpdateForm((current) => ({ ...current, progresso_percentual: event.target.value }))
-                  }
-                />
-              </div>
+            <div className="space-y-2">
+              <ChecklistField label="Novo status" tooltip="Status registrado nesta atualizacao." />
+              <Select
+                value={updateForm.status_novo}
+                onValueChange={(value: ActionPlanStatus) =>
+                  setUpdateForm((current) => ({ ...current, status_novo: value }))
+                }
+              >
+                <SelectTrigger className="sm:max-w-sm">
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(actionPlanStatusLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -806,9 +787,6 @@ export default function ChecklistActionPlansPage() {
               badge: (
                 <div className="flex flex-wrap gap-2">
                   {update.status_novo ? <Badge>{actionPlanStatusLabels[update.status_novo]}</Badge> : null}
-                  {update.progresso_percentual != null ? (
-                    <Badge variant="secondary">{update.progresso_percentual}%</Badge>
-                  ) : null}
                 </div>
               ),
               body: update.comentario ? <p className="whitespace-pre-line">{update.comentario}</p> : undefined,
