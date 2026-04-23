@@ -1,39 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  LayoutDashboard,
-  Users,
-  UserCog,
-  FileText,
-  MessageSquare,
-  History,
-  Headphones,
-  ClipboardList,
-  UserCheck,
-  LogOut,
-  Calendar,
-  Package,
-  UserCircle,
-  ClipboardCheck,
-  ListChecks,
-  ListOrdered,
-  Briefcase,
-  Lock,
   AlertTriangle,
+  Briefcase,
+  Calendar,
+  ClipboardCheck,
+  ClipboardList,
+  Clock,
+  FileText,
   FolderTree,
   Fuel,
-  Clock,
-  Landmark,
-  MapPin,
+  Headphones,
+  History,
   KeyRound,
+  Landmark,
+  LayoutDashboard,
+  Lock,
+  LogOut,
+  MapPin,
+  MessageSquare,
+  Package,
+  UserCheck,
+  UserCircle,
+  UserCog,
+  Users,
 } from "lucide-react";
-import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useAccessContext } from "@/hooks/useAccessContext";
-import { useSession } from "@/hooks/useSession";
-import { canOperateInternalModules } from "@/lib/internalAccess";
 
+import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
   SidebarContent,
@@ -45,29 +39,56 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useAccessContext } from "@/hooks/useAccessContext";
+import { useSession } from "@/hooks/useSession";
+import { supabase } from "@/integrations/supabase/client";
+import { useChecklistSupervisorScope } from "@/modules/checklist/hooks";
+import type { ChecklistSupervisorContext } from "@/modules/checklist/types";
+import {
+  canAccessChecklistModule,
+  canViewActionPlans,
+  canViewChecklistAudit,
+  canViewChecklistFeedbacks,
+  canViewChecklistInstances,
+  canViewChecklistKanban,
+  canViewChecklistReviews,
+  canViewChecklistTasks,
+  canViewChecklistTeams,
+  canViewChecklistTemplates,
+} from "@/lib/checklist-module";
+import { canOperateInternalModules } from "@/lib/internalAccess";
+
+type MenuChild = {
+  title: string;
+  url: string;
+  status?: string;
+  isVisible?: (context: ChecklistSupervisorContext) => boolean;
+};
 
 type MenuItem = {
   title: string;
   url: string;
-  icon: any;
-  children?: { title: string; url: string; status?: string }[];
+  icon: React.ComponentType<{ className?: string }>;
+  children?: MenuChild[];
   statusCountsKey?: "diarias" | "diariasTemporarias" | "horaExtra";
   badge?: string;
   requiresInternalOperational?: boolean;
   requiresAdmin?: boolean;
+  requiresChecklistModule?: boolean;
 };
+
 type UserRole = "candidato" | "colaborador" | "perfil_interno";
 
-const diariasChildren = [
+const diariasChildren: MenuChild[] = [
   {
-    title: "Aguardando confirmação",
+    title: "Aguardando confirmacao",
     url: "/diarias/aguardando",
     status: "Aguardando confirmacao",
   },
   { title: "Confirmadas", url: "/diarias/confirmadas", status: "Confirmada" },
   { title: "Financeiro", url: "/diarias/aprovadas", status: "Aprovada" },
   {
-    title: "Lançadas",
+    title: "Lancadas",
     url: "/diarias/lancadas",
     status: "Lançada para pagamento",
   },
@@ -76,16 +97,16 @@ const diariasChildren = [
   { title: "Pagas", url: "/diarias/pagas" },
 ];
 
-const diariasTemporariasChildren = [
+const diariasTemporariasChildren: MenuChild[] = [
   {
-    title: "Aguardando confirmação",
+    title: "Aguardando confirmacao",
     url: "/cobertura/diarias/aguardando",
     status: "Aguardando confirmacao",
   },
   { title: "Confirmadas", url: "/cobertura/diarias/confirmadas", status: "Confirmada" },
   { title: "Financeiro", url: "/cobertura/diarias/aprovadas", status: "Aprovada" },
   {
-    title: "Lançadas",
+    title: "Lancadas",
     url: "/cobertura/diarias/lancadas",
     status: "Lançada para pagamento",
   },
@@ -95,13 +116,62 @@ const diariasTemporariasChildren = [
   { title: "Logs", url: "/cobertura/diarias/logs" },
 ];
 
-const horaExtraChildren = [
+const horaExtraChildren: MenuChild[] = [
   { title: "Pendentes", url: "/cobertura/hora-extra/pendentes", status: "pendente" },
   { title: "Confirmadas", url: "/cobertura/hora-extra/confirmadas", status: "confirmada" },
   { title: "Aprovadas", url: "/cobertura/hora-extra/aprovadas", status: "aprovada" },
   { title: "Reprovadas", url: "/cobertura/hora-extra/reprovadas", status: "reprovada" },
   { title: "Canceladas", url: "/cobertura/hora-extra/canceladas", status: "cancelada" },
   { title: "Dashboard", url: "/cobertura/hora-extra/dashboard" },
+];
+
+const checklistChildren: MenuChild[] = [
+  { title: "Visao geral", url: "/checklists" },
+  {
+    title: "Equipes",
+    url: "/checklists/equipes",
+    isVisible: canViewChecklistTeams,
+  },
+  {
+    title: "Templates",
+    url: "/checklists/templates",
+    isVisible: canViewChecklistTemplates,
+  },
+  {
+    title: "Instancias",
+    url: "/checklists/instancias",
+    isVisible: canViewChecklistInstances,
+  },
+  {
+    title: "Avaliacoes",
+    url: "/checklists/avaliacoes",
+    isVisible: canViewChecklistReviews,
+  },
+  {
+    title: "Tarefas",
+    url: "/checklists/tarefas",
+    isVisible: canViewChecklistTasks,
+  },
+  {
+    title: "Kanban",
+    url: "/checklists/kanban",
+    isVisible: canViewChecklistKanban,
+  },
+  {
+    title: "Feedback",
+    url: "/checklists/feedbacks",
+    isVisible: canViewChecklistFeedbacks,
+  },
+  {
+    title: "Plano de acao",
+    url: "/checklists/planos-acao",
+    isVisible: canViewActionPlans,
+  },
+  {
+    title: "Auditoria",
+    url: "/checklists/auditoria",
+    isVisible: canViewChecklistAudit,
+  },
 ];
 
 const menuItems: MenuItem[] = [
@@ -115,25 +185,24 @@ const menuItems: MenuItem[] = [
   { title: "Dados empresariais", url: "/dados-empresariais", icon: Briefcase },
   { title: "Dashboard 24/7", url: "/dashboard-24h", icon: LayoutDashboard },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Gestão de Usuários", url: "/users", icon: Users },
+  { title: "Gestao de usuarios", url: "/users", icon: Users },
   { title: "Chamados", url: "/chamados", icon: MessageSquare },
   {
-    title: "Historico de Chamados",
+    title: "Historico de chamados",
     url: "/chamados/historico",
     icon: History,
     requiresInternalOperational: true,
   },
   { title: "Contratos", url: "/contratos", icon: FileText },
-  { title: "Mesa de Operações", url: "/mesa-operacoes", icon: Headphones },
-  { title: "Ordens de Serviço", url: "/ordens-servico", icon: ClipboardList },
+  { title: "Mesa de operacoes", url: "/mesa-operacoes", icon: Headphones },
+  { title: "Ordens de servico", url: "/ordens-servico", icon: ClipboardList },
   { title: "Colaboradores", url: "/colaboradores", icon: UserCheck },
-  { title: "Centros de Custo", url: "/centros-custo", icon: FolderTree },
+  { title: "Centros de custo", url: "/centros-custo", icon: FolderTree },
   { title: "Locais", url: "/locais-centro-custo", icon: MapPin },
-  { title: "Postos de Servico", url: "/postos-servico", icon: Fuel },
-  { title: "Diaristas✅", url: "/diaristas", icon: UserCircle },
-  { title: "Diaristas🔒", url: "/diaristas-restritos", icon: Lock },
+  { title: "Postos de servico", url: "/postos-servico", icon: Fuel },
+  { title: "Diaristas", url: "/diaristas", icon: UserCircle },
+  { title: "Diaristas restritos", url: "/diaristas-restritos", icon: Lock },
   { title: "Diaristas logs", url: "/diaristas/logs", icon: FileText },
-  //{ title: "Diarias (versão futura)", url: "/diarias", icon: Calendar, children: diariasChildren, statusCountsKey: "diarias" },
   {
     title: "Diarias (Cobertura)",
     url: "/cobertura/diarias",
@@ -152,21 +221,13 @@ const menuItems: MenuItem[] = [
   { title: "Faltas", url: "/faltas", icon: AlertTriangle },
   { title: "Ativos", url: "/ativos", icon: Package },
   { title: "Estoque", url: "/estoque", icon: Package },
-  { title: "Checklists", url: "/checklists", icon: ClipboardCheck },
+  { title: "Planos de acao", url: "/planos-acao", icon: ClipboardList },
   {
-    title: "Execuções de Checklist",
-    url: "/checklist-execucoes",
-    icon: ListOrdered,
-  },
-  {
-    title: "Responder Checklist",
-    url: "/checklist-respostas",
-    icon: ListOrdered,
-  },
-  {
-    title: "Respostas registradas",
-    url: "/checklist-respostas-lista",
-    icon: ListChecks,
+    title: "Checklist",
+    url: "/checklists",
+    icon: ClipboardCheck,
+    children: checklistChildren,
+    requiresChecklistModule: true,
   },
 ];
 
@@ -176,18 +237,16 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { session } = useSession();
   const { accessContext } = useAccessContext();
+  const { supervisorContext } = useChecklistSupervisorScope();
   const currentPath = location.pathname;
-  const [diariasCounts, setDiariasCounts] = useState<Record<string, number>>(
-    {}
+  const [diariasCounts, setDiariasCounts] = useState<Record<string, number>>({});
+  const [diariasTemporariasCounts, setDiariasTemporariasCounts] = useState<Record<string, number>>(
+    {},
   );
-  const [diariasTemporariasCounts, setDiariasTemporariasCounts] = useState<
-    Record<string, number>
-  >({});
-  const [horaExtraCounts, setHoraExtraCounts] = useState<Record<string, number>>(
-    {}
-  );
+  const [horaExtraCounts, setHoraExtraCounts] = useState<Record<string, number>>({});
   const [recoveryPendingCount, setRecoveryPendingCount] = useState(0);
   const [enterprisePending, setEnterprisePending] = useState(false);
+
   useEffect(() => {
     let isMounted = true;
     if (!session) {
@@ -196,22 +255,22 @@ export function AppSidebar() {
       };
     }
 
-    const fetchCounts = async (
-      children: { title: string; url: string; status?: string }[],
-      tableName: string
-    ) => {
+    const fetchCounts = async (children: MenuChild[], tableName: string) => {
       const statuses = children.filter((child) => child.status);
       if (statuses.length === 0) return {};
+
       const results = await Promise.all(
         statuses.map(async (child) => {
           const { count, error } = await supabase
             .from(tableName)
             .select("id", { count: "exact", head: true })
             .eq("status", child.status);
+
           if (error) throw error;
           return { status: child.status!, count: count || 0 };
-        })
+        }),
       );
+
       const next: Record<string, number> = {};
       results.forEach(({ status, count }) => {
         next[status] = count;
@@ -221,12 +280,12 @@ export function AppSidebar() {
 
     const loadCounts = async () => {
       try {
-        const [origCounts, temporariasCounts, horasExtrasCounts] =
-          await Promise.all([
+        const [origCounts, temporariasCounts, horasExtrasCounts] = await Promise.all([
           fetchCounts(diariasChildren, "diarias"),
           fetchCounts(diariasTemporariasChildren, "diarias_temporarias"),
           fetchCounts(horaExtraChildren, "horas_extras"),
         ]);
+
         if (!isMounted) return;
         setDiariasCounts(origCounts);
         setDiariasTemporariasCounts(temporariasCounts);
@@ -236,7 +295,8 @@ export function AppSidebar() {
       }
     };
 
-    loadCounts();
+    void loadCounts();
+
     return () => {
       isMounted = false;
     };
@@ -275,6 +335,7 @@ export function AppSidebar() {
 
   useEffect(() => {
     let active = true;
+
     const checkEnterprisePending = async () => {
       try {
         const user = session?.user;
@@ -290,7 +351,7 @@ export function AppSidebar() {
         if (!role) return;
 
         let pending = false;
-        const filled = (v?: string | null) => !!v && v.toString().trim().length > 0;
+        const filled = (value?: string | null) => !!value && value.toString().trim().length > 0;
 
         if (role === "candidato") {
           const { data } = await supabase
@@ -298,6 +359,7 @@ export function AppSidebar() {
             .select("nome_completo, email, telefone, celular, cidade, estado, curriculo_path")
             .eq("user_id", user.id)
             .maybeSingle();
+
           pending =
             !data ||
             !filled(data.nome_completo) ||
@@ -312,6 +374,7 @@ export function AppSidebar() {
             .select("nome_completo, email, cpf, telefone, cargo, status_colaborador")
             .eq("user_id", user.id)
             .maybeSingle();
+
           pending =
             !data ||
             !filled(data.nome_completo) ||
@@ -326,6 +389,7 @@ export function AppSidebar() {
             .select("nome_completo, email, phone, cpf, cargo, nivel_acesso")
             .eq("user_id", user.id)
             .maybeSingle();
+
           pending =
             !data ||
             !filled(data.nome_completo) ||
@@ -342,7 +406,8 @@ export function AppSidebar() {
       }
     };
 
-    checkEnterprisePending();
+    void checkEnterprisePending();
+
     return () => {
       active = false;
     };
@@ -356,6 +421,10 @@ export function AppSidebar() {
             return false;
           }
 
+          if (item.requiresChecklistModule && !canAccessChecklistModule(supervisorContext)) {
+            return false;
+          }
+
           if (!item.requiresInternalOperational) return true;
 
           return (
@@ -363,23 +432,32 @@ export function AppSidebar() {
             canOperateInternalModules(accessContext.accessLevel)
           );
         })
-        .map((item) =>
-          item.url === "/dados-empresariais"
-            ? { ...item, badge: enterprisePending ? "!" : undefined }
-            : item.url === "/admin/recuperacoes"
-              ? {
-                  ...item,
-                  badge: recoveryPendingCount > 0 ? String(recoveryPendingCount) : undefined,
-                }
-              : item
-        ),
-    [accessContext.accessLevel, accessContext.role, enterprisePending, recoveryPendingCount]
+        .map((item) => {
+          const nextItem = {
+            ...item,
+            children: item.children?.filter(
+              (child) => !child.isVisible || child.isVisible(supervisorContext),
+            ),
+          };
+
+          if (item.url === "/dados-empresariais") {
+            return { ...nextItem, badge: enterprisePending ? "!" : undefined };
+          }
+
+          if (item.url === "/admin/recuperacoes") {
+            return {
+              ...nextItem,
+              badge: recoveryPendingCount > 0 ? String(recoveryPendingCount) : undefined,
+            };
+          }
+
+          return nextItem;
+        }),
+    [accessContext, enterprisePending, recoveryPendingCount, supervisorContext],
   );
 
   const isActive = (path: string, exact = true) =>
-    exact
-      ? currentPath === path
-      : currentPath === path || currentPath.startsWith(`${path}/`);
+    exact ? currentPath === path : currentPath === path || currentPath.startsWith(`${path}/`);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -397,17 +475,15 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {computedMenuItems.map((item) => {
-                const hasChildren =
-                  Array.isArray(item.children) && item.children.length > 0;
-                const itemActive = hasChildren
-                  ? isActive(item.url, false)
-                  : isActive(item.url);
+                const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+                const itemActive = hasChildren ? isActive(item.url, false) : isActive(item.url);
                 const countsMap =
                   item.statusCountsKey === "diariasTemporarias"
                     ? diariasTemporariasCounts
                     : item.statusCountsKey === "horaExtra"
                       ? horaExtraCounts
                       : diariasCounts;
+
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={itemActive}>
@@ -426,14 +502,12 @@ export function AppSidebar() {
                         )}
                       </NavLink>
                     </SidebarMenuButton>
+
                     {hasChildren && open && itemActive && (
                       <ul className="ml-6 mt-1 space-y-1 border-l pl-3">
                         {item.children.map((child) => (
                           <SidebarMenuItem key={child.title}>
-                            <SidebarMenuButton
-                              asChild
-                              isActive={isActive(child.url)}
-                            >
+                            <SidebarMenuButton asChild isActive={isActive(child.url)}>
                               <NavLink
                                 to={child.url}
                                 end
