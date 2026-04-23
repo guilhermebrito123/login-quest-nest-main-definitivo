@@ -974,6 +974,11 @@ export default function ChecklistInstancesPage() {
                                 <Button type="button" size="sm" variant="outline" onClick={() => openInstance(instance.id)}>
                                   Abrir
                                 </Button>
+                                <Button type="button" size="sm" variant="outline" asChild>
+                                  <Link to={`/checklists/tarefas?instancia=${instance.id}`}>
+                                    {supervisorContext.role === "perfil_interno" ? "Respostas" : "Responder"}
+                                  </Link>
+                                </Button>
                                 {canManagePage ? (
                                   <Button
                                     type="button"

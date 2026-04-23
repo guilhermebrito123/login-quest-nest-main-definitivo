@@ -5,6 +5,7 @@ import { buildChecklistSupervisorContext } from "@/modules/checklist/permissions
 import {
   checklistActionPlansService,
   checklistFeedbacksService,
+  checklistResponseAttachmentsService,
   checklistInstanceTasksService,
   checklistInstancesService,
   checklistLookupsService,
@@ -27,11 +28,14 @@ export const checklistQueryKeys = {
   templateTasks: (templateId: string) => ["checklist", "template-tasks", templateId] as const,
   instances: ["checklist", "instances"] as const,
   instanceTasks: (instanceId: string) => ["checklist", "instance-tasks", instanceId] as const,
+  instanceTasksWithResponses: (instanceId: string) =>
+    ["checklist", "instance-tasks-with-responses", instanceId] as const,
   responsibilities: ["checklist", "responsibilities"] as const,
   archivedResponsibilities: ["checklist", "responsibilities", "archived"] as const,
   responsibilityHistory: (instanceId: string) =>
     ["checklist", "responsibilities", "history", instanceId] as const,
   response: (responsibilityId: string) => ["checklist", "responses", responsibilityId] as const,
+  attachmentSignedUrl: (path: string) => ["checklist", "attachment-signed-url", path] as const,
   reviews: ["checklist", "reviews"] as const,
   review: (instanceId: string) => ["checklist", "review", instanceId] as const,
   reviewItems: (reviewId: string) => ["checklist", "review-items", reviewId] as const,
@@ -133,6 +137,14 @@ export function useChecklistInstanceTasks(instanceId: string) {
   });
 }
 
+export function useTarefasDaInstancia(instanciaId: string) {
+  return useQuery({
+    queryKey: checklistQueryKeys.instanceTasksWithResponses(instanciaId),
+    queryFn: () => checklistInstanceTasksService.listWithResponses(instanciaId),
+    enabled: !!instanciaId,
+  });
+}
+
 export function useChecklistResponsibilities() {
   return useQuery({
     queryKey: checklistQueryKeys.responsibilities,
@@ -160,6 +172,136 @@ export function useChecklistLatestResponse(responsibilityId: string) {
     queryKey: checklistQueryKeys.response(responsibilityId),
     queryFn: () => checklistResponsesService.getLatestByResponsibility(responsibilityId),
     enabled: !!responsibilityId,
+  });
+}
+
+export function useResponderTarefa() {
+  const queryClient = useQueryClient();
+  const { accessContext } = useAccessContext();
+
+  return useMutation({
+    mutationFn: async (args: {
+      instanciaId: string;
+      checklist_instancia_tarefa_id: string;
+      tarefa_responsavel_id: string;
+      existingId?: string | null;
+      payload: Parameters<typeof checklistResponsesService.upsert>[0]["payload"];
+    }) => {
+      if (!accessContext.userId) {
+        throw new Error("Sua sessao expirou. Entre novamente para responder a tarefa.");
+      }
+
+      return checklistResponsesService.upsert({
+        existingId: args.existingId,
+        checklist_instancia_tarefa_id: args.checklist_instancia_tarefa_id,
+        tarefa_responsavel_id: args.tarefa_responsavel_id,
+        respondido_por_user_id: accessContext.userId,
+        payload: args.payload,
+      });
+    },
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: checklistQueryKeys.instanceTasksWithResponses(variables.instanciaId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: checklistQueryKeys.instanceTasks(variables.instanciaId),
+        }),
+        queryClient.invalidateQueries({ queryKey: checklistQueryKeys.instances }),
+        queryClient.invalidateQueries({ queryKey: checklistQueryKeys.responsibilities }),
+      ]);
+    },
+  });
+}
+
+export function useUploadAnexoResposta() {
+  const queryClient = useQueryClient();
+  const { accessContext } = useAccessContext();
+
+  return useMutation({
+    mutationFn: async (args: {
+      instanciaId: string;
+      tarefaId: string;
+      respostaId: string;
+      file: File;
+    }) => {
+      if (!accessContext.userId) {
+        throw new Error("Sua sessao expirou. Entre novamente para anexar arquivos.");
+      }
+
+      return checklistResponseAttachmentsService.upload({
+        instanciaId: args.instanciaId,
+        tarefaId: args.tarefaId,
+        respostaId: args.respostaId,
+        file: args.file,
+        uploadedBy: accessContext.userId,
+      });
+    },
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: checklistQueryKeys.instanceTasksWithResponses(variables.instanciaId),
+      });
+    },
+  });
+}
+
+export function useSignedUrlAnexo(caminho?: string | null) {
+  return useQuery({
+    queryKey: checklistQueryKeys.attachmentSignedUrl(caminho ?? ""),
+    queryFn: () => checklistResponseAttachmentsService.createSignedUrl(caminho!, 3600),
+    enabled: !!caminho,
+    staleTime: 50 * 60 * 1000,
+    gcTime: 55 * 60 * 1000,
+  });
+}
+
+export function useDeleteAnexoResposta() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: {
+      instanciaId: string;
+      anexo: {
+        id: string;
+        caminho_storage: string;
+      };
+    }) => checklistResponseAttachmentsService.remove(args.anexo),
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: checklistQueryKeys.instanceTasksWithResponses(variables.instanciaId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: checklistQueryKeys.attachmentSignedUrl(variables.anexo.caminho_storage),
+        }),
+      ]);
+    },
+  });
+}
+
+export function useFinalizarChecklistInstancia() {
+  const queryClient = useQueryClient();
+  const { accessContext } = useAccessContext();
+
+  return useMutation({
+    mutationFn: async (instanciaId: string) => {
+      if (!accessContext.userId) {
+        throw new Error("Sua sessao expirou. Entre novamente para finalizar o checklist.");
+      }
+
+      return checklistInstancesService.finalize(instanciaId, accessContext.userId);
+    },
+    onSuccess: async (_data, instanciaId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: checklistQueryKeys.instances }),
+        queryClient.invalidateQueries({
+          queryKey: checklistQueryKeys.instanceTasksWithResponses(instanciaId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: checklistQueryKeys.instanceTasks(instanciaId),
+        }),
+      ]);
+    },
   });
 }
 
