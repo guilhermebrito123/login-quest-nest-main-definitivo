@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/hooks/useSession";
 import Index from "./pages/Index";
@@ -61,13 +61,20 @@ import {
   HoraExtraDashboardPage,
 } from "./pages/hora-extra/HoraExtraStatusPages";
 import Inspecao from "./pages/Inspecao";
-import Checklist from "./pages/Checklist";
-import ChecklistItens from "./pages/ChecklistItens";
-import ChecklistExecucoes from "./pages/ChecklistExecucoes";
-import ChecklistRespostas from "./pages/ChecklistRespostas";
-import ChecklistRespostasLista from "./pages/ChecklistRespostasLista";
+import ChecklistActionPlansPage from "./pages/checklist/ChecklistActionPlansPage";
+import ChecklistAuditPage from "./pages/checklist/ChecklistAuditPage";
+import ChecklistInstancesPage from "./pages/checklist/ChecklistInstancesPage";
+import ChecklistKanbanPage from "./pages/checklist/ChecklistKanbanPage";
+import ChecklistOverviewPage from "./pages/checklist/ChecklistOverviewPage";
+import ChecklistReviewsPage from "./pages/checklist/ChecklistReviewsPage";
+import ChecklistFeedbacksPage from "./pages/checklist/ChecklistFeedbacksPage";
+import ChecklistTeamsPage from "./pages/checklist/ChecklistTeamsPage";
+import ChecklistTemplatesPage from "./pages/checklist/ChecklistTemplatesPage";
+import MeusPlanos from "./pages/MeusPlanos";
 import NotFound from "./pages/NotFound";
 import MinhaConta from "./pages/MinhaConta";
+import PlanoAcaoDetalhe from "./pages/PlanoAcaoDetalhe";
+import PlanosAcao from "./pages/PlanosAcao";
 import DadosEmpresariais from "./pages/DadosEmpresariais";
 import CandidatoCadastro from "./pages/CandidatoCadastro";
 import Notificacoes from "./pages/Notificacoes";
@@ -163,18 +170,23 @@ const App = () => (
             <Route path="/faltas" element={<ProtectedRoute><Faltas /></ProtectedRoute>} />
             <Route path="/controladoria" element={<ProtectedRoute><Controladoria /></ProtectedRoute>} />
             <Route path="/inspecao" element={<ProtectedRoute><Inspecao /></ProtectedRoute>} />
-            <Route path="/checklists" element={<ProtectedRoute><Checklist /></ProtectedRoute>} />
-            <Route path="/checklist-itens" element={<ProtectedRoute><ChecklistItens /></ProtectedRoute>} />
-            <Route path="/checklist-execucoes" element={<ProtectedRoute><ChecklistExecucoes /></ProtectedRoute>} />
-            <Route path="/checklist-respostas" element={<ProtectedRoute><ChecklistRespostas /></ProtectedRoute>} />
-            <Route
-              path="/checklist-respostas-lista"
-              element={
-                <ProtectedRoute>
-                  <ChecklistRespostasLista />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/planos-acao" element={<ProtectedRoute><PlanosAcao /></ProtectedRoute>} />
+            <Route path="/meus-planos" element={<ProtectedRoute><MeusPlanos /></ProtectedRoute>} />
+            <Route path="/planos-acao/:id" element={<ProtectedRoute><PlanoAcaoDetalhe /></ProtectedRoute>} />
+            <Route path="/checklists" element={<ProtectedRoute><ChecklistOverviewPage /></ProtectedRoute>} />
+            <Route path="/checklists/equipes" element={<ProtectedRoute><ChecklistTeamsPage /></ProtectedRoute>} />
+            <Route path="/checklists/templates" element={<ProtectedRoute><ChecklistTemplatesPage /></ProtectedRoute>} />
+            <Route path="/checklists/instancias" element={<ProtectedRoute><ChecklistInstancesPage /></ProtectedRoute>} />
+            <Route path="/checklists/avaliacoes" element={<ProtectedRoute><ChecklistReviewsPage /></ProtectedRoute>} />
+            <Route path="/checklists/tarefas" element={<Navigate to="/checklists/instancias" replace />} />
+            <Route path="/checklists/kanban" element={<ProtectedRoute><ChecklistKanbanPage /></ProtectedRoute>} />
+            <Route path="/checklists/feedbacks" element={<ProtectedRoute><ChecklistFeedbacksPage /></ProtectedRoute>} />
+            <Route path="/checklists/planos-acao" element={<ProtectedRoute><ChecklistActionPlansPage /></ProtectedRoute>} />
+            <Route path="/checklists/auditoria" element={<ProtectedRoute><ChecklistAuditPage /></ProtectedRoute>} />
+            <Route path="/checklist-itens" element={<ProtectedRoute><ChecklistTemplatesPage /></ProtectedRoute>} />
+            <Route path="/checklist-execucoes" element={<ProtectedRoute><ChecklistInstancesPage /></ProtectedRoute>} />
+            <Route path="/checklist-respostas" element={<Navigate to="/checklists/instancias" replace />} />
+            <Route path="/checklist-respostas-lista" element={<Navigate to="/checklists/instancias" replace />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -44,6 +44,7 @@ type UserType = Database["public"]["Enums"]["user_type"];
 type AccessLevel = Database["public"]["Enums"]["internal_access_level"];
 type ProfileRow = Database["public"]["Tables"]["usuarios"]["Row"];
 type ColaboradorProfileRow = Database["public"]["Tables"]["colaborador_profiles"]["Row"];
+type ColaboradorCargoRow = Database["public"]["Tables"]["module_colaborador_cargos"]["Row"];
 type CostCenterRow = Database["public"]["Tables"]["cost_center"]["Row"];
 type InternalProfileCostCenterRow =
   Database["public"]["Tables"]["internal_profile_cost_centers"]["Row"];
@@ -54,6 +55,10 @@ interface UserWithRole extends ProfileRow {
   superior_name?: string | null;
   cpf?: string | null;
   colaboradorProfile?: Pick<ColaboradorProfileRow, "cost_center_id" | "ativo" | "observacoes"> | null;
+  colaboradorCargo?: Pick<
+    ColaboradorCargoRow,
+    "cargo_nome" | "area_nome" | "descricao" | "ativo"
+  > | null;
   colaborador_cost_center_name?: string | null;
   internalCostCenters: Pick<InternalProfileCostCenterRow, "cost_center_id">[];
   internal_cost_center_names: string[];
@@ -63,12 +68,20 @@ type ColaboradorDraft = {
   cost_center_id: string;
   ativo: boolean;
   observacoes: string;
+  cargo_nome: string;
+  area_nome: string;
+  descricao_cargo: string;
+  cargo_ativo: boolean;
 };
 
 const EMPTY_COLABORADOR_DRAFT: ColaboradorDraft = {
   cost_center_id: "",
   ativo: true,
   observacoes: "",
+  cargo_nome: "",
+  area_nome: "",
+  descricao_cargo: "",
+  cargo_ativo: true,
 };
 
 const EMPTY_INTERNAL_COST_CENTER_IDS: string[] = [];
@@ -233,6 +246,12 @@ const UserManagement = () => {
             cost_center_id,
             ativo,
             observacoes
+          ),
+          module_colaborador_cargos!module_colaborador_cargos_user_id_fkey (
+            cargo_nome,
+            area_nome,
+            descricao,
+            ativo
           )
         `)
         .order("full_name", { ascending: true });
@@ -252,6 +271,9 @@ const UserManagement = () => {
           const colaboradorProfile = Array.isArray(user.colaborador_profiles)
             ? user.colaborador_profiles[0] ?? null
             : user.colaborador_profiles ?? null;
+          const colaboradorCargo = Array.isArray(user.module_colaborador_cargos)
+            ? user.module_colaborador_cargos[0] ?? null
+            : user.module_colaborador_cargos ?? null;
           const internalCostCenters = Array.isArray(user.internal_profile_cost_centers)
             ? user.internal_profile_cost_centers
             : user.internal_profile_cost_centers
@@ -271,6 +293,7 @@ const UserManagement = () => {
             superior_name: user.superior ? nameMap.get(user.superior) ?? null : null,
             cpf: internalProfile?.cpf || null,
             colaboradorProfile,
+            colaboradorCargo,
             colaborador_cost_center_name:
               centers.find((center) => center.id === colaboradorProfile?.cost_center_id)?.name ?? null,
             internalCostCenters,
@@ -419,6 +442,10 @@ const UserManagement = () => {
         cost_center_id: current.colaboradorProfile?.cost_center_id ?? "",
         ativo: current.colaboradorProfile?.ativo ?? true,
         observacoes: current.colaboradorProfile?.observacoes ?? "",
+        cargo_nome: current.colaboradorCargo?.cargo_nome ?? "",
+        area_nome: current.colaboradorCargo?.area_nome ?? "",
+        descricao_cargo: current.colaboradorCargo?.descricao ?? "",
+        cargo_ativo: current.colaboradorCargo?.ativo ?? true,
       });
       setColaboradorDialogOpen(true);
       return;
@@ -452,6 +479,12 @@ const UserManagement = () => {
           .delete()
           .eq("user_id", userId);
         if (deleteColaboradorProfileError) throw deleteColaboradorProfileError;
+
+        const { error: deleteColaboradorCargoError } = await supabase
+          .from("module_colaborador_cargos")
+          .delete()
+          .eq("user_id", userId);
+        if (deleteColaboradorCargoError) throw deleteColaboradorCargoError;
       }
 
       toast({
@@ -481,6 +514,14 @@ const UserManagement = () => {
       });
       return;
     }
+    if (!colaboradorDraft.cargo_nome.trim()) {
+      toast({
+        title: "Cargo obrigatorio",
+        description: "Informe o cargo do usuario colaborador.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setSavingColaboradorRole(true);
     setUpdatingRoleId(selectedColaboradorUser.id);
@@ -500,6 +541,20 @@ const UserManagement = () => {
         })
         .eq("user_id", selectedColaboradorUser.id);
       if (updateColaboradorProfileError) throw updateColaboradorProfileError;
+
+      const { error: upsertCargoError } = await supabase
+        .from("module_colaborador_cargos")
+        .upsert(
+          {
+            user_id: selectedColaboradorUser.id,
+            cargo_nome: colaboradorDraft.cargo_nome.trim(),
+            area_nome: colaboradorDraft.area_nome.trim() || null,
+            descricao: colaboradorDraft.descricao_cargo.trim() || null,
+            ativo: colaboradorDraft.cargo_ativo,
+          },
+          { onConflict: "user_id" },
+        );
+      if (upsertCargoError) throw upsertCargoError;
 
       const { error: clearInternalProfileError } = await supabase
         .from("internal_profiles")
@@ -534,6 +589,20 @@ const UserManagement = () => {
       setSavingColaboradorRole(false);
       setUpdatingRoleId(null);
     }
+  };
+
+  const handleOpenColaboradorDialog = (user: UserWithRole) => {
+    setSelectedColaboradorUser(user);
+    setColaboradorDraft({
+      cost_center_id: user.colaboradorProfile?.cost_center_id ?? "",
+      ativo: user.colaboradorProfile?.ativo ?? true,
+      observacoes: user.colaboradorProfile?.observacoes ?? "",
+      cargo_nome: user.colaboradorCargo?.cargo_nome ?? "",
+      area_nome: user.colaboradorCargo?.area_nome ?? "",
+      descricao_cargo: user.colaboradorCargo?.descricao ?? "",
+      cargo_ativo: user.colaboradorCargo?.ativo ?? true,
+    });
+    setColaboradorDialogOpen(true);
   };
 
   const handleAccessLevelChange = async (userId: string, newLevel: AccessLevel) => {
@@ -872,14 +941,46 @@ const UserManagement = () => {
                   )}
 
                   {user.role === "colaborador" && (
-                    <div className="space-y-2 rounded-md border p-3">
-                      <label className="text-sm font-medium">Perfil de colaborador</label>
+                    <div className="space-y-3 rounded-md border p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <label className="text-sm font-medium">Perfil de colaborador</label>
+                          <p className="text-xs text-muted-foreground">
+                            Defina centro de custo, status e cargo operacional do colaborador.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenColaboradorDialog(user)}
+                          disabled={savingColaboradorRole}
+                        >
+                          Editar
+                        </Button>
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         Centro de custo: {user.colaborador_cost_center_name || "Não vinculado"}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Status: {user.colaboradorProfile?.ativo ? "Ativo" : "Inativo"}
                       </p>
+                      <p className="text-sm text-muted-foreground">
+                        Cargo: {user.colaboradorCargo?.cargo_nome || "Nao definido"}
+                      </p>
+                      {user.colaboradorCargo?.area_nome && (
+                        <p className="text-sm text-muted-foreground">
+                          Area: {user.colaboradorCargo.area_nome}
+                        </p>
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        Cargo ativo: {user.colaboradorCargo?.ativo ? "Sim" : "Nao"}
+                      </p>
+                      {user.colaboradorCargo?.descricao && (
+                        <p className="text-sm text-muted-foreground">
+                          Descricao do cargo: {user.colaboradorCargo.descricao}
+                        </p>
+                      )}
                       {user.colaboradorProfile?.observacoes && (
                         <p className="text-sm text-muted-foreground">
                           Observações: {user.colaboradorProfile.observacoes}
@@ -949,7 +1050,7 @@ const UserManagement = () => {
             }
           }}
         >
-          <DialogContent className="max-w-xl">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Definir usuário como colaborador</DialogTitle>
               <DialogDescription>
@@ -987,6 +1088,45 @@ const UserManagement = () => {
                 </Select>
               </div>
 
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Cargo</label>
+                  <Input
+                    value={colaboradorDraft.cargo_nome}
+                    onChange={(event) =>
+                      setColaboradorDraft((prev) => ({ ...prev, cargo_nome: event.target.value }))
+                    }
+                    placeholder="Ex.: Auxiliar operacional"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Area</label>
+                  <Input
+                    value={colaboradorDraft.area_nome}
+                    onChange={(event) =>
+                      setColaboradorDraft((prev) => ({ ...prev, area_nome: event.target.value }))
+                    }
+                    placeholder="Ex.: Operacoes"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Descricao do cargo</label>
+                <Textarea
+                  rows={3}
+                  value={colaboradorDraft.descricao_cargo}
+                  onChange={(event) =>
+                    setColaboradorDraft((prev) => ({
+                      ...prev,
+                      descricao_cargo: event.target.value,
+                    }))
+                  }
+                  placeholder="Resumo das responsabilidades ou observacoes do cargo."
+                />
+              </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">Observações</label>
                 <Textarea
@@ -999,15 +1139,27 @@ const UserManagement = () => {
                 />
               </div>
 
-              <label className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
-                <Switch
-                  checked={colaboradorDraft.ativo}
-                  onCheckedChange={(checked) =>
-                    setColaboradorDraft((prev) => ({ ...prev, ativo: checked }))
-                  }
-                />
-                Perfil de colaborador ativo
-              </label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
+                  <Switch
+                    checked={colaboradorDraft.ativo}
+                    onCheckedChange={(checked) =>
+                      setColaboradorDraft((prev) => ({ ...prev, ativo: checked }))
+                    }
+                  />
+                  Perfil de colaborador ativo
+                </label>
+
+                <label className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
+                  <Switch
+                    checked={colaboradorDraft.cargo_ativo}
+                    onCheckedChange={(checked) =>
+                      setColaboradorDraft((prev) => ({ ...prev, cargo_ativo: checked }))
+                    }
+                  />
+                  Cargo ativo no modulo
+                </label>
+              </div>
             </div>
 
             <DialogFooter>
