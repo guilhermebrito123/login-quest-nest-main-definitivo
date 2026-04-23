@@ -4,9 +4,12 @@ import type {
   ChecklistFeedbackListItem,
   ChecklistInstanceListItem,
   ChecklistInstanceTaskListItem,
+  ChecklistInstanceTaskWithResponses,
   ChecklistInstanceTaskResponsibility,
   ChecklistLookupOption,
   ChecklistResponsibilityListItem,
+  ChecklistTaskAttachment,
+  ChecklistTaskResponseWithAttachments,
   ChecklistReviewItemListItem,
   ChecklistReviewListItem,
   ChecklistTaskStatusHistoryListItem,
@@ -96,6 +99,26 @@ export function mapChecklistInstanceTask(item: any): ChecklistInstanceTaskListIt
   return {
     ...item,
     responsaveis: ((item.responsaveis ?? []) as any[]).map(mapChecklistTaskResponsibility),
+  };
+}
+
+function mapChecklistTaskAttachment(item: unknown): ChecklistTaskAttachment {
+  return item as ChecklistTaskAttachment;
+}
+
+function mapChecklistTaskResponseWithAttachments(item: any): ChecklistTaskResponseWithAttachments {
+  return {
+    ...item,
+    anexos: ((item.anexos ?? []) as unknown[]).map(mapChecklistTaskAttachment),
+  };
+}
+
+export function mapChecklistInstanceTaskWithResponses(item: any): ChecklistInstanceTaskWithResponses {
+  return {
+    ...item,
+    instance: pickRelation(item.instance),
+    responsaveis: ((item.responsaveis ?? []) as any[]).map(mapChecklistTaskResponsibility),
+    respostas: ((item.respostas ?? []) as any[]).map(mapChecklistTaskResponseWithAttachments),
   };
 }
 

@@ -4,6 +4,7 @@ import {
   mapChecklistFeedback,
   mapChecklistInstance,
   mapChecklistInstanceTask,
+  mapChecklistInstanceTaskWithResponses,
   mapChecklistResponsibility,
   mapChecklistReview,
   mapChecklistReviewItem,
@@ -20,13 +21,17 @@ import type {
   ChecklistInstanceListItem,
   ChecklistInstanceStatus,
   ChecklistInstanceTaskListItem,
+  ChecklistInstanceTaskWithResponses,
   ChecklistOverviewStats,
   ChecklistResponsibilityListItem,
   ChecklistReviewDecision,
   ChecklistReviewItemInsert,
   ChecklistReviewItemListItem,
   ChecklistReviewListItem,
+  ChecklistTaskAttachment,
+  ChecklistTaskAttachmentInsert,
   ChecklistTaskKanbanStatus,
+  ChecklistTaskResponse,
   ChecklistTaskResponseInsert,
   ChecklistTaskResponsePayload,
   ChecklistTaskStatusHistoryListItem,
@@ -45,6 +50,10 @@ function unwrap<T>(response: { data: T; error: any }) {
 function mapError(error: any) {
   const message = typeof error?.message === "string" ? error.message : "Erro inesperado do Supabase.";
   return new Error(message);
+}
+
+function sanitizeStorageFileName(fileName: string) {
+  return fileName.replace(/[\\/]+/g, "_");
 }
 
 export const checklistLookupsService = {
@@ -512,6 +521,25 @@ export const checklistInstancesService = {
       throw mapError(error);
     }
   },
+
+  async finalize(instanceId: string, userId: string) {
+    try {
+      return unwrap(
+        await supabase
+          .from("checklist_instancias")
+          .update({
+            status: "submitted" satisfies ChecklistInstanceStatus,
+            finalizado_por_user_id: userId,
+            finalizado_em: new Date().toISOString(),
+          })
+          .eq("id", instanceId)
+          .select("id")
+          .single(),
+      );
+    } catch (error) {
+      throw mapError(error);
+    }
+  },
 };
 
 export const checklistInstanceTasksService = {
@@ -558,6 +586,87 @@ export const checklistInstanceTasksService = {
       );
 
       return (data ?? []).map(mapChecklistInstanceTask);
+    } catch (error) {
+      throw mapError(error);
+    }
+  },
+
+  async listWithResponses(instanceId: string): Promise<ChecklistInstanceTaskWithResponses[]> {
+    try {
+      const data = unwrap(
+        await supabase
+          .from("checklist_instancia_tarefas")
+          .select(`
+            id,
+            checklist_instancia_id,
+            checklist_template_tarefa_id,
+            titulo_snapshot,
+            descricao_snapshot,
+            ajuda_snapshot,
+            ordem,
+            tipo_resposta_snapshot,
+            obrigatoria,
+            permite_comentario,
+            permite_anexo,
+            nota_min,
+            nota_max,
+            config_json_snapshot,
+            created_at,
+            instance:checklist_instancias!checklist_instancia_tarefas_checklist_instancia_id_fkey (
+              id,
+              titulo_snapshot,
+              status,
+              cost_center_id,
+              prazo_em
+            ),
+            responsaveis:checklist_tarefa_responsaveis (
+              id,
+              checklist_instancia_tarefa_id,
+              assigned_user_id,
+              assigned_by_user_id,
+              status_kanban,
+              pode_alterar_status,
+              ativo,
+              atribuida_em,
+              concluida_em,
+              assigned_user:usuarios!checklist_tarefa_responsaveis_assigned_user_id_fkey (
+                id,
+                full_name,
+                email
+              )
+            ),
+            respostas:checklist_tarefa_respostas (
+              id,
+              checklist_instancia_tarefa_id,
+              tarefa_responsavel_id,
+              respondido_por_user_id,
+              resposta_texto,
+              resposta_numero,
+              resposta_boolean,
+              resposta_data,
+              resposta_datetime,
+              resposta_json,
+              comentario_resposta,
+              created_at,
+              updated_at,
+              anexos:checklist_resposta_anexos (
+                id,
+                checklist_tarefa_resposta_id,
+                checklist_instancia_tarefa_id,
+                caminho_storage,
+                nome_arquivo,
+                tipo_arquivo,
+                tamanho_bytes,
+                uploaded_by,
+                created_at
+              )
+            )
+          `)
+          .eq("checklist_instancia_id", instanceId)
+          .order("ordem"),
+      );
+
+      return (data ?? []).map(mapChecklistInstanceTaskWithResponses);
     } catch (error) {
       throw mapError(error);
     }
@@ -801,13 +910,13 @@ export const checklistResponsesService = {
     }
   },
 
-  async save(args: {
+  async upsert(args: {
     existingId?: string | null;
     checklist_instancia_tarefa_id: string;
     tarefa_responsavel_id: string;
     respondido_por_user_id: string;
     payload: ChecklistTaskResponsePayload;
-  }) {
+  }): Promise<ChecklistTaskResponse> {
     const insertPayload: ChecklistTaskResponseInsert = {
       checklist_instancia_tarefa_id: args.checklist_instancia_tarefa_id,
       tarefa_responsavel_id: args.tarefa_responsavel_id,
@@ -818,11 +927,148 @@ export const checklistResponsesService = {
     try {
       if (args.existingId) {
         return unwrap(
-          await supabase.from("checklist_tarefa_respostas").update(insertPayload).eq("id", args.existingId),
+          await supabase
+            .from("checklist_tarefa_respostas")
+            .update(insertPayload)
+            .eq("id", args.existingId)
+            .select(`
+              id,
+              checklist_instancia_tarefa_id,
+              tarefa_responsavel_id,
+              respondido_por_user_id,
+              resposta_texto,
+              resposta_numero,
+              resposta_boolean,
+              resposta_data,
+              resposta_datetime,
+              resposta_json,
+              comentario_resposta,
+              created_at,
+              updated_at
+            `)
+            .single(),
         );
       }
 
-      return unwrap(await supabase.from("checklist_tarefa_respostas").insert(insertPayload));
+      return unwrap(
+        await supabase
+          .from("checklist_tarefa_respostas")
+          .insert(insertPayload)
+          .select(`
+            id,
+            checklist_instancia_tarefa_id,
+            tarefa_responsavel_id,
+            respondido_por_user_id,
+            resposta_texto,
+            resposta_numero,
+            resposta_boolean,
+            resposta_data,
+            resposta_datetime,
+            resposta_json,
+            comentario_resposta,
+            created_at,
+            updated_at
+          `)
+          .single(),
+      );
+    } catch (error) {
+      throw mapError(error);
+    }
+  },
+
+  async save(args: {
+    existingId?: string | null;
+    checklist_instancia_tarefa_id: string;
+    tarefa_responsavel_id: string;
+    respondido_por_user_id: string;
+    payload: ChecklistTaskResponsePayload;
+  }) {
+    return this.upsert(args);
+  },
+};
+
+export const checklistResponseAttachmentsService = {
+  async createSignedUrl(path: string, expiresInSeconds = 3600) {
+    try {
+      const { data, error } = await supabase.storage
+        .from("checklist-anexos")
+        .createSignedUrl(path, expiresInSeconds);
+
+      if (error || !data?.signedUrl) {
+        throw error ?? new Error("Nao foi possivel gerar a URL assinada do anexo.");
+      }
+
+      return data.signedUrl;
+    } catch (error) {
+      throw mapError(error);
+    }
+  },
+
+  async upload(args: {
+    instanciaId: string;
+    tarefaId: string;
+    respostaId: string;
+    file: File;
+    uploadedBy: string;
+  }): Promise<ChecklistTaskAttachment> {
+    const safeName = sanitizeStorageFileName(args.file.name);
+    const path = `${args.instanciaId}/${args.tarefaId}/${crypto.randomUUID()}-${safeName}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("checklist-anexos")
+        .upload(path, args.file, { upsert: false });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const payload: ChecklistTaskAttachmentInsert = {
+        checklist_tarefa_resposta_id: args.respostaId,
+        checklist_instancia_tarefa_id: args.tarefaId,
+        caminho_storage: path,
+        nome_arquivo: args.file.name,
+        tipo_arquivo: args.file.type || null,
+        tamanho_bytes: args.file.size,
+        uploaded_by: args.uploadedBy,
+      };
+
+      const inserted = unwrap(
+        await supabase
+          .from("checklist_resposta_anexos")
+          .insert(payload)
+          .select(`
+            id,
+            checklist_tarefa_resposta_id,
+            checklist_instancia_tarefa_id,
+            caminho_storage,
+            nome_arquivo,
+            tipo_arquivo,
+            tamanho_bytes,
+            uploaded_by,
+            created_at
+          `)
+          .single(),
+      );
+
+      return inserted;
+    } catch (error) {
+      await supabase.storage.from("checklist-anexos").remove([path]);
+      throw mapError(error);
+    }
+  },
+
+  async remove(args: Pick<ChecklistTaskAttachment, "id" | "caminho_storage">) {
+    try {
+      unwrap(await supabase.from("checklist_resposta_anexos").delete().eq("id", args.id));
+
+      const { error } = await supabase.storage
+        .from("checklist-anexos")
+        .remove([args.caminho_storage]);
+
+      if (error) {
+        throw error;
+      }
     } catch (error) {
       throw mapError(error);
     }

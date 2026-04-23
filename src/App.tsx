@@ -68,6 +68,7 @@ import ChecklistKanbanPage from "./pages/checklist/ChecklistKanbanPage";
 import ChecklistOverviewPage from "./pages/checklist/ChecklistOverviewPage";
 import ChecklistReviewsPage from "./pages/checklist/ChecklistReviewsPage";
 import ChecklistFeedbacksPage from "./pages/checklist/ChecklistFeedbacksPage";
+import ChecklistTasksPage from "./pages/checklist/ChecklistTasksPage";
 import ChecklistTeamsPage from "./pages/checklist/ChecklistTeamsPage";
 import ChecklistTemplatesPage from "./pages/checklist/ChecklistTemplatesPage";
 import MeusPlanos from "./pages/MeusPlanos";
@@ -178,15 +179,15 @@ const App = () => (
             <Route path="/checklists/templates" element={<ProtectedRoute><ChecklistTemplatesPage /></ProtectedRoute>} />
             <Route path="/checklists/instancias" element={<ProtectedRoute><ChecklistInstancesPage /></ProtectedRoute>} />
             <Route path="/checklists/avaliacoes" element={<ProtectedRoute><ChecklistReviewsPage /></ProtectedRoute>} />
-            <Route path="/checklists/tarefas" element={<Navigate to="/checklists/instancias" replace />} />
+            <Route path="/checklists/tarefas" element={<ProtectedRoute><ChecklistTasksPage /></ProtectedRoute>} />
             <Route path="/checklists/kanban" element={<ProtectedRoute><ChecklistKanbanPage /></ProtectedRoute>} />
             <Route path="/checklists/feedbacks" element={<ProtectedRoute><ChecklistFeedbacksPage /></ProtectedRoute>} />
             <Route path="/checklists/planos-acao" element={<ProtectedRoute><ChecklistActionPlansPage /></ProtectedRoute>} />
             <Route path="/checklists/auditoria" element={<ProtectedRoute><ChecklistAuditPage /></ProtectedRoute>} />
             <Route path="/checklist-itens" element={<ProtectedRoute><ChecklistTemplatesPage /></ProtectedRoute>} />
             <Route path="/checklist-execucoes" element={<ProtectedRoute><ChecklistInstancesPage /></ProtectedRoute>} />
-            <Route path="/checklist-respostas" element={<Navigate to="/checklists/instancias" replace />} />
-            <Route path="/checklist-respostas-lista" element={<Navigate to="/checklists/instancias" replace />} />
+            <Route path="/checklist-respostas" element={<Navigate to="/checklists/tarefas" replace />} />
+            <Route path="/checklist-respostas-lista" element={<Navigate to="/checklists/tarefas" replace />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -21,6 +21,9 @@ export type ChecklistTaskResponsibleUpdate = TablesUpdate<"checklist_tarefa_resp
 export type ChecklistTaskResponse = Tables<"checklist_tarefa_respostas">;
 export type ChecklistTaskResponseInsert = TablesInsert<"checklist_tarefa_respostas">;
 export type ChecklistTaskResponseUpdate = TablesUpdate<"checklist_tarefa_respostas">;
+export type ChecklistTaskAttachment = Tables<"checklist_resposta_anexos">;
+export type ChecklistTaskAttachmentInsert = TablesInsert<"checklist_resposta_anexos">;
+export type ChecklistTaskAttachmentUpdate = TablesUpdate<"checklist_resposta_anexos">;
 export type ChecklistTaskStatusHistory = Tables<"checklist_tarefa_status_historico">;
 
 export type ChecklistReview = Tables<"checklist_avaliacoes">;
@@ -142,6 +145,21 @@ export type ChecklistInstanceTaskListItem = ChecklistInstanceTask & {
   responsaveis: ChecklistInstanceTaskResponsibility[];
 };
 
+export type ChecklistTaskResponseWithAttachments = ChecklistTaskResponse & {
+  anexos: ChecklistTaskAttachment[];
+};
+
+export type ChecklistResponderInstanceSummary = Pick<
+  ChecklistInstance,
+  "id" | "titulo_snapshot" | "status" | "cost_center_id" | "prazo_em"
+>;
+
+export type ChecklistInstanceTaskWithResponses = ChecklistInstanceTask & {
+  instance: ChecklistResponderInstanceSummary | null;
+  responsaveis: ChecklistInstanceTaskResponsibility[];
+  respostas: ChecklistTaskResponseWithAttachments[];
+};
+
 export type ChecklistResponsibilityListItem = ChecklistTaskResponsible & {
   assigned_user: Pick<UserRow, "id" | "full_name" | "email"> | null;
   task: (ChecklistInstanceTask & {
@@ -237,6 +255,50 @@ export type ChecklistTaskResponsePayload = {
   resposta_datetime: string | null;
   resposta_json: Json | null;
   comentario_resposta: string | null;
+};
+
+export type ChecklistResponseColumnByType = {
+  conformity_radio: "resposta_texto";
+  text: "resposta_texto";
+  textarea: "resposta_texto";
+  number: "resposta_numero";
+  score: "resposta_numero";
+  boolean: "resposta_boolean";
+  single_select: "resposta_texto";
+  multi_select: "resposta_json";
+  date: "resposta_data";
+  datetime: "resposta_datetime";
+  time: "resposta_texto";
+};
+
+export type ChecklistResponseValueByType = {
+  conformity_radio: string | null;
+  text: string | null;
+  textarea: string | null;
+  number: number | null;
+  score: number | null;
+  boolean: boolean | null;
+  single_select: string | null;
+  multi_select: string[];
+  date: string | null;
+  datetime: string | null;
+  time: string | null;
+};
+
+export type TipoRespostaSnapshotHelper<
+  T extends ChecklistTaskResponseType = ChecklistTaskResponseType,
+> = {
+  tipo: T;
+  colunaResposta: ChecklistResponseColumnByType[T];
+  valor: ChecklistResponseValueByType[T];
+};
+
+export type ChecklistResponseInputValue =
+  ChecklistResponseValueByType[ChecklistTaskResponseType];
+
+export type ChecklistConfigOption = {
+  label: string;
+  value: string;
 };
 
 export type ChecklistSupervisorActor =
